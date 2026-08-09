@@ -14,6 +14,12 @@ export const createFollowUpSchema = z.object({
 }).strict();
 
 export const updateFollowUpStatusSchema = z.object({ status: z.enum(["PENDING", "COMPLETED", "CANCELED"]) }).strict();
+export const listFollowUpsQuerySchema = z.object({
+  status: z.enum(["PENDING", "COMPLETED", "CANCELED"]).optional(),
+  assignedToMe: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+}).strict();
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type CreateFollowUpInput = z.infer<typeof createFollowUpSchema>;
 export type UpdateFollowUpStatusInput = z.infer<typeof updateFollowUpStatusSchema>;
+export type ListFollowUpsQuery = z.infer<typeof listFollowUpsQuerySchema>;

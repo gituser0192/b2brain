@@ -1,8 +1,28 @@
 import { prisma } from "../../database/prisma.js";
-import type { CreateActivityInput, CreateFollowUpInput, UpdateFollowUpStatusInput } from "./engagement.validation.js";
+import type { CreateActivityInput, CreateFollowUpInput, ListFollowUpsQuery, UpdateFollowUpStatusInput } from "./engagement.validation.js";
 
 const actorSelect = { id: true, firstName: true, lastName: true } as const;
 export class EngagementRepository {
+  async followUpCenter(organizationId: string, actorUserId: string, query: ListFollowUpsQuery) {
+    const where = {
+      organizationId,
+      deletedAt: null,
+      customer: { deletedAt: null },
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.assignedToMe ? { assignedToId: actorUserId } : {}),
+    };
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    const [items, pending, overdue, dueToday, completed] = await Promise.all([
+      prisma.customerFollowUp.findMany({ where, include: { customer: { select: { id: true, displayName: true, email: true, phone: true } }, assignedTo: { select: actorSelect } }, orderBy: [{ status: "asc" }, { dueAt: "asc" }], take: query.limit }),
+      prisma.customerFollowUp.count({ where: { ...where, status: "PENDING" } }),
+      prisma.customerFollowUp.count({ where: { ...where, status: "PENDING", dueAt: { lt: todayStart } } }),
+      prisma.customerFollowUp.count({ where: { ...where, status: "PENDING", dueAt: { gte: todayStart, lt: tomorrowStart } } }),
+      prisma.customerFollowUp.count({ where: { ...where, status: "COMPLETED" } }),
+    ]);
+    return { items, metrics: { pending, overdue, dueToday, completed } };
+  }
   customer(organizationId: string, customerId: string) { return prisma.customer.findFirst({ where: { id: customerId, organizationId, deletedAt: null }, select: { id: true } }); }
   async timeline(organizationId: string, customerId: string) {
     const [activities, followUps] = await Promise.all([

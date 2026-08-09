@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createActivitySchema,
   createFollowUpSchema,
+  listFollowUpsQuerySchema,
   updateFollowUpStatusSchema,
 } from "../src/modules/customer-engagement/engagement.validation.js";
 
@@ -44,5 +45,11 @@ describe("customer engagement validation", () => {
     expect(result.dueAt).toEqual(new Date("2026-08-04T10:00:00.000Z"));
     expect(updateFollowUpStatusSchema.parse({ status: "COMPLETED" })).toEqual({ status: "COMPLETED" });
     expect(() => updateFollowUpStatusSchema.parse({ status: "DEFERRED" })).toThrow();
+  });
+
+  it("validates follow-up center filters without accepting tenant identifiers", () => {
+    expect(listFollowUpsQuerySchema.parse({ assignedToMe: "true", limit: "25" })).toEqual({ assignedToMe: true, limit: 25 });
+    expect(() => listFollowUpsQuerySchema.parse({ organizationId: crypto.randomUUID() })).toThrow();
+    expect(() => listFollowUpsQuerySchema.parse({ limit: "101" })).toThrow();
   });
 });
