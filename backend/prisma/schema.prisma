@@ -144,6 +144,13 @@ enum AuditActorType {
   AI_AGENT
 }
 
+enum BusinessRecommendationStatus {
+  OPEN
+  EXECUTED
+  DISMISSED
+  RESOLVED
+}
+
 enum ProjectStatus {
   PLANNING
   ACTIVE
@@ -636,6 +643,7 @@ model User {
   approvalsRequested          ApprovalRequest[]        @relation("ApprovalRequestedBy")
   approvalsDecided            ApprovalRequest[]        @relation("ApprovalDecidedBy")
   auditEvents                 AuditEvent[]             @relation("AuditActorUser")
+  recommendationsDecided      BusinessRecommendation[] @relation("RecommendationDecidedBy")
   projectsOwned               Project[]                @relation("ProjectOwner")
   projectsCreated             Project[]                @relation("ProjectCreatedBy")
   projectsUpdated             Project[]                @relation("ProjectUpdatedBy")
@@ -730,6 +738,7 @@ model Organization {
   voiceCallJobs           VoiceCallJob[]
   approvalRequests        ApprovalRequest[]
   auditEvents             AuditEvent[]
+  businessRecommendations BusinessRecommendation[]
   projects                Project[]
   projectTasks            ProjectTask[]
   projectMembers          ProjectMember[]
@@ -1257,6 +1266,38 @@ model AuditEvent {
   @@index([organizationId, serviceCode, actionCode, createdAt])
   @@index([organizationId, sourceType, sourceId, createdAt])
   @@index([actorUserId])
+}
+
+model BusinessRecommendation {
+  id                String                       @id @default(uuid()) @db.Uuid
+  organizationId    String                       @db.Uuid
+  fingerprint       String
+  serviceCode       String
+  actionCode        String
+  sourceType        String
+  sourceId          String                       @db.Uuid
+  title             String
+  explanation       String
+  recommendedAction String
+  impactSummary     String?
+  priority          ApprovalRiskLevel            @default(MEDIUM)
+  status            BusinessRecommendationStatus @default(OPEN)
+  evidence          Json
+  decidedById       String?                      @db.Uuid
+  decisionNote      String?
+  decidedAt         DateTime?
+  executedAt        DateTime?
+  resolvedAt        DateTime?
+  lastDetectedAt    DateTime                     @default(now())
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  organization      Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  decidedBy         User?                        @relation("RecommendationDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId, status, priority, createdAt])
+  @@index([organizationId, serviceCode, status])
+  @@index([decidedById])
 }
 
 model Project {
