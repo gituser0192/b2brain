@@ -1,6 +1,6 @@
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
-import type { ConversionInput, InquiryInput } from "./inquiry.validation.js";
+import type { ContactInput, ConversionInput, FollowUpInput, InquiryInput } from "./inquiry.validation.js";
 const include = {
   customer: {
     select: { id: true, displayName: true, email: true, phone: true },
@@ -104,6 +104,7 @@ export class InquiryService {
             !i.firstRespondedAt &&
             !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(i.status),
         ).length,
+        followUpsDue: inquiries.filter((i) => i.nextFollowUpAt && i.nextFollowUpAt < now && !i.followUpCompletedAt && !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(i.status)).length,
         converted,
         conversionRate: inquiries.length
           ? (converted / inquiries.length) * 100
@@ -172,10 +173,12 @@ export class InquiryService {
           : "Inquiry unassigned",
         createdById: user,
       });
+    const match = await this.match(org, input.email, input.phone);
     return prisma.inquiry.update({
       where: { id },
       data: {
         ...input,
+        customerId: match?.id ?? null,
         firstRespondedAt:
           current.firstRespondedAt ??
           (current.status === "NEW" && input.status !== "NEW"
@@ -202,6 +205,29 @@ export class InquiryService {
         details: note,
         createdById: user,
       },
+    });
+  }
+  async contact(org: string, user: string, id: string, input: ContactInput) {
+    const inquiry = await prisma.inquiry.findFirst({ where: { id, organizationId: org, deletedAt: null } });
+    if (!inquiry) throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
+    if (["CONVERTED", "DISQUALIFIED", "SPAM"].includes(inquiry.status)) throw new AppError(409, "Closed inquiries cannot receive new contact activity.", "INQUIRY_CLOSED");
+    return prisma.$transaction(async (tx) => {
+      const event = await tx.inquiryTimeline.create({ data: { organizationId: org, inquiryId: id, type: "CONTACT_LOGGED", summary: `${input.channel}: ${input.summary}`, details: input.details, createdById: user } });
+      await tx.inquiry.update({ where: { id }, data: { firstRespondedAt: inquiry.firstRespondedAt ?? new Date(), status: inquiry.status === "NEW" ? "REVIEWING" : inquiry.status, updatedById: user } });
+      return event;
+    });
+  }
+  async scheduleFollowUp(org: string, user: string, id: string, input: FollowUpInput) {
+    const inquiry = await prisma.inquiry.findFirst({ where: { id, organizationId: org, deletedAt: null } });
+    if (!inquiry) throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
+    if (["CONVERTED", "DISQUALIFIED", "SPAM"].includes(inquiry.status)) throw new AppError(409, "Closed inquiries cannot schedule follow-ups.", "INQUIRY_CLOSED");
+    return prisma.inquiry.update({ where: { id }, data: { nextFollowUpAt: input.dueAt, followUpNote: input.note, followUpCompletedAt: null, updatedById: user, timeline: { create: { organizationId: org, type: "FOLLOW_UP_SCHEDULED", summary: `Follow-up scheduled for ${input.dueAt.toISOString()}`, details: input.note, createdById: user } } }, include });
+  }
+  async completeFollowUp(org: string, user: string, id: string) {
+    return prisma.$transaction(async (tx) => {
+      const result = await tx.inquiry.updateMany({ where: { id, organizationId: org, deletedAt: null, nextFollowUpAt: { not: null }, followUpCompletedAt: null }, data: { followUpCompletedAt: new Date(), updatedById: user } });
+      if (result.count !== 1) throw new AppError(404, "Open inquiry follow-up was not found.", "FOLLOW_UP_NOT_FOUND");
+      return tx.inquiryTimeline.create({ data: { organizationId: org, inquiryId: id, type: "FOLLOW_UP_COMPLETED", summary: "Follow-up completed", createdById: user } });
     });
   }
   private async service(org: string, code: string) {

@@ -471,6 +471,9 @@ enum InquiryTimelineType {
   ASSIGNED
   CLASSIFIED
   CONVERTED
+  CONTACT_LOGGED
+  FOLLOW_UP_SCHEDULED
+  FOLLOW_UP_COMPLETED
 }
 
 enum ConnectorType {
@@ -2156,46 +2159,50 @@ model CalendarReminder {
 }
 
 model Inquiry {
-  id                 String             @id @default(uuid()) @db.Uuid
-  organizationId     String             @db.Uuid
-  source             InquirySource
-  type               InquiryType        @default(UNCLASSIFIED)
-  status             InquiryStatus      @default(NEW)
-  priority           ProjectPriority    @default(MEDIUM)
-  contactName        String
-  email              String?
-  phone              String?
-  companyName        String?
-  subject            String
-  message            String
-  customerId         String?            @db.Uuid
-  campaignId         String?            @db.Uuid
-  assignedEmployeeId String?            @db.Uuid
-  convertedDealId    String?            @db.Uuid
-  convertedTicketId  String?            @db.Uuid
-  responseDueAt      DateTime?
-  firstRespondedAt   DateTime?
-  disqualifiedReason String?
-  createdById        String             @db.Uuid
-  updatedById        String             @db.Uuid
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  deletedAt          DateTime?
-  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer           Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  campaign           MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  assignedEmployee   Employee?          @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
-  convertedDeal      Deal?              @relation(fields: [convertedDealId], references: [id], onDelete: SetNull)
-  convertedTicket    SupportTicket?     @relation(fields: [convertedTicketId], references: [id], onDelete: SetNull)
-  createdBy          User               @relation("InquiryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy          User               @relation("InquiryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  timeline           InquiryTimeline[]
+  id                  String             @id @default(uuid()) @db.Uuid
+  organizationId      String             @db.Uuid
+  source              InquirySource
+  type                InquiryType        @default(UNCLASSIFIED)
+  status              InquiryStatus      @default(NEW)
+  priority            ProjectPriority    @default(MEDIUM)
+  contactName         String
+  email               String?
+  phone               String?
+  companyName         String?
+  subject             String
+  message             String
+  customerId          String?            @db.Uuid
+  campaignId          String?            @db.Uuid
+  assignedEmployeeId  String?            @db.Uuid
+  convertedDealId     String?            @db.Uuid
+  convertedTicketId   String?            @db.Uuid
+  responseDueAt       DateTime?
+  firstRespondedAt    DateTime?
+  disqualifiedReason  String?
+  nextFollowUpAt      DateTime?
+  followUpNote        String?
+  followUpCompletedAt DateTime?
+  createdById         String             @db.Uuid
+  updatedById         String             @db.Uuid
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  deletedAt           DateTime?
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer            Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  campaign            MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  assignedEmployee    Employee?          @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  convertedDeal       Deal?              @relation(fields: [convertedDealId], references: [id], onDelete: SetNull)
+  convertedTicket     SupportTicket?     @relation(fields: [convertedTicketId], references: [id], onDelete: SetNull)
+  createdBy           User               @relation("InquiryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User               @relation("InquiryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  timeline            InquiryTimeline[]
 
   @@index([organizationId, status, priority, deletedAt])
   @@index([organizationId, email, deletedAt])
   @@index([organizationId, phone, deletedAt])
   @@index([organizationId, assignedEmployeeId, status])
   @@index([organizationId, responseDueAt, status])
+  @@index([organizationId, nextFollowUpAt, status])
 }
 
 model InquiryTimeline {

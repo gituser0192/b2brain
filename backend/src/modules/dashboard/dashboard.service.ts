@@ -7,7 +7,7 @@ export class DashboardService {
     const enabled = new Set((await prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { service: { select: { code: true } } } })).map((item) => item.service.code));
     const can = (service: string, permission: string) => enabled.has(service) && permissions.includes(permission);
     const date = since ? { gte: since } : undefined;
-    const [customers, followUps, deals, projects, overdueTasks, employees, invoices, payments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents] = await Promise.all([
+    const [customers, followUps, deals, projects, overdueTasks, employees, invoices, payments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
       can("CRM", "CRM_VIEW") ? prisma.customer.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { status: true } }) : [],
       can("CRM", "CRM_ACTIVITY_VIEW") ? prisma.customerFollowUp.count({ where: { organizationId, status: "PENDING", deletedAt: null, dueAt: { lt: new Date() } } }) : 0,
       can("SALES", "DEAL_VIEW") ? prisma.deal.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { stage: true, amount: true, probability: true, currency: true } }) : [],
@@ -26,6 +26,7 @@ export class DashboardService {
       can("WEBSITES", "WEBSITE_VIEW") ? prisma.websiteDeployment.findMany({ where: { organizationId }, select: { status: true } }) : [],
       can("PROCUREMENT", "PROCUREMENT_VIEW") ? prisma.purchaseOrder.findMany({ where: { organizationId, deletedAt: null }, select: { status: true, expectedDelivery: true, total: true } }) : [],
       can("CALENDAR", "CALENDAR_VIEW") ? prisma.calendarEvent.findMany({ where: { organizationId, deletedAt: null, startAt: { gte: new Date(new Date().setHours(0,0,0,0)) } }, select: { status: true, startAt: true } }) : [],
+      can("LEADS", "INQUIRY_VIEW") ? prisma.inquiry.findMany({ where: { organizationId, deletedAt: null, status: { notIn: ["CONVERTED", "DISQUALIFIED", "SPAM"] } }, select: { nextFollowUpAt: true, followUpCompletedAt: true } }) : [],
     ]);
     const invoiceTotal = invoices.reduce((sum, item) => sum + Number(item.total), 0);
     const invoicePaid = invoices.reduce((sum, item) => sum + item.payments.reduce((paid, payment) => paid + Number(payment.amount), 0), 0);
@@ -46,6 +47,7 @@ export class DashboardService {
       websiteDeployments.filter((item) => item.status === "FAILED").length ? { type: "DEPLOYMENT_FAILED", count: websiteDeployments.filter((item) => item.status === "FAILED").length, label: "Failed website deployments", view: "websites" } : null,
       purchaseOrders.filter((item) => item.status === "AWAITING_APPROVAL").length ? { type: "PURCHASE_APPROVAL", count: purchaseOrders.filter((item) => item.status === "AWAITING_APPROVAL").length, label: "Purchase orders awaiting approval", view: "procurement" } : null,
       purchaseOrders.filter((item) => ["ORDERED", "PARTIALLY_RECEIVED"].includes(item.status) && item.expectedDelivery && item.expectedDelivery < new Date()).length ? { type: "DELIVERY_OVERDUE", count: purchaseOrders.filter((item) => ["ORDERED", "PARTIALLY_RECEIVED"].includes(item.status) && item.expectedDelivery && item.expectedDelivery < new Date()).length, label: "Overdue supplier deliveries", view: "procurement" } : null,
+      inquiries.filter((item) => item.nextFollowUpAt && item.nextFollowUpAt < new Date() && !item.followUpCompletedAt).length ? { type: "LEAD_FOLLOW_UP", count: inquiries.filter((item) => item.nextFollowUpAt && item.nextFollowUpAt < new Date() && !item.followUpCompletedAt).length, label: "Overdue lead follow-ups", view: "inquiries" } : null,
     ].filter(Boolean);
     return { periodDays: days, enabledServices: [...enabled], currency: organization?.currency ?? "INR", metrics: {
       customers: customers.length, leads: customers.filter((item) => item.status === "LEAD").length, activeCustomers: customers.filter((item) => item.status === "ACTIVE").length, overdueFollowUps: followUps,

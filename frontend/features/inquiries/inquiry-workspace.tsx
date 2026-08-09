@@ -18,6 +18,9 @@ type Item = {
   assignedEmployeeId: string | null;
   responseDueAt: string | null;
   disqualifiedReason: string | null;
+  nextFollowUpAt: string | null;
+  followUpNote: string | null;
+  followUpCompletedAt: string | null;
   createdAt: string;
   customer: {
     displayName: string;
@@ -161,6 +164,23 @@ export function InquiryWorkspace() {
       await load();
     }
   }
+  async function logContact() {
+    if (!chosen) return;
+    const channel = prompt("Contact channel: CALL, WHATSAPP, EMAIL, MEETING or NOTE", "CALL")?.trim().toUpperCase();
+    if (!channel || !["CALL", "WHATSAPP", "EMAIL", "MEETING", "NOTE"].includes(channel)) return;
+    const summary = prompt("What happened?"); if (!summary?.trim()) return;
+    const details = prompt("Optional details") ?? "";
+    try { await authorizedRequest(`/inquiries/${chosen.id}/contact`, { method: "POST", body: JSON.stringify({ channel, summary, details }) }); await load(); }
+    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to log contact activity."); }
+  }
+  async function scheduleFollowUp() {
+    if (!chosen) return;
+    const dueAt = prompt("Follow-up date and time (example: 2026-08-12T10:30)", new Date(Date.now() + 86_400_000).toISOString().slice(0, 16));
+    if (!dueAt) return; const note = prompt("What should happen in this follow-up?"); if (!note?.trim()) return;
+    try { await authorizedRequest(`/inquiries/${chosen.id}/follow-up`, { method: "POST", body: JSON.stringify({ dueAt: new Date(dueAt).toISOString(), note }) }); await load(); }
+    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to schedule follow-up."); }
+  }
+  async function completeFollowUp() { if (!chosen) return; try { await authorizedRequest(`/inquiries/${chosen.id}/follow-up/complete`, { method: "POST" }); await load(); } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to complete follow-up."); } }
   async function convert(target: "CUSTOMER" | "DEAL" | "SUPPORT") {
     if (!chosen) return;
     let body: Record<string, unknown> = { target };
@@ -268,6 +288,8 @@ export function InquiryWorkspace() {
               <div className="ticket-description">
                 <p>{chosen.message}</p>
               </div>
+              {manage && !["CONVERTED","DISQUALIFIED","SPAM"].includes(chosen.status) && <div className="lead-action-bar"><button onClick={() => void logContact()}>Log contact</button><button onClick={() => void scheduleFollowUp()}>{chosen.nextFollowUpAt && !chosen.followUpCompletedAt ? "Reschedule follow-up" : "Schedule follow-up"}</button></div>}
+              {chosen.nextFollowUpAt && <div className={`lead-follow-up ${!chosen.followUpCompletedAt && new Date(chosen.nextFollowUpAt) < new Date() ? "overdue" : ""}`}><div><strong>{chosen.followUpCompletedAt ? "Follow-up completed" : "Next follow-up"}</strong><p>{chosen.followUpNote}</p><small>{new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(chosen.nextFollowUpAt))}</small></div>{manage && !chosen.followUpCompletedAt && <button onClick={() => void completeFollowUp()}>Complete</button>}</div>}
               {canConvert && chosen.status === "QUALIFIED" && (
                 <div className="inquiry-convert">
                   <strong>Explicit conversion</strong>

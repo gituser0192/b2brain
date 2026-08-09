@@ -81,6 +81,19 @@ export const inquirySchema = z
 export const noteSchema = z
   .object({ note: z.string().trim().min(2).max(4000) })
   .strict();
+export const contactSchema = z
+  .object({
+    channel: z.enum(["CALL", "WHATSAPP", "EMAIL", "MEETING", "NOTE"]),
+    summary: z.string().trim().min(2).max(300),
+    details: nullable(4000),
+  })
+  .strict();
+export const followUpSchema = z
+  .object({
+    dueAt: z.string().datetime().transform((value) => new Date(value)),
+    note: z.string().trim().min(2).max(1000),
+  })
+  .strict();
 export const conversionSchema = z.discriminatedUnion("target", [
   z.object({ target: z.literal("CUSTOMER") }).strict(),
   z
@@ -105,3 +118,5 @@ export const conversionSchema = z.discriminatedUnion("target", [
 export type InquiryInput = z.infer<typeof inquirySchema>;
 export type ConversionInput = z.infer<typeof conversionSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;
+export type ContactInput = z.infer<typeof contactSchema>;
+export type FollowUpInput = z.infer<typeof followUpSchema>;

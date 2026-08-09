@@ -11,9 +11,13 @@ import { success } from "../../shared/responses/api-response.js";
 import { InquiryService } from "./inquiry.service.js";
 import {
   conversionSchema,
+  contactSchema,
+  followUpSchema,
   inquirySchema,
   noteSchema,
   type ConversionInput,
+  type ContactInput,
+  type FollowUpInput,
   type InquiryInput,
   type NoteInput,
 } from "./inquiry.validation.js";
@@ -32,6 +36,29 @@ inquiryRouter.use(
 inquiryRouter.get("/", requirePermission("INQUIRY_VIEW"), async (r, s) =>
   s.json(success(await service.list(context(r).organizationId))),
 );
+inquiryRouter.post(
+  "/:id/contact",
+  requirePermission("INQUIRY_MANAGE"),
+  validateBody(contactSchema),
+  async (r, s) => {
+    const c = context(r);
+    s.status(201).json(success(await service.contact(c.organizationId, c.userId, String(r.params.id), r.body as ContactInput), "Contact activity logged."));
+  },
+);
+inquiryRouter.post(
+  "/:id/follow-up",
+  requirePermission("INQUIRY_MANAGE"),
+  validateBody(followUpSchema),
+  async (r, s) => {
+    const c = context(r);
+    s.json(success(await service.scheduleFollowUp(c.organizationId, c.userId, String(r.params.id), r.body as FollowUpInput), "Follow-up scheduled."));
+  },
+);
+inquiryRouter.post("/:id/follow-up/complete", requirePermission("INQUIRY_MANAGE"), async (r, s) => {
+  const c = context(r);
+  await service.completeFollowUp(c.organizationId, c.userId, String(r.params.id));
+  s.json(success({}, "Follow-up completed."));
+});
 inquiryRouter.post(
   "/",
   requirePermission("INQUIRY_MANAGE"),
