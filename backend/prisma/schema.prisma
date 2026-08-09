@@ -1401,6 +1401,7 @@ model Payment {
   invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   createdBy      User          @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
+  @@unique([organizationId, reference])
   @@index([organizationId, invoiceId, deletedAt, paidAt])
 }
 

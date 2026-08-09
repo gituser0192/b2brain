@@ -1,1 +1,83 @@
-import{Prisma}from"@prisma/client";import{prisma}from"../../database/prisma.js";import{AppError}from"../../shared/errors/app-error.js";import type{ExpenseInput,InvoiceInput,PaymentInput}from"./finance.validation.js";export class FinanceService{async context(o:string,c:string,p:string|null){if(!await prisma.customer.findFirst({where:{id:c,organizationId:o,deletedAt:null}}))throw new AppError(404,"Customer not found.","CUSTOMER_NOT_FOUND");if(p&&!await prisma.project.findFirst({where:{id:p,organizationId:o,deletedAt:null}}))throw new AppError(404,"Project not found.","PROJECT_NOT_FOUND")}async list(o:string){const[invoices,expenses]=await Promise.all([prisma.invoice.findMany({where:{organizationId:o,deletedAt:null},include:{customer:{select:{displayName:true}},items:true,payments:{where:{deletedAt:null}}},orderBy:{issueDate:"desc"}}),prisma.expense.findMany({where:{organizationId:o,deletedAt:null},orderBy:{expenseDate:"desc"}})]);const invoiced=invoices.filter(i=>i.status!=="CANCELED").reduce((s,i)=>s+Number(i.total),0),received=invoices.reduce((s,i)=>s+i.payments.reduce((a,p)=>a+Number(p.amount),0),0),spent=expenses.filter(e=>e.status==="RECORDED").reduce((s,e)=>s+Number(e.amount),0);return{invoices,expenses,metrics:{invoiced,received,outstanding:Math.max(0,invoiced-received),expenses:spent,netCash:received-spent}}}async createInvoice(o:string,u:string,i:InvoiceInput){await this.context(o,i.customerId,i.projectId);const subtotal=i.items.reduce((s,x)=>s+x.quantity*x.unitPrice,0),total=Math.max(0,subtotal-i.discount+i.tax);return prisma.invoice.create({data:{organizationId:o,customerId:i.customerId,projectId:i.projectId,invoiceNumber:i.invoiceNumber.toUpperCase(),status:i.status,issueDate:i.issueDate,dueDate:i.dueDate,currency:i.currency,subtotal:new Prisma.Decimal(subtotal),discount:new Prisma.Decimal(i.discount),tax:new Prisma.Decimal(i.tax),total:new Prisma.Decimal(total),notes:i.notes,createdById:u,updatedById:u,items:{create:i.items.map(x=>({organizationId:o,description:x.description,quantity:new Prisma.Decimal(x.quantity),unitPrice:new Prisma.Decimal(x.unitPrice),amount:new Prisma.Decimal(x.quantity*x.unitPrice)}))}},include:{items:true}})}async pay(o:string,u:string,id:string,i:PaymentInput){const inv=await prisma.invoice.findFirst({where:{id,organizationId:o,deletedAt:null,status:{notIn:["DRAFT","CANCELED"]}},include:{payments:{where:{deletedAt:null}}}});if(!inv)throw new AppError(404,"Issued invoice not found.","INVOICE_NOT_FOUND");const paid=inv.payments.reduce((s,p)=>s+Number(p.amount),0),balance=Number(inv.total)-paid;if(i.amount>balance+0.001)throw new AppError(400,"Payment exceeds outstanding balance.","PAYMENT_EXCEEDS_BALANCE");return prisma.$transaction(async tx=>{const p=await tx.payment.create({data:{organizationId:o,invoiceId:id,amount:new Prisma.Decimal(i.amount),currency:inv.currency,method:i.method,reference:i.reference,paidAt:i.paidAt,createdById:u}});await tx.invoice.update({where:{id,organizationId:o},data:{status:i.amount>=balance?"PAID":"PARTIALLY_PAID",updatedById:u}});return p})}async expense(o:string,u:string,i:ExpenseInput){if(i.projectId&&!await prisma.project.findFirst({where:{id:i.projectId,organizationId:o,deletedAt:null}}))throw new AppError(404,"Project not found.","PROJECT_NOT_FOUND");return prisma.expense.create({data:{...i,amount:new Prisma.Decimal(i.amount),organizationId:o,createdById:u,updatedById:u}})}}
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../database/prisma.js";
+import { AppError } from "../../shared/errors/app-error.js";
+import type { ExpenseInput, InvoiceInput, PaymentInput } from "./finance.validation.js";
+
+export class FinanceService {
+  private async context(organizationId: string, customerId: string, projectId: string | null) {
+    if (!await prisma.customer.findFirst({ where: { id: customerId, organizationId, deletedAt: null } })) throw new AppError(404, "Customer not found.", "CUSTOMER_NOT_FOUND");
+    if (projectId && !await prisma.project.findFirst({ where: { id: projectId, organizationId, deletedAt: null } })) throw new AppError(404, "Project not found.", "PROJECT_NOT_FOUND");
+  }
+
+  async list(organizationId: string) {
+    await prisma.invoice.updateMany({ where: { organizationId, deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID"] }, dueDate: { lt: new Date() } }, data: { status: "OVERDUE" } });
+    const [invoices, expenses] = await Promise.all([
+      prisma.invoice.findMany({ where: { organizationId, deletedAt: null }, include: { customer: { select: { id: true, displayName: true, email: true, phone: true } }, items: true, payments: { where: { deletedAt: null }, orderBy: { paidAt: "desc" } }, }, orderBy: { issueDate: "desc" } }),
+      prisma.expense.findMany({ where: { organizationId, deletedAt: null }, orderBy: { expenseDate: "desc" } }),
+    ]);
+    const enrichedInvoices = invoices.map((invoice) => {
+      const paid = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      return { ...invoice, paid, outstanding: Math.max(0, Number(invoice.total) - paid), daysOverdue: invoice.status === "OVERDUE" ? Math.max(1, Math.floor((Date.now() - invoice.dueDate.getTime()) / 86_400_000)) : 0 };
+    });
+    const active = enrichedInvoices.filter((invoice) => invoice.status !== "CANCELED");
+    const invoiced = active.reduce((sum, invoice) => sum + Number(invoice.total), 0);
+    const received = active.reduce((sum, invoice) => sum + invoice.paid, 0);
+    const outstanding = active.reduce((sum, invoice) => sum + invoice.outstanding, 0);
+    const overdue = active.filter((invoice) => invoice.status === "OVERDUE").reduce((sum, invoice) => sum + invoice.outstanding, 0);
+    const spent = expenses.filter((expense) => expense.status === "RECORDED").reduce((sum, expense) => sum + Number(expense.amount), 0);
+    return { invoices: enrichedInvoices, expenses, metrics: { invoiced, received, outstanding, overdue, expenses: spent, netCash: received - spent } };
+  }
+
+  async createInvoice(organizationId: string, actorUserId: string, input: InvoiceInput) {
+    await this.context(organizationId, input.customerId, input.projectId);
+    const subtotal = input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const total = Math.max(0, subtotal - input.discount + input.tax);
+    try {
+      return await prisma.invoice.create({ data: { organizationId, customerId: input.customerId, projectId: input.projectId, invoiceNumber: input.invoiceNumber.toUpperCase(), status: input.status, issueDate: input.issueDate, dueDate: input.dueDate, currency: input.currency, subtotal: new Prisma.Decimal(subtotal), discount: new Prisma.Decimal(input.discount), tax: new Prisma.Decimal(input.tax), total: new Prisma.Decimal(total), notes: input.notes, createdById: actorUserId, updatedById: actorUserId, items: { create: input.items.map((item) => ({ organizationId, description: item.description, quantity: new Prisma.Decimal(item.quantity), unitPrice: new Prisma.Decimal(item.unitPrice), amount: new Prisma.Decimal(item.quantity * item.unitPrice) })) } }, include: { items: true } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new AppError(409, "Invoice number already exists in this organization.", "INVOICE_NUMBER_EXISTS");
+      throw error;
+    }
+  }
+
+  async pay(organizationId: string, actorUserId: string, id: string, input: PaymentInput) {
+    try {
+      return await prisma.$transaction(async (transaction) => {
+        const invoice = await transaction.invoice.findFirst({ where: { id, organizationId, deletedAt: null, status: { notIn: ["DRAFT", "CANCELED"] } }, include: { payments: { where: { deletedAt: null } } } });
+        if (!invoice) throw new AppError(404, "Issued invoice not found.", "INVOICE_NOT_FOUND");
+        if (input.reference && await transaction.payment.findFirst({ where: { organizationId, reference: input.reference, deletedAt: null } })) throw new AppError(409, "This payment reference has already been recorded.", "PAYMENT_REFERENCE_EXISTS");
+        const paid = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+        const balance = Number(invoice.total) - paid;
+        if (input.amount > balance + 0.001) throw new AppError(400, "Payment exceeds outstanding balance.", "PAYMENT_EXCEEDS_BALANCE");
+        const payment = await transaction.payment.create({ data: { organizationId, invoiceId: id, amount: new Prisma.Decimal(input.amount), currency: invoice.currency, method: input.method, reference: input.reference, paidAt: input.paidAt, createdById: actorUserId } });
+        const remaining = balance - input.amount;
+        const status = remaining <= 0.001 ? "PAID" : invoice.dueDate < new Date() ? "OVERDUE" : "PARTIALLY_PAID";
+        await transaction.invoice.update({ where: { id, organizationId }, data: { status, updatedById: actorUserId } });
+        return payment;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new AppError(409, "This payment reference has already been recorded.", "PAYMENT_REFERENCE_EXISTS");
+      throw error;
+    }
+  }
+
+  async createCollectionFollowUp(organizationId: string, actorUserId: string, id: string) {
+    const invoice = await prisma.invoice.findFirst({ where: { id, organizationId, deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } }, include: { customer: { select: { id: true, displayName: true } }, payments: { where: { deletedAt: null } } } });
+    if (!invoice) throw new AppError(404, "Collectible invoice not found.", "INVOICE_NOT_FOUND");
+    const outstanding = Math.max(0, Number(invoice.total) - invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0));
+    if (outstanding <= 0.001) throw new AppError(400, "This invoice has no outstanding balance.", "INVOICE_ALREADY_PAID");
+    const title = `Payment follow-up: ${invoice.invoiceNumber}`;
+    if (await prisma.customerFollowUp.findFirst({ where: { organizationId, customerId: invoice.customerId, title, status: "PENDING", deletedAt: null } })) throw new AppError(409, "A pending collection follow-up already exists for this invoice.", "FOLLOW_UP_EXISTS");
+    const dueAt = new Date(); dueAt.setHours(dueAt.getHours() + 1);
+    return prisma.$transaction(async (transaction) => {
+      const followUp = await transaction.customerFollowUp.create({ data: { organizationId, customerId: invoice.customerId, title, description: `${invoice.customer.displayName} has ${invoice.currency} ${outstanding.toFixed(2)} outstanding. Invoice due date: ${invoice.dueDate.toISOString().slice(0, 10)}.`, dueAt, assignedToId: actorUserId, createdById: actorUserId, updatedById: actorUserId } });
+      await transaction.notification.create({ data: { organizationId, recipientId: actorUserId, type: "FOLLOW_UP_DUE", title, message: `Collection follow-up created for ${invoice.customer.displayName}.`, sourceType: "CUSTOMER_FOLLOW_UP", sourceId: followUp.id, actionPath: "/dashboard", availableAt: dueAt, createdById: actorUserId, updatedById: actorUserId } });
+      return followUp;
+    });
+  }
+
+  async expense(organizationId: string, actorUserId: string, input: ExpenseInput) {
+    if (input.projectId && !await prisma.project.findFirst({ where: { id: input.projectId, organizationId, deletedAt: null } })) throw new AppError(404, "Project not found.", "PROJECT_NOT_FOUND");
+    return prisma.expense.create({ data: { ...input, amount: new Prisma.Decimal(input.amount), organizationId, createdById: actorUserId, updatedById: actorUserId } });
+  }
+}
