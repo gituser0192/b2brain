@@ -6,6 +6,7 @@ import { useAuth } from "@/features/auth/auth-context";
 const actions = [
   ["CRM_CUSTOMER_READ", "Read CRM customers"], ["CRM_FOLLOWUP_READ", "Read CRM follow-ups"],
   ["MESSAGE_DRAFT", "Draft messages"], ["CRM_ACTIVITY_CREATE", "Create CRM activities"],
+  ["VOICE_CALL_PLAN", "Prepare AI voice calls"], ["VOICE_CALL_REQUEST", "Request approved AI calls"],
   ["CRM_FOLLOWUP_CREATE", "Schedule CRM follow-ups"],
 ] as const;
 type Status = "DRAFT" | "ACTIVE" | "PAUSED";

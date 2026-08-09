@@ -99,6 +99,28 @@ enum AgentRunStatus {
   CANCELED
 }
 
+enum VoiceCallStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum VoiceCallOutcome {
+  INTERESTED
+  NOT_INTERESTED
+  CALLBACK_REQUESTED
+  NO_ANSWER
+  VOICEMAIL
+  WRONG_NUMBER
+  TRANSFERRED
+  OTHER
+}
+
 enum ProjectStatus {
   PLANNING
   ACTIVE
@@ -582,6 +604,9 @@ model User {
   agentsCreated               AgentDefinition[]        @relation("AgentCreatedBy")
   agentsUpdated               AgentDefinition[]        @relation("AgentUpdatedBy")
   agentRunsInitiated          AgentRun[]               @relation("AgentRunInitiatedBy")
+  voiceCallsCreated           VoiceCallJob[]           @relation("VoiceCallCreatedBy")
+  voiceCallsUpdated           VoiceCallJob[]           @relation("VoiceCallUpdatedBy")
+  voiceCallsApproved          VoiceCallJob[]           @relation("VoiceCallApprovedBy")
   projectsOwned               Project[]                @relation("ProjectOwner")
   projectsCreated             Project[]                @relation("ProjectCreatedBy")
   projectsUpdated             Project[]                @relation("ProjectUpdatedBy")
@@ -673,6 +698,7 @@ model Organization {
   notifications           Notification[]
   agents                  AgentDefinition[]
   agentRuns               AgentRun[]
+  voiceCallJobs           VoiceCallJob[]
   projects                Project[]
   projectTasks            ProjectTask[]
   projectMembers          ProjectMember[]
@@ -957,6 +983,7 @@ model Customer {
   updatedBy       User               @relation("CustomerUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   activities      CustomerActivity[]
   followUps       CustomerFollowUp[]
+  voiceCallJobs   VoiceCallJob[]
   projects        Project[]
   deals           Deal[]
   invoices        Invoice[]
@@ -1017,6 +1044,7 @@ model CustomerFollowUp {
   assignedTo     User           @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id], onDelete: Restrict)
   createdBy      User           @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy      User           @relation("FollowUpUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  voiceCallJobs  VoiceCallJob[]
 
   @@index([organizationId, customerId, status, deletedAt, dueAt])
   @@index([organizationId, assignedToId, status, dueAt])
@@ -1054,26 +1082,27 @@ model Notification {
 }
 
 model AgentDefinition {
-  id                String       @id @default(uuid()) @db.Uuid
-  organizationId    String       @db.Uuid
+  id                String         @id @default(uuid()) @db.Uuid
+  organizationId    String         @db.Uuid
   name              String
   purpose           String
   instructions      String?
   supportedService  String
-  status            AgentStatus  @default(DRAFT)
-  requiresApproval  Boolean      @default(true)
+  status            AgentStatus    @default(DRAFT)
+  requiresApproval  Boolean        @default(true)
   allowedActions    Json
-  dailyRunLimit     Int          @default(10)
-  dailyContactLimit Int          @default(0)
-  createdById       String       @db.Uuid
-  updatedById       String       @db.Uuid
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  dailyRunLimit     Int            @default(10)
+  dailyContactLimit Int            @default(0)
+  createdById       String         @db.Uuid
+  updatedById       String         @db.Uuid
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   deletedAt         DateTime?
-  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         User         @relation("AgentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy         User         @relation("AgentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User           @relation("AgentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User           @relation("AgentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   runs              AgentRun[]
+  voiceCallJobs     VoiceCallJob[]
 
   @@index([organizationId, status, deletedAt])
   @@index([createdById])
@@ -1100,6 +1129,50 @@ model AgentRun {
   @@index([organizationId, agentId, createdAt])
   @@index([organizationId, status, createdAt])
   @@index([initiatedById])
+}
+
+model VoiceCallJob {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  agentId        String            @db.Uuid
+  customerId     String            @db.Uuid
+  followUpId     String?           @db.Uuid
+  phoneNumber    String
+  language       String            @default("en-IN")
+  objective      String
+  approvedScript String
+  status         VoiceCallStatus   @default(PENDING_APPROVAL)
+  outcome        VoiceCallOutcome?
+  outcomeSummary String?
+  transcript     String?
+  recordingUrl   String?
+  provider       String?
+  providerCallId String?
+  scheduledAt    DateTime?
+  approvedById   String?           @db.Uuid
+  approvedAt     DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failureMessage String?
+  createdById    String            @db.Uuid
+  updatedById    String            @db.Uuid
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent          AgentDefinition   @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  customer       Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  followUp       CustomerFollowUp? @relation(fields: [followUpId], references: [id], onDelete: SetNull)
+  approvedBy     User?             @relation("VoiceCallApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  createdBy      User              @relation("VoiceCallCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User              @relation("VoiceCallUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, scheduledAt])
+  @@index([organizationId, customerId, createdAt])
+  @@index([organizationId, followUpId])
+  @@index([agentId])
+  @@index([createdById])
+  @@index([updatedById])
 }
 
 model Project {

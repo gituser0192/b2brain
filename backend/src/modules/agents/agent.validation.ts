@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const agentActions = ["CRM_CUSTOMER_READ", "CRM_FOLLOWUP_READ", "MESSAGE_DRAFT", "CRM_ACTIVITY_CREATE", "CRM_FOLLOWUP_CREATE"] as const;
+export const agentActions = ["CRM_CUSTOMER_READ", "CRM_FOLLOWUP_READ", "MESSAGE_DRAFT", "VOICE_CALL_PLAN", "VOICE_CALL_REQUEST", "CRM_ACTIVITY_CREATE", "CRM_FOLLOWUP_CREATE"] as const;
 const fields = {
   name: z.string().trim().min(2, "Agent name is required.").max(100),
   purpose: z.string().trim().min(10, "Describe what this agent should accomplish.").max(500),

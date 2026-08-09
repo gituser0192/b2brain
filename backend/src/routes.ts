@@ -28,6 +28,7 @@ import { inquiryRouter } from "./modules/inquiries/inquiry.routes.js";
 import { bridgeRouter } from "./modules/automation-bridge/bridge.routes.js";
 import { whatsappAdminRouter, whatsappWebhookRouter } from "./modules/automation-bridge/whatsapp.routes.js";
 import { stayRouter } from "./modules/stay/stay.routes.js";
+import { voiceCallRouter } from "./modules/voice-calls/voice-call.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -66,3 +67,4 @@ apiRouter.use("/automation-bridge", bridgeRouter);
 apiRouter.use("/automation-bridge", whatsappAdminRouter);
 apiRouter.use("/webhooks/whatsapp", whatsappWebhookRouter);
 apiRouter.use("/stay", stayRouter);
+apiRouter.use("/voice-calls", voiceCallRouter);
