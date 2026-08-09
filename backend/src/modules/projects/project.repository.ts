@@ -1,0 +1,21 @@
+import { prisma } from "../../database/prisma.js"; import type { ProjectInput,TaskInput,ProjectMemberInput } from "./project.validation.js";
+const include={customer:{select:{id:true,displayName:true}},owner:{select:{id:true,firstName:true,lastName:true}},_count:{select:{tasks:{where:{deletedAt:null}}}}} as const;
+function taskData(input:TaskInput){return{title:input.title,description:input.description,status:input.status,priority:input.priority,dueDate:input.dueDate}}
+export class ProjectRepository {
+ list(org:string,archived:boolean){return prisma.project.findMany({where:{organizationId:org,deletedAt:archived?{not:null}:null},include,orderBy:{updatedAt:"desc"}})}
+ find(org:string,id:string,archived=false){return prisma.project.findFirst({where:{id,organizationId:org,...(archived?{}:{deletedAt:null})},include})}
+ customer(org:string,id:string){return prisma.customer.findFirst({where:{id,organizationId:org,deletedAt:null},select:{id:true}})}
+ create(org:string,user:string,input:ProjectInput){return prisma.project.create({data:{...input,organizationId:org,ownerId:user,createdById:user,updatedById:user,completedAt:input.status==="COMPLETED"?new Date():null},include})}
+ update(org:string,id:string,user:string,input:ProjectInput){return prisma.project.updateMany({where:{id,organizationId:org,deletedAt:null},data:{...input,updatedById:user,completedAt:input.status==="COMPLETED"?new Date():null}})}
+ archive(org:string,id:string,user:string){return prisma.project.updateMany({where:{id,organizationId:org,deletedAt:null},data:{deletedAt:new Date(),updatedById:user}})}
+ restore(org:string,id:string,user:string){return prisma.project.updateMany({where:{id,organizationId:org,deletedAt:{not:null}},data:{deletedAt:null,updatedById:user}})}
+ tasks(org:string,projectId:string){return prisma.projectTask.findMany({where:{organizationId:org,projectId,deletedAt:null},include:{assignedTo:{select:{id:true,firstName:true,lastName:true}}},orderBy:[{status:"asc"},{dueDate:"asc"}]})}
+ activeMember(org:string,membershipId:string){return prisma.organizationMembership.findFirst({where:{id:membershipId,organizationId:org,status:"ACTIVE",user:{status:"ACTIVE",deletedAt:null}},select:{id:true,userId:true}})}
+ activeEmployee(org:string,employeeId:string){return prisma.employee.findFirst({where:{id:employeeId,organizationId:org,status:{not:"EXITED"},deletedAt:null},select:{id:true,linkedUserId:true}})}
+ createTask(org:string,projectId:string,user:string,input:TaskInput,assignedUserId:string|null){return prisma.projectTask.create({data:{...taskData(input),organizationId:org,projectId,assignedToId:assignedUserId,createdById:user,updatedById:user,completedAt:input.status==="COMPLETED"?new Date():null}})}
+ updateTask(org:string,projectId:string,id:string,user:string,input:TaskInput,assignedUserId:string|null|undefined){return prisma.projectTask.updateMany({where:{id,organizationId:org,projectId,deletedAt:null},data:{...taskData(input),...(assignedUserId===undefined?{}:{assignedToId:assignedUserId}),updatedById:user,completedAt:input.status==="COMPLETED"?new Date():null}})}
+ archiveTask(org:string,projectId:string,id:string,user:string){return prisma.projectTask.updateMany({where:{id,organizationId:org,projectId,deletedAt:null},data:{deletedAt:new Date(),updatedById:user}})}
+ members(org:string,projectId:string){return prisma.projectMember.findMany({where:{organizationId:org,projectId,deletedAt:null},include:{employee:{select:{id:true,employeeNumber:true,firstName:true,lastName:true,jobTitle:true,department:true,linkedUserId:true}},membership:{include:{user:{select:{id:true,firstName:true,lastName:true,email:true}},role:{select:{name:true}}}}},orderBy:{createdAt:"asc"}})}
+ addMember(org:string,projectId:string,user:string,input:ProjectMemberInput){return prisma.projectMember.upsert({where:{projectId_employeeId:{projectId,employeeId:input.employeeId}},update:{role:input.role,roleLabel:input.roleLabel,deletedAt:null,updatedById:user},create:{organizationId:org,projectId,employeeId:input.employeeId,membershipId:null,role:input.role,roleLabel:input.roleLabel,createdById:user,updatedById:user}})}
+ removeMember(org:string,projectId:string,id:string,user:string){return prisma.projectMember.updateMany({where:{id,organizationId:org,projectId,deletedAt:null},data:{deletedAt:new Date(),updatedById:user}})}
+}

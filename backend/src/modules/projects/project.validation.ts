@@ -1,0 +1,8 @@
+import { z } from "zod";
+const optionalText = (max: number) => z.string().trim().max(max).optional().transform((value) => value || null);
+const optionalDate = z.string().datetime().optional().nullable().transform((value) => value ? new Date(value) : null);
+const projectFields = { name: z.string().trim().min(2).max(160), code: z.string().trim().min(2).max(30).regex(/^[A-Za-z0-9_-]+$/).transform((v) => v.toUpperCase()), description: optionalText(4000), customerId: z.string().uuid().optional().nullable().transform((value) => value ?? null), status: z.enum(["PLANNING","ACTIVE","ON_HOLD","COMPLETED","CANCELED"]), priority: z.enum(["LOW","MEDIUM","HIGH","URGENT"]), startDate: optionalDate, dueDate: optionalDate };
+export const projectSchema = z.object(projectFields).strict().refine((v) => !v.startDate || !v.dueDate || v.dueDate >= v.startDate, { path:["dueDate"], message:"Due date must be on or after the start date." });
+export const taskSchema = z.object({ title:z.string().trim().min(2).max(200), description:optionalText(4000), status:z.enum(["TODO","IN_PROGRESS","BLOCKED","COMPLETED","CANCELED"]), priority:z.enum(["LOW","MEDIUM","HIGH","URGENT"]), dueDate:optionalDate, assignedMembershipId:z.string().uuid().optional().nullable() }).strict();
+export const projectMemberSchema=z.object({employeeId:z.string().uuid(),role:z.enum(["MANAGER","CONTRIBUTOR","VIEWER"]),roleLabel:z.string().trim().min(2).max(80)}).strict();
+export type ProjectInput=z.infer<typeof projectSchema>; export type TaskInput=z.infer<typeof taskSchema>;export type ProjectMemberInput=z.infer<typeof projectMemberSchema>;

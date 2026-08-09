@@ -1,0 +1,15 @@
+{
+  "name": "b2brain-b",
+  "version": "2.0.0",
+  "private": true,
+  "workspaces": ["frontend", "backend", "packages/*"],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace @b2brain/frontend",
+    "dev:backend": "npm run dev --workspace @b2brain/backend",
+    "build:frontend": "npm run build --workspace @b2brain/frontend",
+    "build:backend": "npm run build --workspace @b2brain/backend",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": { "node": ">=20.0.0", "npm": ">=10.0.0" }
+}

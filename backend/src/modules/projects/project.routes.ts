@@ -1,0 +1,9 @@
+import { Router } from "express";
+import { requireActiveContext,requireAuth,requireEnabledService,requirePermission } from "../../middleware/auth.js";
+import { validateBody } from "../../middleware/validate.js";
+import { addProjectMember,archiveProject,archiveTask,createProject,createTask,getProject,listProjectMembers,listProjects,listTasks,removeProjectMember,restoreProject,updateProject,updateTask } from "./project.controller.js";
+import { projectMemberSchema,projectSchema,taskSchema } from "./project.validation.js";
+export const projectRouter=Router();projectRouter.use(requireAuth,requireActiveContext,requireEnabledService("PROJECTS"));
+projectRouter.get("/",requirePermission("PROJECT_VIEW"),listProjects);projectRouter.get("/:id",requirePermission("PROJECT_VIEW"),getProject);projectRouter.post("/",requirePermission("PROJECT_CREATE"),validateBody(projectSchema),createProject);projectRouter.put("/:id",requirePermission("PROJECT_UPDATE"),validateBody(projectSchema),updateProject);projectRouter.delete("/:id",requirePermission("PROJECT_ARCHIVE"),archiveProject);projectRouter.post("/:id/restore",requirePermission("PROJECT_ARCHIVE"),restoreProject);
+projectRouter.get("/:id/tasks",requirePermission("TASK_VIEW"),listTasks);projectRouter.post("/:id/tasks",requirePermission("TASK_MANAGE"),validateBody(taskSchema),createTask);projectRouter.put("/:id/tasks/:taskId",requirePermission("TASK_MANAGE"),validateBody(taskSchema),updateTask);projectRouter.delete("/:id/tasks/:taskId",requirePermission("TASK_MANAGE"),archiveTask);
+projectRouter.get("/:id/members",requirePermission("PROJECT_VIEW"),listProjectMembers);projectRouter.post("/:id/members",requirePermission("PROJECT_UPDATE"),validateBody(projectMemberSchema),addProjectMember);projectRouter.delete("/:id/members/:projectMemberId",requirePermission("PROJECT_UPDATE"),removeProjectMember);

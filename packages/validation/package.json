@@ -1,0 +1,1 @@
+{"name":"@b2brain/validation","version":"0.0.0","private":true,"type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit","lint":"eslint src --max-warnings=0"},"dependencies":{"zod":"3.25.76"},"devDependencies":{"typescript":"5.9.3","eslint":"9.39.1","typescript-eslint":"8.46.4"}}

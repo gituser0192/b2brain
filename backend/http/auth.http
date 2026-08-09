@@ -1,0 +1,51 @@
+@baseUrl = http://localhost:5000/api/v1
+@accessToken = paste-access-token-from-register-or-login
+
+### Health
+GET {{baseUrl}}/health
+
+### Register with a unique real test account
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "organizationName": "Replace With Test Organization",
+  "firstName": "Replace",
+  "lastName": "Me",
+  "email": "replace-with-unique-email@example.com",
+  "password": "ReplaceWithStrong123"
+}
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "replace-with-unique-email@example.com",
+  "password": "ReplaceWithStrong123"
+}
+
+### Current account
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Rotate refresh cookie
+POST {{baseUrl}}/auth/refresh
+
+### Current organization
+GET {{baseUrl}}/organizations/current
+Authorization: Bearer {{accessToken}}
+
+### Update current organization
+PATCH {{baseUrl}}/organizations/current
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Test Organization",
+  "timezone": "Asia/Kolkata",
+  "currency": "INR"
+}
+
+### Logout
+POST {{baseUrl}}/auth/logout

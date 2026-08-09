@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { requireActiveContext, requireAuth, requireEnabledService, requirePermission } from "../../middleware/auth.js";
+import { validateBody } from "../../middleware/validate.js";
+import { archiveAgent, createAgent, getAgent, listAgentRuns, listAgents, updateAgent } from "./agent.controller.js";
+import { createAgentSchema, updateAgentSchema } from "./agent.validation.js";
+export const agentRouter = Router();
+agentRouter.use(requireAuth, requireActiveContext, requireEnabledService("AUTOMATION"));
+agentRouter.get("/", requirePermission("AUTOMATION_VIEW"), listAgents);
+agentRouter.get("/:id", requirePermission("AUTOMATION_VIEW"), getAgent);
+agentRouter.get("/:id/runs", requirePermission("AUTOMATION_VIEW"), listAgentRuns);
+agentRouter.post("/", requirePermission("AUTOMATION_MANAGE"), validateBody(createAgentSchema), createAgent);
+agentRouter.put("/:id", requirePermission("AUTOMATION_MANAGE"), validateBody(updateAgentSchema), updateAgent);
+agentRouter.delete("/:id", requirePermission("AUTOMATION_MANAGE"), archiveAgent);
