@@ -1,6 +1,6 @@
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
-import type { ContactInput, ConversionInput, FollowUpInput, InquiryInput } from "./inquiry.validation.js";
+import type { ContactInput, ConversionInput, FollowUpInput, InquiryInput, MergeMessageInput } from "./inquiry.validation.js";
 const include = {
   customer: {
     select: { id: true, displayName: true, email: true, phone: true },
@@ -15,6 +15,27 @@ const include = {
   },
 };
 export class InquiryService {
+  private async duplicate(org: string, input: InquiryInput) {
+    const recent = await prisma.inquiry.findMany({
+      where: {
+        organizationId: org,
+        deletedAt: null,
+        status: { in: ["NEW", "REVIEWING", "QUALIFIED"] },
+        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+      },
+      select: { id: true, contactName: true, email: true, phone: true, subject: true },
+    });
+    const digits = (value: string | null) => value?.replace(/\D/g, "") ?? "";
+    const subject = input.subject.trim().replace(/\s+/g, " ").toLowerCase();
+    return recent.find((candidate) => {
+      const inputPhone = digits(input.phone);
+      const candidatePhone = digits(candidate.phone);
+      const sameContact =
+        Boolean(input.email && candidate.email && input.email.toLowerCase() === candidate.email.toLowerCase()) ||
+        Boolean(inputPhone.length >= 7 && candidatePhone.length >= 7 && inputPhone === candidatePhone);
+      return sameContact && candidate.subject.trim().replace(/\s+/g, " ").toLowerCase() === subject;
+    }) ?? null;
+  }
   private async refs(org: string, input: InquiryInput) {
     const [e, c] = await Promise.all([
       input.assignedEmployeeId
@@ -112,8 +133,15 @@ export class InquiryService {
       },
     };
   }
-  async create(org: string, user: string, input: InquiryInput) {
+  async create(org: string, user: string, input: InquiryInput, allowDuplicate = false) {
     await this.refs(org, input);
+    const duplicate = await this.duplicate(org, input);
+    if (duplicate && !allowDuplicate)
+      throw new AppError(409, "A matching open inquiry already exists.", "DUPLICATE_INQUIRY", {
+        inquiryId: duplicate.id,
+        contactName: duplicate.contactName,
+        subject: duplicate.subject,
+      });
     const match = await this.match(org, input.email, input.phone);
     return prisma.inquiry.create({
       data: {
@@ -134,6 +162,25 @@ export class InquiryService {
         },
       },
       include,
+    });
+  }
+  async mergeMessage(org: string, user: string, id: string, input: MergeMessageInput) {
+    const inquiry = await prisma.inquiry.findFirst({
+      where: { id, organizationId: org, deletedAt: null, status: { in: ["NEW", "REVIEWING", "QUALIFIED"] } },
+    });
+    if (!inquiry) throw new AppError(404, "Open inquiry was not found.", "INQUIRY_NOT_FOUND");
+    return prisma.$transaction(async (tx) => {
+      await tx.inquiry.update({ where: { id }, data: { updatedById: user } });
+      return tx.inquiryTimeline.create({
+        data: {
+          organizationId: org,
+          inquiryId: id,
+          type: "NOTE",
+          summary: `Additional ${input.source.toLowerCase()} message received`,
+          details: input.message,
+          createdById: user,
+        },
+      });
     });
   }
   async update(org: string, user: string, id: string, input: InquiryInput) {

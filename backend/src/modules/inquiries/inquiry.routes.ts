@@ -14,11 +14,13 @@ import {
   contactSchema,
   followUpSchema,
   inquirySchema,
+  mergeMessageSchema,
   noteSchema,
   type ConversionInput,
   type ContactInput,
   type FollowUpInput,
   type InquiryInput,
+  type MergeMessageInput,
   type NoteInput,
 } from "./inquiry.validation.js";
 const service = new InquiryService(),
@@ -71,8 +73,23 @@ inquiryRouter.post(
           c.organizationId,
           c.userId,
           r.body as InquiryInput,
+          r.query.allowDuplicate === "true",
         ),
         "Inquiry captured.",
+      ),
+    );
+  },
+);
+inquiryRouter.post(
+  "/:id/messages",
+  requirePermission("INQUIRY_MANAGE"),
+  validateBody(mergeMessageSchema),
+  async (r, s) => {
+    const c = context(r);
+    s.status(201).json(
+      success(
+        await service.mergeMessage(c.organizationId, c.userId, String(r.params.id), r.body as MergeMessageInput),
+        "Message attached to the existing inquiry.",
       ),
     );
   },

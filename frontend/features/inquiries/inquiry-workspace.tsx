@@ -51,6 +51,7 @@ type Payload = {
     metrics: Record<string, number>;
   };
 };
+type Duplicate = { inquiryId: string; contactName: string; subject: string };
 const blank = () => ({
   source: "MANUAL",
   type: "UNCLASSIFIED",
@@ -76,6 +77,7 @@ export function InquiryWorkspace() {
     [chosen, setChosen] = useState<Item | null>(null),
     [form, setForm] = useState(blank()),
     [open, setOpen] = useState(false),
+    [duplicate, setDuplicate] = useState<Duplicate | null>(null),
     [error, setError] = useState("");
   const manage =
       session?.membership.permissions.includes("INQUIRY_MANAGE") ?? false,
@@ -104,6 +106,7 @@ export function InquiryWorkspace() {
     return () => window.clearTimeout(task);
   }, [load]);
   function show(i?: Item) {
+    setDuplicate(null);
     setChosen(i ?? null);
     setForm(
       i
@@ -127,30 +130,58 @@ export function InquiryWorkspace() {
     );
     setOpen(true);
   }
-  async function save() {
+  function requestBody() {
+    return JSON.stringify({
+      ...form,
+      email: form.email || null,
+      phone: form.phone || null,
+      companyName: form.companyName || null,
+      campaignId: form.campaignId || null,
+      assignedEmployeeId: form.assignedEmployeeId || null,
+      responseDueAt: form.responseDueAt ? new Date(form.responseDueAt).toISOString() : null,
+      disqualifiedReason: form.disqualifiedReason || null,
+    });
+  }
+  async function save(allowDuplicate = false) {
     try {
       await authorizedRequest(
-        chosen ? `/inquiries/${chosen.id}` : "/inquiries",
+        chosen ? `/inquiries/${chosen.id}` : `/inquiries${allowDuplicate ? "?allowDuplicate=true" : ""}`,
         {
           method: chosen ? "PUT" : "POST",
-          body: JSON.stringify({
-            ...form,
-            email: form.email || null,
-            phone: form.phone || null,
-            companyName: form.companyName || null,
-            campaignId: form.campaignId || null,
-            assignedEmployeeId: form.assignedEmployeeId || null,
-            responseDueAt: form.responseDueAt
-              ? new Date(form.responseDueAt).toISOString()
-              : null,
-            disqualifiedReason: form.disqualifiedReason || null,
-          }),
+          body: requestBody(),
         },
       );
+      setDuplicate(null);
       setOpen(false);
       await load();
     } catch (e) {
+      if (e instanceof ApiError && e.code === "DUPLICATE_INQUIRY" && e.errors?.inquiryId) {
+        setDuplicate({ inquiryId: e.errors.inquiryId, contactName: e.errors.contactName ?? "Existing contact", subject: e.errors.subject ?? form.subject });
+        return;
+      }
       setError(e instanceof ApiError ? e.message : "Unable to save inquiry.");
+    }
+  }
+  function openDuplicate() {
+    const existing = items.find((item) => item.id === duplicate?.inquiryId);
+    if (existing) setChosen(existing);
+    setDuplicate(null);
+    setOpen(false);
+  }
+  async function mergeDuplicate() {
+    if (!duplicate) return;
+    try {
+      await authorizedRequest(`/inquiries/${duplicate.inquiryId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ source: form.source, message: form.message }),
+      });
+      const existingId = duplicate.inquiryId;
+      setDuplicate(null);
+      setOpen(false);
+      setChosen(items.find((item) => item.id === existingId) ?? null);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Unable to attach the message.");
     }
   }
   async function note() {
@@ -465,6 +496,17 @@ export function InquiryWorkspace() {
                   }
                 />
               </label>
+            )}
+            {duplicate && (
+              <section className="inquiry-duplicate-warning">
+                <strong>Possible duplicate inquiry</strong>
+                <p>{duplicate.contactName} already has an open “{duplicate.subject}” inquiry.</p>
+                <div>
+                  <button onClick={openDuplicate}>Open existing</button>
+                  <button onClick={() => void mergeDuplicate()}>Attach this message</button>
+                  <button onClick={() => void save(true)}>Create separately</button>
+                </div>
+              </section>
             )}
             <footer>
               <button onClick={() => setOpen(false)}>Cancel</button>

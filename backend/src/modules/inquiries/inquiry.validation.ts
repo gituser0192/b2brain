@@ -81,6 +81,12 @@ export const inquirySchema = z
 export const noteSchema = z
   .object({ note: z.string().trim().min(2).max(4000) })
   .strict();
+export const mergeMessageSchema = z
+  .object({
+    source: z.enum(["MANUAL", "WEBSITE", "WHATSAPP", "EMAIL", "PHONE", "SOCIAL", "REFERRAL", "STORE", "OTHER"]),
+    message: z.string().trim().min(2).max(8000),
+  })
+  .strict();
 export const contactSchema = z
   .object({
     channel: z.enum(["CALL", "WHATSAPP", "EMAIL", "MEETING", "NOTE"]),
@@ -118,5 +124,6 @@ export const conversionSchema = z.discriminatedUnion("target", [
 export type InquiryInput = z.infer<typeof inquirySchema>;
 export type ConversionInput = z.infer<typeof conversionSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;
+export type MergeMessageInput = z.infer<typeof mergeMessageSchema>;
 export type ContactInput = z.infer<typeof contactSchema>;
 export type FollowUpInput = z.infer<typeof followUpSchema>;
