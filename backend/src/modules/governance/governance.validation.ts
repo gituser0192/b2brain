@@ -1,0 +1,5 @@
+import { z } from "zod";
+export const decisionSchema = z.object({ decision: z.enum(["APPROVE", "REJECT", "RETURN"]), note: z.string().trim().max(2000).optional().transform((value) => value || null) }).strict().superRefine((value, context) => { if (value.decision !== "APPROVE" && !value.note) context.addIssue({ code: "custom", path: ["note"], message: "A reason is required for this decision." }); });
+export const approvalQuerySchema = z.object({ status: z.enum(["PENDING", "APPROVED", "REJECTED", "RETURNED", "CANCELED", "EXPIRED"]).optional(), serviceCode: z.string().trim().max(60).optional(), limit: z.coerce.number().int().min(1).max(100).default(50) }).strict();
+export const auditQuerySchema = z.object({ serviceCode: z.string().trim().max(60).optional(), actionCode: z.string().trim().max(100).optional(), limit: z.coerce.number().int().min(1).max(200).default(100) }).strict();
+export type DecisionInput = z.infer<typeof decisionSchema>; export type ApprovalQuery = z.infer<typeof approvalQuerySchema>; export type AuditQuery = z.infer<typeof auditQuerySchema>;

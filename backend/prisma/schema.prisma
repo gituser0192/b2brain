@@ -121,6 +121,29 @@ enum VoiceCallOutcome {
   OTHER
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELED
+  EXPIRED
+}
+
+enum ApprovalRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  INTEGRATION
+  AI_AGENT
+}
+
 enum ProjectStatus {
   PLANNING
   ACTIVE
@@ -607,6 +630,9 @@ model User {
   voiceCallsCreated           VoiceCallJob[]           @relation("VoiceCallCreatedBy")
   voiceCallsUpdated           VoiceCallJob[]           @relation("VoiceCallUpdatedBy")
   voiceCallsApproved          VoiceCallJob[]           @relation("VoiceCallApprovedBy")
+  approvalsRequested          ApprovalRequest[]        @relation("ApprovalRequestedBy")
+  approvalsDecided            ApprovalRequest[]        @relation("ApprovalDecidedBy")
+  auditEvents                 AuditEvent[]             @relation("AuditActorUser")
   projectsOwned               Project[]                @relation("ProjectOwner")
   projectsCreated             Project[]                @relation("ProjectCreatedBy")
   projectsUpdated             Project[]                @relation("ProjectUpdatedBy")
@@ -699,6 +725,8 @@ model Organization {
   agents                  AgentDefinition[]
   agentRuns               AgentRun[]
   voiceCallJobs           VoiceCallJob[]
+  approvalRequests        ApprovalRequest[]
+  auditEvents             AuditEvent[]
   projects                Project[]
   projectTasks            ProjectTask[]
   projectMembers          ProjectMember[]
@@ -1173,6 +1201,59 @@ model VoiceCallJob {
   @@index([agentId])
   @@index([createdById])
   @@index([updatedById])
+}
+
+model ApprovalRequest {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  serviceCode    String
+  actionCode     String
+  title          String
+  description    String?
+  riskLevel      ApprovalRiskLevel @default(MEDIUM)
+  status         ApprovalStatus    @default(PENDING)
+  sourceType     String
+  sourceId       String            @db.Uuid
+  requestedById  String            @db.Uuid
+  decidedById    String?           @db.Uuid
+  decisionNote   String?
+  dueAt          DateTime?
+  decidedAt      DateTime?
+  context        Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy    User              @relation("ApprovalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy      User?             @relation("ApprovalDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, sourceType, sourceId])
+  @@index([organizationId, status, dueAt, createdAt])
+  @@index([organizationId, serviceCode, riskLevel, createdAt])
+  @@index([requestedById])
+  @@index([decidedById])
+}
+
+model AuditEvent {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  actorType      AuditActorType
+  actorUserId    String?        @db.Uuid
+  serviceCode    String
+  actionCode     String
+  sourceType     String
+  sourceId       String?        @db.Uuid
+  summary        String
+  beforeState    Json?
+  afterState     Json?
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser      User?          @relation("AuditActorUser", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, serviceCode, actionCode, createdAt])
+  @@index([organizationId, sourceType, sourceId, createdAt])
+  @@index([actorUserId])
 }
 
 model Project {

@@ -26,17 +26,21 @@ export class VoiceCallService {
       if (!customer) throw new AppError(404, "Customer was not found.", "CUSTOMER_NOT_FOUND");
       if (!customer.phone) throw new AppError(400, "Add a phone number to the customer before planning a call.", "CUSTOMER_PHONE_REQUIRED");
       if (input.followUpId && !followUp) throw new AppError(404, "Follow-up was not found for this customer.", "FOLLOW_UP_NOT_FOUND");
-      return transaction.voiceCallJob.create({ data: { organizationId, agentId: agent.id, customerId: customer.id, followUpId: followUp?.id ?? null, phoneNumber: customer.phone, language: input.language, objective: input.objective, approvedScript: input.approvedScript, scheduledAt: input.scheduledAt, status: "PENDING_APPROVAL", createdById: actorUserId, updatedById: actorUserId }, include: callInclude });
+      const call = await transaction.voiceCallJob.create({ data: { organizationId, agentId: agent.id, customerId: customer.id, followUpId: followUp?.id ?? null, phoneNumber: customer.phone, language: input.language, objective: input.objective, approvedScript: input.approvedScript, scheduledAt: input.scheduledAt, status: "PENDING_APPROVAL", createdById: actorUserId, updatedById: actorUserId }, include: callInclude });
+      const dueAt = new Date(); dueAt.setHours(dueAt.getHours() + 24);
+      const approval = await transaction.approvalRequest.create({ data: { organizationId, serviceCode: "AUTOMATION", actionCode: "VOICE_CALL_EXECUTE", title: `AI voice call to ${call.customer.displayName}`, description: input.objective, riskLevel: "HIGH", sourceType: "VOICE_CALL_JOB", sourceId: call.id, requestedById: actorUserId, dueAt, context: { customerId: call.customerId, phoneNumber: call.phoneNumber, language: call.language, scheduledAt: call.scheduledAt?.toISOString() ?? null } } });
+      await transaction.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "AUTOMATION", actionCode: "VOICE_CALL_REQUESTED", sourceType: "VOICE_CALL_JOB", sourceId: call.id, summary: `Voice call prepared for ${call.customer.displayName} and submitted for approval.`, afterState: { callStatus: call.status, approvalId: approval.id } } });
+      return call;
     });
   }
 
-  async approve(organizationId: string, actorUserId: string, id: string) {
-    const result = await prisma.voiceCallJob.updateMany({ where: { id, organizationId, deletedAt: null, status: "PENDING_APPROVAL" }, data: { status: "APPROVED", approvedById: actorUserId, approvedAt: new Date(), updatedById: actorUserId } });
-    if (result.count !== 1) throw new AppError(404, "Pending voice call was not found.", "VOICE_CALL_NOT_FOUND");
-  }
-
   async cancel(organizationId: string, actorUserId: string, id: string) {
-    const result = await prisma.voiceCallJob.updateMany({ where: { id, organizationId, deletedAt: null, status: { in: ["PENDING_APPROVAL", "APPROVED", "QUEUED"] } }, data: { status: "CANCELED", updatedById: actorUserId } });
-    if (result.count !== 1) throw new AppError(404, "Cancelable voice call was not found.", "VOICE_CALL_NOT_FOUND");
+    return prisma.$transaction(async (transaction) => {
+      const call = await transaction.voiceCallJob.findFirst({ where: { id, organizationId, deletedAt: null, status: { in: ["PENDING_APPROVAL", "APPROVED", "QUEUED"] } } });
+      if (!call) throw new AppError(404, "Cancelable voice call was not found.", "VOICE_CALL_NOT_FOUND");
+      await transaction.voiceCallJob.update({ where: { id }, data: { status: "CANCELED", updatedById: actorUserId } });
+      await transaction.approvalRequest.updateMany({ where: { organizationId, sourceType: "VOICE_CALL_JOB", sourceId: id, status: "PENDING" }, data: { status: "CANCELED", decidedById: actorUserId, decidedAt: new Date(), decisionNote: "Source voice call canceled." } });
+      await transaction.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "AUTOMATION", actionCode: "VOICE_CALL_CANCELED", sourceType: "VOICE_CALL_JOB", sourceId: id, summary: "Voice call and its pending approval were canceled.", beforeState: { status: call.status }, afterState: { status: "CANCELED" } } });
+    });
   }
 }

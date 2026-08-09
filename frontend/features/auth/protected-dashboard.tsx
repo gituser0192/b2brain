@@ -27,6 +27,7 @@ import { ProcurementWorkspace } from "@/features/procurement/procurement-workspa
 import { CalendarWorkspace } from "@/features/calendar/calendar-workspace";
 import { InquiryWorkspace } from "@/features/inquiries/inquiry-workspace";
 import { StayWorkspace } from "@/features/stay/stay-workspace";
+import { GovernanceWorkspace } from "@/features/governance/governance-workspace";
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: "D", permission: null },
@@ -46,7 +47,7 @@ export function ProtectedDashboard() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", timezone: "Asia/Kolkata", currency: "INR" });
-  type ActiveView = "overview" | "welcome" | "people" | "roles" | "crm" | "automation" | "projects" | "employees" | "sales" | "finance" | "catalogue" | "orders" | "inventory" | "marketing" | "analysis" | "support" | "websites" | "procurement" | "calendar" | "inquiries" | "stay";
+  type ActiveView = "overview" | "welcome" | "people" | "roles" | "governance" | "crm" | "automation" | "projects" | "employees" | "sales" | "finance" | "catalogue" | "orders" | "inventory" | "marketing" | "analysis" | "support" | "websites" | "procurement" | "calendar" | "inquiries" | "stay";
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [enabledServices, setEnabledServices] = useState<string[]>([]);
 
@@ -93,6 +94,7 @@ export function ProtectedDashboard() {
               </button>;
             })()
           ))}
+          {session.membership.permissions.includes("APPROVAL_VIEW") && <button className={activeView === "governance" ? "active" : ""} onClick={() => setActiveView("governance")}><span className="nav-icon">✓</span>Approvals & Audit</button>}
           {enabledServices.includes("CRM") && session.membership.permissions.includes("CRM_VIEW") && <button className={activeView === "crm" ? "active" : ""} onClick={() => setActiveView("crm")}><span className="nav-icon">C</span>CRM</button>}
           {enabledServices.includes("LEADS") && session.membership.permissions.includes("INQUIRY_VIEW") && <button className={activeView === "inquiries" ? "active" : ""} onClick={() => setActiveView("inquiries")}><span className="nav-icon">Q</span>Inquiries</button>}
           {enabledServices.includes("STAY") && session.membership.permissions.includes("STAY_VIEW") && <button className={activeView === "stay" ? "active" : ""} onClick={() => setActiveView("stay")}><span className="nav-icon">H</span>B² Stay</button>}
@@ -127,6 +129,7 @@ export function ProtectedDashboard() {
 
         {notice && <div className="dashboard-notice success">{notice}</div>}
         {error && <div className="dashboard-notice error">{error}</div>}
+        {activeView === "governance" && <GovernanceWorkspace />}
 
         {activeView === "overview" ? <BusinessDashboard onNavigate={(view) => setActiveView(view as ActiveView)} /> : activeView === "stay" ? <StayWorkspace /> : activeView === "inquiries" ? <InquiryWorkspace /> : activeView === "analysis" ? <AnalysisWorkspace onNavigate={(view) => setActiveView(view as ActiveView)} /> : activeView === "support" ? <SupportWorkspace /> : activeView === "websites" ? <WebsiteWorkspace /> : activeView === "procurement" ? <ProcurementWorkspace /> : activeView === "calendar" ? <CalendarWorkspace /> : activeView === "people" ? <TeamWorkspace /> : activeView === "roles" ? <RolesWorkspace /> : activeView === "crm" ? <CustomerWorkspace /> : activeView === "catalogue" ? <CatalogueWorkspace /> : activeView === "orders" ? <OrderWorkspace /> : activeView === "inventory" ? <InventoryWorkspace /> : activeView === "marketing" ? <MarketingWorkspace /> : activeView === "sales" ? <SalesWorkspace /> : activeView === "finance" ? <FinanceWorkspace /> : activeView === "projects" ? <ProjectWorkspace /> : activeView === "employees" ? <EmployeeWorkspace /> : activeView === "automation" ? <AutomationWorkspace /> : <><section className="welcome-hero">
           <div className="hero-copy">
