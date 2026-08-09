@@ -95,8 +95,8 @@ export function ProtectedDashboard() {
               </button>;
             })()
           ))}
-          {session.membership.permissions.includes("APPROVAL_VIEW") && <button className={activeView === "actions" ? "active" : ""} onClick={() => setActiveView("actions")}><span className="nav-icon">!</span>Action Centre</button>}
-          {session.membership.permissions.includes("APPROVAL_VIEW") && <button className={activeView === "governance" ? "active" : ""} onClick={() => setActiveView("governance")}><span className="nav-icon">✓</span>Approvals & Audit</button>}
+          {enabledServices.includes("ACTION_CENTRE") && session.membership.permissions.includes("APPROVAL_VIEW") && <button className={activeView === "actions" ? "active" : ""} onClick={() => setActiveView("actions")}><span className="nav-icon">!</span>Action Centre</button>}
+          {enabledServices.includes("GOVERNANCE") && session.membership.permissions.includes("APPROVAL_VIEW") && <button className={activeView === "governance" ? "active" : ""} onClick={() => setActiveView("governance")}><span className="nav-icon">✓</span>Approvals & Audit</button>}
           {enabledServices.includes("CRM") && session.membership.permissions.includes("CRM_VIEW") && <button className={activeView === "crm" ? "active" : ""} onClick={() => setActiveView("crm")}><span className="nav-icon">C</span>CRM</button>}
           {enabledServices.includes("LEADS") && session.membership.permissions.includes("INQUIRY_VIEW") && <button className={activeView === "inquiries" ? "active" : ""} onClick={() => setActiveView("inquiries")}><span className="nav-icon">Q</span>Inquiries</button>}
           {enabledServices.includes("STAY") && session.membership.permissions.includes("STAY_VIEW") && <button className={activeView === "stay" ? "active" : ""} onClick={() => setActiveView("stay")}><span className="nav-icon">H</span>B² Stay</button>}
