@@ -8,7 +8,15 @@ export class ServiceRepository {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
   }
-  enabledForOrganization(organizationId: string) {
+  async enabledForOrganization(organizationId: string) {
+    const plan = await prisma.organizationPlan.findUnique({ where: { organizationId } });
+    if (plan) {
+      const expired = plan.status === "CANCELED" || plan.status === "EXPIRED" || (plan.status === "TRIAL" && Boolean(plan.trialEndsAt && plan.trialEndsAt <= new Date())) || Boolean(plan.expiresAt && plan.expiresAt <= new Date());
+      if (expired) {
+        if (plan.status !== "EXPIRED" && plan.status !== "CANCELED") await prisma.organizationPlan.update({ where: { organizationId }, data: { status: "EXPIRED" } });
+        return [];
+      }
+    }
     return prisma.organizationService.findMany({
       where: {
         organizationId,

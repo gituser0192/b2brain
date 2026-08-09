@@ -1,14 +1,15 @@
 import { AppError } from "../../shared/errors/app-error.js";
 import { PlatformRepository } from "./platform.repository.js";
 import { hashPlatformInvitationToken, newPlatformInvitationToken, platformInvitationExpiry } from "./platform.tokens.js";
-import type { CreatePlatformInvitationInput } from "./platform.validation.js";
+import type { CreatePlatformInvitationInput, OrganizationPlanAssignmentInput, ServicePlanInput } from "./platform.validation.js";
 import type { OrganizationAccessInput } from "./platform.validation.js";
 
 export class PlatformService {
   constructor(private readonly repository = new PlatformRepository()) {}
 
   async overview() {
-    const [organizations, services, invitations] = await Promise.all([this.repository.listOrganizations(), this.repository.listServices(), this.repository.listInvitations()]);
+    await this.repository.expireDuePlans();
+    const [organizations, services, invitations, plans] = await Promise.all([this.repository.listOrganizations(), this.repository.listServices(), this.repository.listInvitations(), this.repository.listPlans()]);
     return {
       organizations: organizations.map((organization) => ({
         id: organization.id,
@@ -17,8 +18,9 @@ export class PlatformService {
         status: organization.status,
         createdAt: organization.createdAt,
         activeMemberCount: organization._count.memberships,
-        enabledServiceIds: organization.organizationServices.map((item) => item.serviceId),
+        enabledServiceIds: organization.organizationPlan && ["EXPIRED", "CANCELED"].includes(organization.organizationPlan.status) ? [] : organization.organizationServices.map((item) => item.serviceId),
         owner: organization.memberships[0]?.user ?? null,
+        plan: organization.organizationPlan ? { ...organization.organizationPlan, overrides: organization.serviceOverrides } : null,
       })),
       services: services.map((service) => ({
         id: service.id,
@@ -40,7 +42,35 @@ export class PlatformService {
         invitedBy: invitation.invitedBy,
         type: invitation.type,
       })),
+      plans: plans.map((plan) => ({ id: plan.id, code: plan.code, name: plan.name, description: plan.description, status: plan.status, serviceIds: plan.services.map((item) => item.serviceId), services: plan.services.map((item) => item.service), organizationCount: plan._count.organizations })),
     };
+  }
+
+  async createPlan(input: ServicePlanInput, actorUserId: string) {
+    await this.validatePlanServices(input.serviceIds);
+    return this.repository.savePlan(null, input, actorUserId);
+  }
+
+  async updatePlan(id: string, input: ServicePlanInput, actorUserId: string) {
+    await this.validatePlanServices(input.serviceIds);
+    return this.repository.savePlan(id, input, actorUserId).catch(() => { throw new AppError(404, "Service plan was not found or conflicts with an existing code.", "SERVICE_PLAN_NOT_SAVED"); });
+  }
+
+  private async validatePlanServices(serviceIds: string[]) {
+    const services = await this.repository.listServices();
+    const activeIds = new Set(services.filter((service) => service.status === "ACTIVE").map((service) => service.id));
+    if (serviceIds.some((id) => !activeIds.has(id))) throw new AppError(400, "Plans can include only active platform services.", "INVALID_PLAN_SERVICE");
+  }
+
+  async assignPlan(organizationId: string, input: OrganizationPlanAssignmentInput, actorUserId: string) {
+    const [organization, plans, services] = await Promise.all([this.repository.findOrganization(organizationId), this.repository.listPlans(), this.repository.listServices()]);
+    if (!organization) throw new AppError(404, "Organization was not found.", "ORGANIZATION_NOT_FOUND");
+    if (organization.status !== "ACTIVE") throw new AppError(409, "Approve the organization before assigning a plan.", "ORGANIZATION_NOT_ACTIVE");
+    if (!plans.some((plan) => plan.id === input.planId && plan.status === "ACTIVE")) throw new AppError(400, "Select an active service plan.", "SERVICE_PLAN_NOT_ACTIVE");
+    const serviceIds = new Set(services.filter((service) => service.status === "ACTIVE").map((service) => service.id));
+    if ([...input.additionalServiceIds, ...input.removedServiceIds].some((id) => !serviceIds.has(id))) throw new AppError(400, "Plan overrides contain an unavailable service.", "INVALID_SERVICE_OVERRIDE");
+    try { return await this.repository.assignPlan(organizationId, input, actorUserId); }
+    catch (error) { if (error instanceof Error && error.message === "PLAN_NOT_ACTIVE") throw new AppError(409, "The selected plan is no longer active.", "SERVICE_PLAN_NOT_ACTIVE"); throw error; }
   }
 
   async inviteOrganization(input: CreatePlatformInvitationInput, actorUserId: string) {

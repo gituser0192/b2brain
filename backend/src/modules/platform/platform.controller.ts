@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import { AppError } from "../../shared/errors/app-error.js";
 import { success } from "../../shared/responses/api-response.js";
 import { PlatformService } from "./platform.service.js";
-import type { CreatePlatformInvitationInput } from "./platform.validation.js";
+import type { CreatePlatformInvitationInput, OrganizationPlanAssignmentInput, ServicePlanInput } from "./platform.validation.js";
 import type { OrganizationAccessInput } from "./platform.validation.js";
 
 const service = new PlatformService();
@@ -39,4 +39,17 @@ export const setOrganizationAccess: RequestHandler = async (request, response) =
 export const removeOrganization: RequestHandler = async (request, response) => {
   await service.removeOrganization(id(request.params.organizationId));
   response.json(success({}, "Organization account removed."));
+};
+
+export const createServicePlan: RequestHandler = async (request, response) => {
+  if (!request.auth) throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
+  response.status(201).json(success(await service.createPlan(request.body as ServicePlanInput, request.auth.userId), "Service plan created."));
+};
+export const updateServicePlan: RequestHandler = async (request, response) => {
+  if (!request.auth) throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
+  response.json(success(await service.updatePlan(id(request.params.id), request.body as ServicePlanInput, request.auth.userId), "Service plan updated."));
+};
+export const assignOrganizationPlan: RequestHandler = async (request, response) => {
+  if (!request.auth) throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
+  response.json(success(await service.assignPlan(id(request.params.organizationId), request.body as OrganizationPlanAssignmentInput, request.auth.userId), "Organization plan assigned."));
 };

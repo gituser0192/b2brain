@@ -43,6 +43,14 @@ export const requirePlatformAdmin: RequestHandler = (request, _response, next) =
 
 export const requireEnabledService = (serviceCode: string): RequestHandler => async (request, _response, next) => {
   if (!request.auth) return next(new AppError(401, "Authentication is required.", "UNAUTHENTICATED"));
+  const plan = await prisma.organizationPlan.findUnique({ where: { organizationId: request.auth.organizationId } });
+  if (plan) {
+    const expired = plan.status === "CANCELED" || plan.status === "EXPIRED" || (plan.status === "TRIAL" && Boolean(plan.trialEndsAt && plan.trialEndsAt <= new Date())) || Boolean(plan.expiresAt && plan.expiresAt <= new Date());
+    if (expired) {
+      if (plan.status !== "EXPIRED" && plan.status !== "CANCELED") await prisma.organizationPlan.update({ where: { organizationId: request.auth.organizationId }, data: { status: "EXPIRED" } });
+      return next(new AppError(403, "This organization's service plan has expired.", "SERVICE_PLAN_EXPIRED"));
+    }
+  }
   const enabled = await prisma.organizationService.findFirst({
     where: {
       organizationId: request.auth.organizationId,
