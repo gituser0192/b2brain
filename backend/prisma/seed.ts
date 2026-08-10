@@ -150,6 +150,36 @@ async function seed() {
   await prisma.service.upsert({where:{code:"CALENDAR"},update:{name:"Calendar, Appointments & Scheduling",description:"Customer appointments, internal meetings, linked business context, employee conflict detection, and reminder configuration.",status:"ACTIVE",iconKey:"K",routePath:"/dashboard?view=calendar",sortOrder:18,archivedAt:null},create:{code:"CALENDAR",name:"Calendar, Appointments & Scheduling",description:"Customer appointments, internal meetings, linked business context, employee conflict detection, and reminder configuration.",status:"ACTIVE",iconKey:"K",routePath:"/dashboard?view=calendar",sortOrder:18}});
   await prisma.service.upsert({where:{code:"LEADS"},update:{name:"Lead & Inquiry Management",description:"Capture every inquiry, detect existing customers, classify intent, assign ownership, and control conversion into CRM, sales, or support.",status:"ACTIVE",iconKey:"Q",routePath:"/dashboard?view=inquiries",sortOrder:8,archivedAt:null},create:{code:"LEADS",name:"Lead & Inquiry Management",description:"Capture every inquiry, detect existing customers, classify intent, assign ownership, and control conversion into CRM, sales, or support.",status:"ACTIVE",iconKey:"Q",routePath:"/dashboard?view=inquiries",sortOrder:8}});
   await prisma.service.upsert({where:{code:"STAY"},update:{name:"B² Stay — PG & Hostel Management",description:"Properties, rooms, beds, residents, occupancy agreements, monthly rent, collections, vacancy and checkout control.",status:"ACTIVE",iconKey:"H",routePath:"/dashboard?view=stay",sortOrder:14,archivedAt:null},create:{code:"STAY",name:"B² Stay — PG & Hostel Management",description:"Properties, rooms, beds, residents, occupancy agreements, monthly rent, collections, vacancy and checkout control.",status:"ACTIVE",iconKey:"H",routePath:"/dashboard?view=stay",sortOrder:14}});
+  // Plans are platform configuration, not tenant business data. Existing plans
+  // stay untouched so later commercial edits survive another seed run.
+  const planOwner = superAdminEmail
+    ? await prisma.user.findUnique({ where: { email: superAdminEmail } })
+    : null;
+  if (planOwner) {
+    const defaultPlans = [
+      { code: "STARTER", name: "Starter", description: "Core tools for organizing customers, leads, projects, money, and appointments.", serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR"] },
+      { code: "GROWTH", name: "Growth", description: "Connected sales, marketing, commerce, operations, and business insight for growing teams.", serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR", "SALES", "MARKETING", "CATALOGUE", "ORDERS", "INVENTORY", "ACTION_CENTRE", "BUSINESS_ANALYSIS"] },
+      { code: "BUSINESS_PRO", name: "Business Pro", description: "The complete B2 Brain operating system with automation, governance, support, websites, procurement, and people.", serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR", "SALES", "MARKETING", "CATALOGUE", "ORDERS", "INVENTORY", "ACTION_CENTRE", "BUSINESS_ANALYSIS", "AUTOMATION", "GOVERNANCE", "SUPPORT", "WEBSITES", "PROCUREMENT", "PEOPLE"] },
+    ] as const;
+    for (const plan of defaultPlans) {
+      if (await prisma.servicePlan.findUnique({ where: { code: plan.code } })) continue;
+      const includedServices = await prisma.service.findMany({
+        where: { code: { in: [...plan.serviceCodes] }, status: "ACTIVE", archivedAt: null },
+        select: { id: true },
+      });
+      await prisma.servicePlan.create({
+        data: {
+          code: plan.code,
+          name: plan.name,
+          description: plan.description,
+          status: "ACTIVE",
+          createdById: planOwner.id,
+          updatedById: planOwner.id,
+          services: { create: includedServices.map(({ id }) => ({ serviceId: id })) },
+        },
+      });
+    }
+  }
 }
 
 seed().finally(() => prisma.$disconnect());
