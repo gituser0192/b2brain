@@ -157,12 +157,16 @@ async function seed() {
     : null;
   if (planOwner) {
     const defaultPlans = [
-      { code: "STARTER", name: "Starter", description: "Core tools for organizing customers, leads, projects, money, and appointments.", serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR"] },
-      { code: "GROWTH", name: "Growth", description: "Connected sales, marketing, commerce, operations, and business insight for growing teams.", serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR", "SALES", "MARKETING", "CATALOGUE", "ORDERS", "INVENTORY", "ACTION_CENTRE", "BUSINESS_ANALYSIS"] },
-      { code: "BUSINESS_PRO", name: "Business Pro", description: "The complete B2 Brain operating system with automation, governance, support, websites, procurement, and people.", serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR", "SALES", "MARKETING", "CATALOGUE", "ORDERS", "INVENTORY", "ACTION_CENTRE", "BUSINESS_ANALYSIS", "AUTOMATION", "GOVERNANCE", "SUPPORT", "WEBSITES", "PROCUREMENT", "PEOPLE"] },
+      { code: "STARTER", name: "Starter", description: "Core tools for organizing customers, leads, projects, money, and appointments.", monthlyPrice: 2999, yearlyPrice: 29990, serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR"] },
+      { code: "GROWTH", name: "Growth", description: "Connected sales, marketing, commerce, operations, and business insight for growing teams.", monthlyPrice: 6999, yearlyPrice: 69990, serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR", "SALES", "MARKETING", "CATALOGUE", "ORDERS", "INVENTORY", "ACTION_CENTRE", "BUSINESS_ANALYSIS"] },
+      { code: "BUSINESS_PRO", name: "Business Pro", description: "The complete B2 Brain operating system with automation, governance, support, websites, procurement, and people.", monthlyPrice: 14999, yearlyPrice: 149990, serviceCodes: ["CRM", "LEADS", "PROJECTS", "FINANCE", "CALENDAR", "SALES", "MARKETING", "CATALOGUE", "ORDERS", "INVENTORY", "ACTION_CENTRE", "BUSINESS_ANALYSIS", "AUTOMATION", "GOVERNANCE", "SUPPORT", "WEBSITES", "PROCUREMENT", "PEOPLE"] },
     ] as const;
     for (const plan of defaultPlans) {
-      if (await prisma.servicePlan.findUnique({ where: { code: plan.code } })) continue;
+      const existingPlan = await prisma.servicePlan.findUnique({ where: { code: plan.code } });
+      if (existingPlan) {
+        if (Number(existingPlan.monthlyPrice) === 0 && Number(existingPlan.yearlyPrice) === 0) await prisma.servicePlan.update({ where: { id: existingPlan.id }, data: { monthlyPrice: plan.monthlyPrice, yearlyPrice: plan.yearlyPrice, currency: "INR", updatedById: planOwner.id } });
+        continue;
+      }
       const includedServices = await prisma.service.findMany({
         where: { code: { in: [...plan.serviceCodes] }, status: "ACTIVE", archivedAt: null },
         select: { id: true },
@@ -173,6 +177,9 @@ async function seed() {
           name: plan.name,
           description: plan.description,
           status: "ACTIVE",
+          monthlyPrice: plan.monthlyPrice,
+          yearlyPrice: plan.yearlyPrice,
+          currency: "INR",
           createdById: planOwner.id,
           updatedById: planOwner.id,
           services: { create: includedServices.map(({ id }) => ({ serviceId: id })) },

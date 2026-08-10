@@ -1,7 +1,7 @@
 import { AppError } from "../../shared/errors/app-error.js";
 import { PlatformRepository } from "./platform.repository.js";
 import { hashPlatformInvitationToken, newPlatformInvitationToken, platformInvitationExpiry } from "./platform.tokens.js";
-import type { CreatePlatformInvitationInput, OrganizationPlanAssignmentInput, ServicePlanInput } from "./platform.validation.js";
+import type { CreatePlatformInvitationInput, OrganizationPlanAssignmentInput, ServicePlanInput, SubscriptionPaymentInput } from "./platform.validation.js";
 import type { OrganizationAccessInput } from "./platform.validation.js";
 
 export class PlatformService {
@@ -18,7 +18,7 @@ export class PlatformService {
         status: organization.status,
         createdAt: organization.createdAt,
         activeMemberCount: organization._count.memberships,
-        enabledServiceIds: organization.organizationPlan && ["EXPIRED", "CANCELED"].includes(organization.organizationPlan.status) ? [] : organization.organizationServices.map((item) => item.serviceId),
+        enabledServiceIds: organization.organizationPlan && ["PAST_DUE", "EXPIRED", "CANCELED"].includes(organization.organizationPlan.status) ? [] : organization.organizationServices.map((item) => item.serviceId),
         owner: organization.memberships[0]?.user ?? null,
         plan: organization.organizationPlan ? { ...organization.organizationPlan, overrides: organization.serviceOverrides } : null,
       })),
@@ -42,7 +42,7 @@ export class PlatformService {
         invitedBy: invitation.invitedBy,
         type: invitation.type,
       })),
-      plans: plans.map((plan) => ({ id: plan.id, code: plan.code, name: plan.name, description: plan.description, status: plan.status, serviceIds: plan.services.map((item) => item.serviceId), services: plan.services.map((item) => item.service), organizationCount: plan._count.organizations })),
+      plans: plans.map((plan) => ({ id: plan.id, code: plan.code, name: plan.name, description: plan.description, status: plan.status, monthlyPrice: Number(plan.monthlyPrice), yearlyPrice: Number(plan.yearlyPrice), currency: plan.currency, serviceIds: plan.services.map((item) => item.serviceId), services: plan.services.map((item) => item.service), organizationCount: plan._count.organizations })),
     };
   }
 
@@ -71,6 +71,14 @@ export class PlatformService {
     if ([...input.additionalServiceIds, ...input.removedServiceIds].some((id) => !serviceIds.has(id))) throw new AppError(400, "Plan overrides contain an unavailable service.", "INVALID_SERVICE_OVERRIDE");
     try { return await this.repository.assignPlan(organizationId, input, actorUserId); }
     catch (error) { if (error instanceof Error && error.message === "PLAN_NOT_ACTIVE") throw new AppError(409, "The selected plan is no longer active.", "SERVICE_PLAN_NOT_ACTIVE"); throw error; }
+  }
+
+  async recordPayment(organizationId: string, input: SubscriptionPaymentInput, actorUserId: string) {
+    const organization = await this.repository.findOrganization(organizationId);
+    if (!organization) throw new AppError(404, "Organization was not found.", "ORGANIZATION_NOT_FOUND");
+    if (organization.status !== "ACTIVE") throw new AppError(409, "Restore organization access before recording a renewal.", "ORGANIZATION_NOT_ACTIVE");
+    try { return await this.repository.recordPayment(organizationId, input, actorUserId); }
+    catch (error) { if (error instanceof Error && error.message === "PLAN_NOT_ASSIGNED") throw new AppError(409, "Assign a service plan before recording payment.", "PLAN_NOT_ASSIGNED"); throw error; }
   }
 
   async inviteOrganization(input: CreatePlatformInvitationInput, actorUserId: string) {

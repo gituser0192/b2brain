@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { requireActiveContext, requireAuth, requirePlatformAdmin } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
-import { assignOrganizationPlan, createServicePlan, inviteOrganization, platformOverview, removeOrganization, revokeOrganizationInvitation, setOrganizationAccess, setOrganizationService, updateServicePlan } from "./platform.controller.js";
-import { createPlatformInvitationSchema, organizationAccessSchema, organizationPlanAssignmentSchema, organizationServiceAssignmentSchema, servicePlanSchema } from "./platform.validation.js";
+import { assignOrganizationPlan, createServicePlan, inviteOrganization, platformOverview, recordSubscriptionPayment, removeOrganization, revokeOrganizationInvitation, setOrganizationAccess, setOrganizationService, updateServicePlan } from "./platform.controller.js";
+import { createPlatformInvitationSchema, organizationAccessSchema, organizationPlanAssignmentSchema, organizationServiceAssignmentSchema, servicePlanSchema, subscriptionPaymentSchema } from "./platform.validation.js";
 
 export const platformRouter = Router();
 platformRouter.use(requireAuth, requireActiveContext, requirePlatformAdmin);
@@ -15,3 +15,4 @@ platformRouter.patch("/organizations/:organizationId/access", validateBody(organ
 platformRouter.delete("/organizations/:organizationId", removeOrganization);
 platformRouter.put("/organizations/:organizationId/services/:serviceId", validateBody(organizationServiceAssignmentSchema), setOrganizationService);
 platformRouter.put("/organizations/:organizationId/plan", validateBody(organizationPlanAssignmentSchema), assignOrganizationPlan);
+platformRouter.post("/organizations/:organizationId/subscription-payments", validateBody(subscriptionPaymentSchema), recordSubscriptionPayment);

@@ -4,7 +4,7 @@ export class DashboardService {
   async summary(organizationId: string, permissions: string[], days: number | null) {
     const organization = await prisma.organization.findFirst({ where: { id: organizationId, deletedAt: null }, select: { currency: true } });
     const organizationPlan = await prisma.organizationPlan.findUnique({ where: { organizationId } });
-    const planExpired = Boolean(organizationPlan && (organizationPlan.status === "EXPIRED" || organizationPlan.status === "CANCELED" || (organizationPlan.status === "TRIAL" && organizationPlan.trialEndsAt && organizationPlan.trialEndsAt <= new Date()) || (organizationPlan.expiresAt && organizationPlan.expiresAt <= new Date())));
+    const planExpired = Boolean(organizationPlan && (["PAST_DUE", "EXPIRED", "CANCELED"].includes(organizationPlan.status) || (organizationPlan.status === "TRIAL" && organizationPlan.trialEndsAt && organizationPlan.trialEndsAt <= new Date()) || (organizationPlan.expiresAt && organizationPlan.expiresAt <= new Date())));
     const since = days === null ? undefined : new Date(Date.now() - days * 86400000);
     const enabled = new Set(planExpired ? [] : (await prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { service: { select: { code: true } } } })).map((item) => item.service.code));
     const can = (service: string, permission: string) => enabled.has(service) && permissions.includes(permission);

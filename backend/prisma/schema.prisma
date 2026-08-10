@@ -54,8 +54,20 @@ enum ServicePlanStatus {
 enum OrganizationPlanStatus {
   TRIAL
   ACTIVE
+  PAST_DUE
   EXPIRED
   CANCELED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionPaymentStatus {
+  PAID
+  REFUNDED
+  VOID
 }
 
 enum ServiceOverrideType {
@@ -643,6 +655,7 @@ model User {
   servicePlansUpdated         ServicePlan[]                 @relation("ServicePlanUpdatedBy")
   organizationPlansAssigned   OrganizationPlan[]            @relation("OrganizationPlanAssignedBy")
   organizationPlansUpdated    OrganizationPlan[]            @relation("OrganizationPlanUpdatedBy")
+  subscriptionPaymentsCreated SubscriptionPayment[]         @relation("SubscriptionPaymentCreatedBy")
   serviceOverridesCreated     OrganizationServiceOverride[] @relation("ServiceOverrideCreatedBy")
   entitlementsCreated         Entitlement[]                 @relation("EntitlementCreatedBy")
   entitlementsUpdated         Entitlement[]                 @relation("EntitlementUpdatedBy")
@@ -751,6 +764,7 @@ model Organization {
   invitations             MembershipInvitation[]
   organizationServices    OrganizationService[]
   organizationPlan        OrganizationPlan?
+  subscriptionPayments    SubscriptionPayment[]
   serviceOverrides        OrganizationServiceOverride[]
   entitlements            Entitlement[]
   platformInvitations     PlatformInvitation[]
@@ -938,6 +952,9 @@ model ServicePlan {
   name          String
   description   String?
   status        ServicePlanStatus  @default(DRAFT)
+  monthlyPrice  Decimal            @default(0) @db.Decimal(12, 2)
+  yearlyPrice   Decimal            @default(0) @db.Decimal(12, 2)
+  currency      String             @default("INR")
   createdById   String             @db.Uuid
   updatedById   String             @db.Uuid
   createdAt     DateTime           @default(now())
@@ -970,6 +987,11 @@ model OrganizationPlan {
   organizationId String                 @unique @db.Uuid
   planId         String                 @db.Uuid
   status         OrganizationPlanStatus
+  billingCycle   BillingCycle           @default(MONTHLY)
+  amount         Decimal                @default(0) @db.Decimal(12, 2)
+  currency       String                 @default("INR")
+  nextBillingAt  DateTime?
+  pastDueAt      DateTime?
   startsAt       DateTime               @default(now())
   trialEndsAt    DateTime?
   expiresAt      DateTime?
@@ -981,11 +1003,35 @@ model OrganizationPlan {
   plan           ServicePlan            @relation(fields: [planId], references: [id], onDelete: Restrict)
   assignedBy     User                   @relation("OrganizationPlanAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
   updatedBy      User                   @relation("OrganizationPlanUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  payments       SubscriptionPayment[]
 
   @@index([planId, status])
   @@index([status, trialEndsAt, expiresAt])
   @@index([assignedById])
   @@index([updatedById])
+}
+
+model SubscriptionPayment {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  organizationId     String                    @db.Uuid
+  organizationPlanId String                    @db.Uuid
+  amount             Decimal                   @db.Decimal(12, 2)
+  currency           String                    @default("INR")
+  status             SubscriptionPaymentStatus @default(PAID)
+  paidAt             DateTime
+  periodStartsAt     DateTime
+  periodEndsAt       DateTime
+  reference          String?
+  note               String?
+  createdById        String                    @db.Uuid
+  createdAt          DateTime                  @default(now())
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationPlan   OrganizationPlan          @relation(fields: [organizationPlanId], references: [id], onDelete: Cascade)
+  createdBy          User                      @relation("SubscriptionPaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, paidAt])
+  @@index([organizationPlanId, paidAt])
+  @@index([createdById])
 }
 
 model OrganizationServiceOverride {
