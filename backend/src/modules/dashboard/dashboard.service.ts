@@ -9,10 +9,11 @@ export class DashboardService {
     const enabled = new Set(planExpired ? [] : (await prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { service: { select: { code: true } } } })).map((item) => item.service.code));
     const can = (service: string, permission: string) => enabled.has(service) && permissions.includes(permission);
     const date = since ? { gte: since } : undefined;
-    const [customers, followUps, deals, projects, overdueTasks, employees, invoices, payments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
+    const [customers, followUps, deals, quotations, projects, overdueTasks, employees, invoices, payments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
       can("CRM", "CRM_VIEW") ? prisma.customer.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { status: true } }) : [],
       can("CRM", "CRM_ACTIVITY_VIEW") ? prisma.customerFollowUp.count({ where: { organizationId, status: "PENDING", deletedAt: null, dueAt: { lt: new Date() } } }) : 0,
       can("SALES", "DEAL_VIEW") ? prisma.deal.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { stage: true, amount: true, probability: true, currency: true } }) : [],
+      can("SALES", "DEAL_VIEW") ? prisma.quotation.findMany({ where: { organizationId, archivedAt: null, status: { in: ["DRAFT", "SENT", "EXPIRED"] } }, select: { status: true, total: true, validUntil: true } }) : [],
       can("PROJECTS", "PROJECT_VIEW") ? prisma.project.count({ where: { organizationId, status: "ACTIVE", deletedAt: null } }) : 0,
       can("PROJECTS", "TASK_VIEW") ? prisma.projectTask.count({ where: { organizationId, deletedAt: null, status: { notIn: ["COMPLETED", "CANCELED"] }, dueDate: { lt: new Date() } } }) : 0,
       can("PEOPLE", "EMPLOYEE_VIEW") ? prisma.employee.count({ where: { organizationId, status: "ACTIVE", deletedAt: null } }) : 0,
@@ -50,10 +51,12 @@ export class DashboardService {
       purchaseOrders.filter((item) => item.status === "AWAITING_APPROVAL").length ? { type: "PURCHASE_APPROVAL", count: purchaseOrders.filter((item) => item.status === "AWAITING_APPROVAL").length, label: "Purchase orders awaiting approval", view: "procurement" } : null,
       purchaseOrders.filter((item) => ["ORDERED", "PARTIALLY_RECEIVED"].includes(item.status) && item.expectedDelivery && item.expectedDelivery < new Date()).length ? { type: "DELIVERY_OVERDUE", count: purchaseOrders.filter((item) => ["ORDERED", "PARTIALLY_RECEIVED"].includes(item.status) && item.expectedDelivery && item.expectedDelivery < new Date()).length, label: "Overdue supplier deliveries", view: "procurement" } : null,
       inquiries.filter((item) => item.nextFollowUpAt && item.nextFollowUpAt < new Date() && !item.followUpCompletedAt).length ? { type: "LEAD_FOLLOW_UP", count: inquiries.filter((item) => item.nextFollowUpAt && item.nextFollowUpAt < new Date() && !item.followUpCompletedAt).length, label: "Overdue lead follow-ups", view: "inquiries" } : null,
+      quotations.filter((item) => item.status === "EXPIRED" || item.validUntil <= new Date(Date.now() + 3 * 86_400_000)).length ? { type: "QUOTATION", count: quotations.filter((item) => item.status === "EXPIRED" || item.validUntil <= new Date(Date.now() + 3 * 86_400_000)).length, label: "Quotations expiring or expired", view: "sales" } : null,
     ].filter(Boolean);
     return { periodDays: days, enabledServices: [...enabled], currency: organization?.currency ?? "INR", metrics: {
       customers: customers.length, leads: customers.filter((item) => item.status === "LEAD").length, activeCustomers: customers.filter((item) => item.status === "ACTIVE").length, overdueFollowUps: followUps,
       openDeals: openDeals.length, pipelineValue: openDeals.reduce((sum, item) => sum + Number(item.amount), 0), weightedForecast: openDeals.reduce((sum, item) => sum + Number(item.amount) * item.probability / 100, 0), wonRevenue: wonDeals.reduce((sum, item) => sum + Number(item.amount), 0),
+      openQuotations: quotations.length, quotationValue: quotations.reduce((sum, item) => sum + Number(item.total), 0),
       activeProjects: projects, overdueTasks, activeEmployees: employees,
       invoiced: invoiceTotal, received, outstanding: Math.max(0, invoiceTotal - invoicePaid), expenses: expenseTotal, netCash: received - expenseTotal,
       orders: orders.length, activeOrders: orders.filter((item) => !["FULFILLED", "CANCELED", "REFUNDED"].includes(item.status)).length, orderValue: orders.filter((item) => !["CANCELED", "REFUNDED"].includes(item.status)).reduce((sum, item) => sum + Number(item.total), 0),
