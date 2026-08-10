@@ -525,6 +525,29 @@ enum LeadAssignmentAction {
   UNASSIGNED
 }
 
+enum FollowUpChannel {
+  TASK
+  WHATSAPP
+  EMAIL
+  CALL
+}
+
+enum FollowUpEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  STOPPED
+  CANCELED
+}
+
+enum FollowUpExecutionStatus {
+  SCHEDULED
+  DUE
+  AWAITING_APPROVAL
+  COMPLETED
+  SKIPPED
+  CANCELED
+}
+
 enum ConnectorType {
   WHATSAPP
   WEBSITE
@@ -823,6 +846,9 @@ model Organization {
   inquiryTimeline         InquiryTimeline[]
   leadAssignmentRules     LeadAssignmentRule[]
   leadAssignmentHistory   LeadAssignmentHistory[]
+  followUpSequences       FollowUpSequence[]
+  followUpEnrollments     FollowUpEnrollment[]
+  followUpExecutions      FollowUpExecution[]
   integrationConnectors   IntegrationConnector[]
   integrationEvents       IntegrationEvent[]
   automationAttempts      AutomationAttempt[]
@@ -2454,6 +2480,91 @@ model LeadAssignmentHistory {
   @@index([organizationId, inquiryId, createdAt])
   @@index([organizationId, escalationDueAt, action])
   @@index([actorUserId])
+}
+
+model FollowUpSequence {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  name           String
+  description    String?
+  isActive       Boolean                @default(true)
+  stopOnResponse Boolean                @default(true)
+  stopOnWonDeal  Boolean                @default(true)
+  createdById    String                 @db.Uuid
+  updatedById    String                 @db.Uuid
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  archivedAt     DateTime?
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  steps          FollowUpSequenceStep[]
+  enrollments    FollowUpEnrollment[]
+
+  @@index([organizationId, isActive, archivedAt])
+}
+
+model FollowUpSequenceStep {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @db.Uuid
+  sequenceId       String           @db.Uuid
+  stepOrder        Int
+  delayMinutes     Int
+  channel          FollowUpChannel
+  title            String
+  messageTemplate  String
+  requiresApproval Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  sequence         FollowUpSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, stepOrder])
+  @@index([organizationId, sequenceId])
+}
+
+model FollowUpEnrollment {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  sequenceId     String                   @db.Uuid
+  inquiryId      String?                  @db.Uuid
+  customerId     String?                  @db.Uuid
+  assignedUserId String                   @db.Uuid
+  status         FollowUpEnrollmentStatus @default(ACTIVE)
+  enrolledAt     DateTime                 @default(now())
+  nextStepAt     DateTime?
+  stoppedAt      DateTime?
+  stopReason     String?
+  createdById    String                   @db.Uuid
+  updatedById    String                   @db.Uuid
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sequence       FollowUpSequence         @relation(fields: [sequenceId], references: [id], onDelete: Restrict)
+  executions     FollowUpExecution[]
+
+  @@index([organizationId, status, nextStepAt])
+  @@index([organizationId, inquiryId, status])
+  @@index([organizationId, customerId, status])
+}
+
+model FollowUpExecution {
+  id              String                  @id @default(uuid()) @db.Uuid
+  organizationId  String                  @db.Uuid
+  enrollmentId    String                  @db.Uuid
+  stepId          String                  @db.Uuid
+  status          FollowUpExecutionStatus @default(SCHEDULED)
+  scheduledAt     DateTime
+  dueAt           DateTime
+  renderedTitle   String
+  renderedMessage String
+  completedAt     DateTime?
+  completedById   String?                 @db.Uuid
+  outcome         String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollment      FollowUpEnrollment      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, stepId])
+  @@index([organizationId, status, dueAt])
 }
 
 model InquiryTimeline {

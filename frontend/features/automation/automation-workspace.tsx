@@ -1,6 +1,7 @@
 "use client";
 import { AgentManager } from "./agent-manager";
 import { BridgeManager } from "./bridge-manager";
+import { FollowUpAutomationManager } from "./follow-up-automation-manager";
 
 const foundations = [
   {
@@ -66,6 +67,7 @@ export function AutomationWorkspace() {
       </div>
 
       <AgentManager />
+      <FollowUpAutomationManager />
       <BridgeManager />
 
       <div className="automation-empty-state">

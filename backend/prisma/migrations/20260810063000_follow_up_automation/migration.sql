@@ -1,0 +1,22 @@
+CREATE TYPE "FollowUpChannel" AS ENUM ('TASK', 'WHATSAPP', 'EMAIL', 'CALL');
+CREATE TYPE "FollowUpEnrollmentStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'STOPPED', 'CANCELED');
+CREATE TYPE "FollowUpExecutionStatus" AS ENUM ('SCHEDULED', 'DUE', 'AWAITING_APPROVAL', 'COMPLETED', 'SKIPPED', 'CANCELED');
+
+CREATE TABLE "FollowUpSequence" ("id" UUID NOT NULL,"organizationId" UUID NOT NULL,"name" TEXT NOT NULL,"description" TEXT,"isActive" BOOLEAN NOT NULL DEFAULT true,"stopOnResponse" BOOLEAN NOT NULL DEFAULT true,"stopOnWonDeal" BOOLEAN NOT NULL DEFAULT true,"createdById" UUID NOT NULL,"updatedById" UUID NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,"archivedAt" TIMESTAMP(3),CONSTRAINT "FollowUpSequence_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "FollowUpSequenceStep" ("id" UUID NOT NULL,"organizationId" UUID NOT NULL,"sequenceId" UUID NOT NULL,"stepOrder" INTEGER NOT NULL,"delayMinutes" INTEGER NOT NULL,"channel" "FollowUpChannel" NOT NULL,"title" TEXT NOT NULL,"messageTemplate" TEXT NOT NULL,"requiresApproval" BOOLEAN NOT NULL DEFAULT true,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "FollowUpSequenceStep_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "FollowUpEnrollment" ("id" UUID NOT NULL,"organizationId" UUID NOT NULL,"sequenceId" UUID NOT NULL,"inquiryId" UUID,"customerId" UUID,"assignedUserId" UUID NOT NULL,"status" "FollowUpEnrollmentStatus" NOT NULL DEFAULT 'ACTIVE',"enrolledAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"nextStepAt" TIMESTAMP(3),"stoppedAt" TIMESTAMP(3),"stopReason" TEXT,"createdById" UUID NOT NULL,"updatedById" UUID NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "FollowUpEnrollment_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "FollowUpExecution" ("id" UUID NOT NULL,"organizationId" UUID NOT NULL,"enrollmentId" UUID NOT NULL,"stepId" UUID NOT NULL,"status" "FollowUpExecutionStatus" NOT NULL DEFAULT 'SCHEDULED',"scheduledAt" TIMESTAMP(3) NOT NULL,"dueAt" TIMESTAMP(3) NOT NULL,"renderedTitle" TEXT NOT NULL,"renderedMessage" TEXT NOT NULL,"completedAt" TIMESTAMP(3),"completedById" UUID,"outcome" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "FollowUpExecution_pkey" PRIMARY KEY ("id"));
+CREATE INDEX "FollowUpSequence_organizationId_isActive_archivedAt_idx" ON "FollowUpSequence"("organizationId","isActive","archivedAt");
+CREATE UNIQUE INDEX "FollowUpSequenceStep_sequenceId_stepOrder_key" ON "FollowUpSequenceStep"("sequenceId","stepOrder");
+CREATE INDEX "FollowUpSequenceStep_organizationId_sequenceId_idx" ON "FollowUpSequenceStep"("organizationId","sequenceId");
+CREATE INDEX "FollowUpEnrollment_organizationId_status_nextStepAt_idx" ON "FollowUpEnrollment"("organizationId","status","nextStepAt");
+CREATE INDEX "FollowUpEnrollment_organizationId_inquiryId_status_idx" ON "FollowUpEnrollment"("organizationId","inquiryId","status");
+CREATE INDEX "FollowUpEnrollment_organizationId_customerId_status_idx" ON "FollowUpEnrollment"("organizationId","customerId","status");
+CREATE UNIQUE INDEX "FollowUpExecution_enrollmentId_stepId_key" ON "FollowUpExecution"("enrollmentId","stepId");
+CREATE INDEX "FollowUpExecution_organizationId_status_dueAt_idx" ON "FollowUpExecution"("organizationId","status","dueAt");
+ALTER TABLE "FollowUpSequence" ADD CONSTRAINT "FollowUpSequence_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "FollowUpSequenceStep" ADD CONSTRAINT "FollowUpSequenceStep_sequenceId_fkey" FOREIGN KEY ("sequenceId") REFERENCES "FollowUpSequence"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "FollowUpEnrollment" ADD CONSTRAINT "FollowUpEnrollment_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "FollowUpEnrollment" ADD CONSTRAINT "FollowUpEnrollment_sequenceId_fkey" FOREIGN KEY ("sequenceId") REFERENCES "FollowUpSequence"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "FollowUpExecution" ADD CONSTRAINT "FollowUpExecution_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "FollowUpExecution" ADD CONSTRAINT "FollowUpExecution_enrollmentId_fkey" FOREIGN KEY ("enrollmentId") REFERENCES "FollowUpEnrollment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
