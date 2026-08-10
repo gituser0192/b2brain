@@ -513,6 +513,18 @@ enum InquiryTimelineType {
   FOLLOW_UP_COMPLETED
 }
 
+enum LeadAssignmentStrategy {
+  FIXED
+  ROUND_ROBIN
+}
+
+enum LeadAssignmentAction {
+  AUTO_ASSIGNED
+  MANUALLY_ASSIGNED
+  ESCALATED
+  UNASSIGNED
+}
+
 enum ConnectorType {
   WHATSAPP
   WEBSITE
@@ -730,6 +742,7 @@ model User {
   inquiriesCreated            Inquiry[]                     @relation("InquiryCreatedBy")
   inquiriesUpdated            Inquiry[]                     @relation("InquiryUpdatedBy")
   inquiryTimelineCreated      InquiryTimeline[]             @relation("InquiryTimelineCreatedBy")
+  leadAssignmentsCreated      LeadAssignmentHistory[]       @relation("LeadAssignmentActor")
   connectorsCreated           IntegrationConnector[]        @relation("ConnectorCreatedBy")
   connectorsUpdated           IntegrationConnector[]        @relation("ConnectorUpdatedBy")
   integrationEventsCreated    IntegrationEvent[]            @relation("IntegrationEventCreatedBy")
@@ -808,6 +821,8 @@ model Organization {
   calendarReminders       CalendarReminder[]
   inquiries               Inquiry[]
   inquiryTimeline         InquiryTimeline[]
+  leadAssignmentRules     LeadAssignmentRule[]
+  leadAssignmentHistory   LeadAssignmentHistory[]
   integrationConnectors   IntegrationConnector[]
   integrationEvents       IntegrationEvent[]
   automationAttempts      AutomationAttempt[]
@@ -2345,43 +2360,44 @@ model CalendarReminder {
 }
 
 model Inquiry {
-  id                  String             @id @default(uuid()) @db.Uuid
-  organizationId      String             @db.Uuid
+  id                  String                  @id @default(uuid()) @db.Uuid
+  organizationId      String                  @db.Uuid
   source              InquirySource
-  type                InquiryType        @default(UNCLASSIFIED)
-  status              InquiryStatus      @default(NEW)
-  priority            ProjectPriority    @default(MEDIUM)
+  type                InquiryType             @default(UNCLASSIFIED)
+  status              InquiryStatus           @default(NEW)
+  priority            ProjectPriority         @default(MEDIUM)
   contactName         String
   email               String?
   phone               String?
   companyName         String?
   subject             String
   message             String
-  customerId          String?            @db.Uuid
-  campaignId          String?            @db.Uuid
-  assignedEmployeeId  String?            @db.Uuid
-  convertedDealId     String?            @db.Uuid
-  convertedTicketId   String?            @db.Uuid
+  customerId          String?                 @db.Uuid
+  campaignId          String?                 @db.Uuid
+  assignedEmployeeId  String?                 @db.Uuid
+  convertedDealId     String?                 @db.Uuid
+  convertedTicketId   String?                 @db.Uuid
   responseDueAt       DateTime?
   firstRespondedAt    DateTime?
   disqualifiedReason  String?
   nextFollowUpAt      DateTime?
   followUpNote        String?
   followUpCompletedAt DateTime?
-  createdById         String             @db.Uuid
-  updatedById         String             @db.Uuid
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdById         String                  @db.Uuid
+  updatedById         String                  @db.Uuid
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
   deletedAt           DateTime?
-  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer            Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  campaign            MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  assignedEmployee    Employee?          @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
-  convertedDeal       Deal?              @relation(fields: [convertedDealId], references: [id], onDelete: SetNull)
-  convertedTicket     SupportTicket?     @relation(fields: [convertedTicketId], references: [id], onDelete: SetNull)
-  createdBy           User               @relation("InquiryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy           User               @relation("InquiryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer            Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  campaign            MarketingCampaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  assignedEmployee    Employee?               @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  convertedDeal       Deal?                   @relation(fields: [convertedDealId], references: [id], onDelete: SetNull)
+  convertedTicket     SupportTicket?          @relation(fields: [convertedTicketId], references: [id], onDelete: SetNull)
+  createdBy           User                    @relation("InquiryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User                    @relation("InquiryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   timeline            InquiryTimeline[]
+  assignmentHistory   LeadAssignmentHistory[]
 
   @@index([organizationId, status, priority, deletedAt])
   @@index([organizationId, email, deletedAt])
@@ -2389,6 +2405,55 @@ model Inquiry {
   @@index([organizationId, assignedEmployeeId, status])
   @@index([organizationId, responseDueAt, status])
   @@index([organizationId, nextFollowUpAt, status])
+}
+
+model LeadAssignmentRule {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  organizationId         String                 @db.Uuid
+  name                   String
+  isActive               Boolean                @default(true)
+  sortOrder              Int                    @default(0)
+  source                 InquirySource?
+  inquiryType            InquiryType?
+  priority               ProjectPriority?
+  campaignId             String?                @db.Uuid
+  strategy               LeadAssignmentStrategy
+  eligibleEmployeeIds    Json
+  responseTimeMinutes    Int
+  escalationAfterMinutes Int?
+  escalationEmployeeId   String?                @db.Uuid
+  lastAssignedEmployeeId String?                @db.Uuid
+  createdById            String                 @db.Uuid
+  updatedById            String                 @db.Uuid
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  archivedAt             DateTime?
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive, sortOrder, archivedAt])
+  @@index([organizationId, campaignId])
+}
+
+model LeadAssignmentHistory {
+  id              String               @id @default(uuid()) @db.Uuid
+  organizationId  String               @db.Uuid
+  inquiryId       String               @db.Uuid
+  ruleId          String?              @db.Uuid
+  action          LeadAssignmentAction
+  fromEmployeeId  String?              @db.Uuid
+  toEmployeeId    String?              @db.Uuid
+  reason          String
+  responseDueAt   DateTime?
+  escalationDueAt DateTime?
+  actorUserId     String               @db.Uuid
+  createdAt       DateTime             @default(now())
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inquiry         Inquiry              @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  actorUser       User                 @relation("LeadAssignmentActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, inquiryId, createdAt])
+  @@index([organizationId, escalationDueAt, action])
+  @@index([actorUserId])
 }
 
 model InquiryTimeline {

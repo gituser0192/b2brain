@@ -1,6 +1,8 @@
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import type { ContactInput, ConversionInput, FollowUpInput, InquiryInput, MergeMessageInput } from "./inquiry.validation.js";
+import { LeadAssignmentService } from "./lead-assignment.service.js";
+const assignmentService = new LeadAssignmentService();
 const include = {
   customer: {
     select: { id: true, displayName: true, email: true, phone: true },
@@ -13,6 +15,7 @@ const include = {
     orderBy: { createdAt: "desc" as const },
     include: { createdBy: { select: { firstName: true, lastName: true } } },
   },
+  assignmentHistory: { orderBy: { createdAt: "desc" as const }, take: 20, include: { actorUser: { select: { firstName: true, lastName: true } } } },
 };
 export class InquiryService {
   private async duplicate(org: string, input: InquiryInput) {
@@ -90,7 +93,8 @@ export class InquiryService {
       ) ?? null
     );
   }
-  async list(org: string) {
+  async list(org: string, user: string) {
+    await assignmentService.escalateDue(org, user);
     const now = new Date();
     const [inquiries, employees, campaigns] = await Promise.all([
       prisma.inquiry.findMany({
@@ -143,7 +147,7 @@ export class InquiryService {
         subject: duplicate.subject,
       });
     const match = await this.match(org, input.email, input.phone);
-    return prisma.inquiry.create({
+    const created = await prisma.inquiry.create({
       data: {
         ...input,
         organizationId: org,
@@ -163,6 +167,8 @@ export class InquiryService {
       },
       include,
     });
+    await assignmentService.assignNewInquiry(org, user, created);
+    return prisma.inquiry.findFirst({ where: { id: created.id, organizationId: org }, include });
   }
   async mergeMessage(org: string, user: string, id: string, input: MergeMessageInput) {
     const inquiry = await prisma.inquiry.findFirst({

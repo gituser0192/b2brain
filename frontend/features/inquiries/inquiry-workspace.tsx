@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
+import { LeadAssignmentControl, LeadAssignmentManager, type AssignmentEmployee } from "./lead-assignment-manager";
 type Item = {
   id: string;
   source: string;
@@ -77,6 +78,7 @@ export function InquiryWorkspace() {
     [chosen, setChosen] = useState<Item | null>(null),
     [form, setForm] = useState(blank()),
     [open, setOpen] = useState(false),
+    [showRules, setShowRules] = useState(false),
     [duplicate, setDuplicate] = useState<Duplicate | null>(null),
     [error, setError] = useState("");
   const manage =
@@ -253,9 +255,10 @@ export function InquiryWorkspace() {
           <h2>Lead & inquiry inbox</h2>
           <span>Capture, classify and explicitly convert real inquiries.</span>
         </div>
-        {manage && <button onClick={() => show()}>+ Capture inquiry</button>}
+        {manage && <div className="inquiry-header-actions"><button onClick={() => setShowRules((value) => !value)}>{showRules ? "Close rules" : "Assignment rules"}</button><button onClick={() => show()}>+ Capture inquiry</button></div>}
       </header>
       {error && <div className="dashboard-notice error">{error}</div>}
+      {showRules && <LeadAssignmentManager onChanged={load} />}
       <section className="inquiry-metrics">
         {Object.entries(metrics).map(([k, v]) => (
           <article key={k}>
@@ -319,6 +322,7 @@ export function InquiryWorkspace() {
               <div className="ticket-description">
                 <p>{chosen.message}</p>
               </div>
+              {manage && !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(chosen.status) && <LeadAssignmentControl key={`${chosen.id}:${chosen.assignedEmployeeId ?? "unassigned"}`} inquiryId={chosen.id} assignedEmployeeId={chosen.assignedEmployeeId} employees={employees as AssignmentEmployee[]} onChanged={load} />}
               {manage && !["CONVERTED","DISQUALIFIED","SPAM"].includes(chosen.status) && <div className="lead-action-bar"><button onClick={() => void logContact()}>Log contact</button><button onClick={() => void scheduleFollowUp()}>{chosen.nextFollowUpAt && !chosen.followUpCompletedAt ? "Reschedule follow-up" : "Schedule follow-up"}</button></div>}
               {chosen.nextFollowUpAt && <div className={`lead-follow-up ${!chosen.followUpCompletedAt && new Date(chosen.nextFollowUpAt) < new Date() ? "overdue" : ""}`}><div><strong>{chosen.followUpCompletedAt ? "Follow-up completed" : "Next follow-up"}</strong><p>{chosen.followUpNote}</p><small>{new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(chosen.nextFollowUpAt))}</small></div>{manage && !chosen.followUpCompletedAt && <button onClick={() => void completeFollowUp()}>Complete</button>}</div>}
               {canConvert && chosen.status === "QUALIFIED" && (
