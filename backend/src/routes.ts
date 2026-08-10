@@ -31,6 +31,7 @@ import { stayRouter } from "./modules/stay/stay.routes.js";
 import { voiceCallRouter } from "./modules/voice-calls/voice-call.routes.js";
 import { governanceRouter } from "./modules/governance/governance.routes.js";
 import { actionCentreRouter } from "./modules/action-centre/action-centre.routes.js";
+import { salesWorkQueueRouter } from "./modules/sales-work-queue/sales-work-queue.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -72,3 +73,4 @@ apiRouter.use("/stay", stayRouter);
 apiRouter.use("/voice-calls", voiceCallRouter);
 apiRouter.use("/governance", governanceRouter);
 apiRouter.use("/action-centre", actionCentreRouter);
+apiRouter.use("/sales-work-queue", salesWorkQueueRouter);
