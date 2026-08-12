@@ -269,6 +269,29 @@ enum PaymentMethod {
   OTHER
 }
 
+enum PaymentAccountType {
+  BANK
+  UPI
+  CASH
+  PAYMENT_GATEWAY
+  OTHER
+}
+
+enum IncomingPaymentStatus {
+  UNMATCHED
+  MATCHED
+  PARTIALLY_MATCHED
+  IGNORED
+}
+
+enum PaymentRefundStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELED
+}
+
 enum ExpenseStatus {
   RECORDED
   VOIDED
@@ -744,6 +767,12 @@ model User {
   quotationsCreated           Quotation[]                   @relation("QuotationCreatedBy")
   quotationsUpdated           Quotation[]                   @relation("QuotationUpdatedBy")
   paymentsCreated             Payment[]                     @relation("PaymentCreatedBy")
+  paymentAccountsCreated      PaymentAccount[]              @relation("PaymentAccountCreatedBy")
+  paymentAccountsUpdated      PaymentAccount[]              @relation("PaymentAccountUpdatedBy")
+  incomingPaymentsCreated     IncomingPaymentTransaction[]  @relation("IncomingPaymentCreatedBy")
+  incomingPaymentsUpdated     IncomingPaymentTransaction[]  @relation("IncomingPaymentUpdatedBy")
+  paymentRefundsRequested     PaymentRefund[]               @relation("PaymentRefundRequestedBy")
+  paymentRefundsUpdated       PaymentRefund[]               @relation("PaymentRefundUpdatedBy")
   expensesCreated             Expense[]                     @relation("ExpenseCreatedBy")
   expensesUpdated             Expense[]                     @relation("ExpenseUpdatedBy")
   catalogueItemsCreated       CatalogueItem[]               @relation("CatalogueItemCreatedBy")
@@ -834,6 +863,9 @@ model Organization {
   invoices                Invoice[]
   quotations              Quotation[]
   payments                Payment[]
+  paymentAccounts         PaymentAccount[]
+  incomingPayments        IncomingPaymentTransaction[]
+  paymentRefunds          PaymentRefund[]
   expenses                Expense[]
   catalogueItems          CatalogueItem[]
   orders                  Order[]
@@ -1770,23 +1802,102 @@ model InvoiceLineItem {
 }
 
 model Payment {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
-  invoiceId      String        @db.Uuid
-  amount         Decimal       @db.Decimal(18, 2)
-  currency       String
-  method         PaymentMethod
-  reference      String?
-  paidAt         DateTime
-  createdById    String        @db.Uuid
-  createdAt      DateTime      @default(now())
-  deletedAt      DateTime?
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  createdBy      User          @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  id                    String                      @id @default(uuid()) @db.Uuid
+  organizationId        String                      @db.Uuid
+  invoiceId             String                      @db.Uuid
+  amount                Decimal                     @db.Decimal(18, 2)
+  currency              String
+  method                PaymentMethod
+  reference             String?
+  receiptNumber         String                      @default(uuid())
+  incomingTransactionId String?                     @unique @db.Uuid
+  refundedAmount        Decimal                     @default(0) @db.Decimal(18, 2)
+  paidAt                DateTime
+  createdById           String                      @db.Uuid
+  createdAt             DateTime                    @default(now())
+  deletedAt             DateTime?
+  organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice               Invoice                     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdBy             User                        @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  incomingTransaction   IncomingPaymentTransaction? @relation(fields: [incomingTransactionId], references: [id], onDelete: SetNull)
+  refunds               PaymentRefund[]
 
   @@unique([organizationId, reference])
+  @@unique([organizationId, receiptNumber])
   @@index([organizationId, invoiceId, deletedAt, paidAt])
+}
+
+model PaymentAccount {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @db.Uuid
+  name           String
+  type           PaymentAccountType
+  identifier     String
+  bankName       String?
+  accountLast4   String?
+  instructions   String?
+  isActive       Boolean                      @default(true)
+  createdById    String                       @db.Uuid
+  updatedById    String                       @db.Uuid
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  archivedAt     DateTime?
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                         @relation("PaymentAccountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                         @relation("PaymentAccountUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  transactions   IncomingPaymentTransaction[]
+
+  @@unique([organizationId, identifier])
+  @@index([organizationId, isActive, archivedAt])
+}
+
+model IncomingPaymentTransaction {
+  id                String                @id @default(uuid()) @db.Uuid
+  organizationId    String                @db.Uuid
+  paymentAccountId  String                @db.Uuid
+  externalReference String
+  payerName         String?
+  payerContact      String?
+  amount            Decimal               @db.Decimal(18, 2)
+  currency          String
+  receivedAt        DateTime
+  status            IncomingPaymentStatus @default(UNMATCHED)
+  notes             String?
+  createdById       String                @db.Uuid
+  updatedById       String                @db.Uuid
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  deletedAt         DateTime?
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymentAccount    PaymentAccount        @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
+  createdBy         User                  @relation("IncomingPaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User                  @relation("IncomingPaymentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  payment           Payment?
+
+  @@unique([organizationId, externalReference])
+  @@index([organizationId, status, deletedAt, receivedAt])
+  @@index([organizationId, paymentAccountId, receivedAt])
+}
+
+model PaymentRefund {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  paymentId      String              @db.Uuid
+  amount         Decimal             @db.Decimal(18, 2)
+  reason         String
+  status         PaymentRefundStatus @default(PENDING_APPROVAL)
+  requestedById  String              @db.Uuid
+  updatedById    String              @db.Uuid
+  completedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payment        Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  requestedBy    User                @relation("PaymentRefundRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  updatedBy      User                @relation("PaymentRefundUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, paymentId, status])
 }
 
 model Expense {

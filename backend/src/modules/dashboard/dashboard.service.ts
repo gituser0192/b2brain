@@ -9,7 +9,7 @@ export class DashboardService {
     const enabled = new Set(planExpired ? [] : (await prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { service: { select: { code: true } } } })).map((item) => item.service.code));
     const can = (service: string, permission: string) => enabled.has(service) && permissions.includes(permission);
     const date = since ? { gte: since } : undefined;
-    const [customers, followUps, deals, quotations, projects, overdueTasks, employees, invoices, payments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
+    const [customers, followUps, deals, quotations, projects, overdueTasks, employees, invoices, payments, unmatchedPayments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
       can("CRM", "CRM_VIEW") ? prisma.customer.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { status: true } }) : [],
       can("CRM", "CRM_ACTIVITY_VIEW") ? prisma.customerFollowUp.count({ where: { organizationId, status: "PENDING", deletedAt: null, dueAt: { lt: new Date() } } }) : 0,
       can("SALES", "DEAL_VIEW") ? prisma.deal.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { stage: true, amount: true, probability: true, currency: true } }) : [],
@@ -19,6 +19,7 @@ export class DashboardService {
       can("PEOPLE", "EMPLOYEE_VIEW") ? prisma.employee.count({ where: { organizationId, status: "ACTIVE", deletedAt: null } }) : 0,
       can("FINANCE", "FINANCE_VIEW") ? prisma.invoice.findMany({ where: { organizationId, deletedAt: null, status: { not: "CANCELED" }, ...(date ? { issueDate: date } : {}) }, include: { payments: { where: { deletedAt: null } } } }) : [],
       can("FINANCE", "FINANCE_VIEW") ? prisma.payment.findMany({ where: { organizationId, deletedAt: null, ...(date ? { paidAt: date } : {}) }, select: { amount: true, currency: true } }) : [],
+      can("FINANCE", "FINANCE_VIEW") ? prisma.incomingPaymentTransaction.count({ where: { organizationId, status: "UNMATCHED", deletedAt: null } }) : 0,
       can("FINANCE", "FINANCE_VIEW") ? prisma.expense.findMany({ where: { organizationId, status: "RECORDED", deletedAt: null, ...(date ? { expenseDate: date } : {}) }, select: { amount: true, currency: true } }) : [],
       can("ORDERS", "ORDER_VIEW") ? prisma.order.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { status: true, total: true, currency: true } }) : [],
       can("INVENTORY", "INVENTORY_VIEW") ? prisma.stockLevel.findMany({ where: { organizationId }, select: { onHand: true, reserved: true, reorderPoint: true } }) : [],
@@ -52,6 +53,7 @@ export class DashboardService {
       purchaseOrders.filter((item) => ["ORDERED", "PARTIALLY_RECEIVED"].includes(item.status) && item.expectedDelivery && item.expectedDelivery < new Date()).length ? { type: "DELIVERY_OVERDUE", count: purchaseOrders.filter((item) => ["ORDERED", "PARTIALLY_RECEIVED"].includes(item.status) && item.expectedDelivery && item.expectedDelivery < new Date()).length, label: "Overdue supplier deliveries", view: "procurement" } : null,
       inquiries.filter((item) => item.nextFollowUpAt && item.nextFollowUpAt < new Date() && !item.followUpCompletedAt).length ? { type: "LEAD_FOLLOW_UP", count: inquiries.filter((item) => item.nextFollowUpAt && item.nextFollowUpAt < new Date() && !item.followUpCompletedAt).length, label: "Overdue lead follow-ups", view: "inquiries" } : null,
       quotations.filter((item) => item.status === "EXPIRED" || item.validUntil <= new Date(Date.now() + 3 * 86_400_000)).length ? { type: "QUOTATION", count: quotations.filter((item) => item.status === "EXPIRED" || item.validUntil <= new Date(Date.now() + 3 * 86_400_000)).length, label: "Quotations expiring or expired", view: "sales" } : null,
+      unmatchedPayments ? { type: "PAYMENT_RECONCILIATION", count: unmatchedPayments, label: "Incoming payments awaiting reconciliation", view: "finance" } : null,
     ].filter(Boolean);
     return { periodDays: days, enabledServices: [...enabled], currency: organization?.currency ?? "INR", metrics: {
       customers: customers.length, leads: customers.filter((item) => item.status === "LEAD").length, activeCustomers: customers.filter((item) => item.status === "ACTIVE").length, overdueFollowUps: followUps,
