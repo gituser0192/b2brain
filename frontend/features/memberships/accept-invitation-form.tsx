@@ -4,8 +4,10 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ApiError, apiRequest } from "@/services/api-client";
+import { useAuth } from "@/features/auth/auth-context";
 
 export function AcceptInvitationForm() {
+  const { logout } = useAuth();
   const token = useSearchParams().get("token") ?? "";
   const [form, setForm] = useState({ firstName: "", lastName: "", password: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -19,13 +21,14 @@ export function AcceptInvitationForm() {
     setError("");
     try {
       await apiRequest(`/memberships/invitations/accept?token=${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify({ ...form, lastName: form.lastName || undefined }) });
+      await logout().catch(() => undefined);
       setAccepted(true);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Unable to accept this invitation.");
     } finally { setSubmitting(false); }
   }
 
-  if (accepted) return <div className="accept-result"><span>✓</span><h2>You’re part of the team.</h2><p>Your account and organization access are ready.</p><Link href="/login">Continue to sign in →</Link></div>;
+  if (accepted) return <div className="accept-result"><span>✓</span><h2>You’re part of the team.</h2><p>The previous browser session has been signed out. Continue using the invited email and the password you just created.</p><Link href="/login">Sign in as the new member →</Link></div>;
   return (
     <form className="accept-form" onSubmit={submit}>
       <div><p>Secure organization invitation</p><h1>Join your team workspace</h1><span>Create your account using the email address that received this link.</span></div>
