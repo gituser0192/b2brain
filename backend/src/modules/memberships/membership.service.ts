@@ -37,7 +37,8 @@ export class MembershipService {
 
   async invite(organizationId: string, invitedById: string, input: InviteMemberInput) {
     const existingUser = await this.repository.findUser(input.email);
-    if (existingUser && await this.repository.findMembership(organizationId, existingUser.id)) throw new AppError(409, "This person already belongs to your organization.", "MEMBERSHIP_ALREADY_EXISTS", { email: "This person is already a member." });
+    const existingMembership = existingUser ? await this.repository.findMembership(organizationId, existingUser.id) : null;
+    if (existingMembership && existingMembership.status !== "REMOVED") throw new AppError(409, "This person already belongs to your organization.", "MEMBERSHIP_ALREADY_EXISTS", { email: "This person is already a member." });
     if (input.roleCode === "ORGANIZATION_OWNER") throw new AppError(400, "The owner role cannot be assigned through invitations.", "INVALID_ROLE");
     const role = await this.repository.findRole(organizationId, input.roleCode);
     if (!role) throw new AppError(400, "Select a valid organization role.", "INVALID_ROLE");

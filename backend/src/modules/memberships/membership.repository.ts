@@ -45,6 +45,7 @@ export class MembershipRepository {
   }
   async removeMember(organizationId: string, id: string) {
     return prisma.$transaction(async (tx) => {
+      await tx.membershipServiceAccess.deleteMany({ where: { organizationId, membershipId: id } });
       const membership = await tx.organizationMembership.update({ where: { id, organizationId }, data: { status: "REMOVED" } });
       await tx.refreshSession.updateMany({ where: { membershipId: id, revokedAt: null }, data: { revokedAt: new Date() } });
       return membership;
