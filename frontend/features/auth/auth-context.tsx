@@ -11,7 +11,7 @@ interface AuthContextValue {
   session: AuthSession | null;
   accessToken: string | null;
   isLoading: boolean;
-  login(input: LoginInput): Promise<void>;
+  login(input: LoginInput): Promise<AuthSession>;
   register(input: RegisterInput): Promise<RegistrationResponse>;
   logout(): Promise<void>;
   updateOrganization(organization: AuthOrganization): void;
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const { accessToken: token, ...account } = response.data;
     setAccessToken(token);
     setSession(account);
+    return account;
   }, []);
   const login = useCallback(async (input: LoginInput) => establish(await apiRequest<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(input) })), [establish]);
   const register = useCallback((input: RegisterInput) => apiRequest<RegistrationResponse>("/auth/register", { method: "POST", body: JSON.stringify(input) }), []);

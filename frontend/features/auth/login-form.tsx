@@ -15,15 +15,17 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { if (!isLoading && session) router.replace("/dashboard"); }, [isLoading, session, router]);
+  useEffect(() => {
+    if (!isLoading && session) router.replace(session.user.isPlatformAdmin ? "/super-admin" : "/dashboard");
+  }, [isLoading, session, router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      await login({ email, password });
-      router.replace("/dashboard");
+      const authenticatedSession = await login({ email, password });
+      router.replace(authenticatedSession.user.isPlatformAdmin ? "/super-admin" : "/dashboard");
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Unable to sign in right now.");
     } finally { setSubmitting(false); }
