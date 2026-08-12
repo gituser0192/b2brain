@@ -66,5 +66,12 @@ export const requireEnabledService = (serviceCode: string): RequestHandler => as
     select: { id: true },
   });
   if (!enabled) return next(new AppError(403, `${serviceCode} is not enabled for this organization.`, "SERVICE_NOT_ENABLED"));
+  if (request.auth.roleCode !== "ORGANIZATION_OWNER") {
+    const assigned = await prisma.membershipServiceAccess.findFirst({
+      where: { organizationId: request.auth.organizationId, membershipId: request.auth.membershipId, service: { code: serviceCode } },
+      select: { id: true },
+    });
+    if (!assigned) return next(new AppError(403, `${serviceCode} is not assigned to your account.`, "MEMBER_SERVICE_NOT_ASSIGNED"));
+  }
   next();
 };

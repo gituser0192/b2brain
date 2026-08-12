@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { MembershipRepository, type MemberRecord } from "./membership.repository.js";
 import { hashInvitationToken, invitationExpiry, newInvitationToken } from "./membership.tokens.js";
-import type { AcceptInvitationInput, InviteMemberInput, UpdateMembershipInput } from "./membership.validation.js";
+import type { AcceptInvitationInput, InviteMemberInput, UpdateMembershipInput, UpdateMemberServicesInput } from "./membership.validation.js";
 
 function safeMember(member: NonNullable<MemberRecord>) {
   return {
@@ -12,6 +12,7 @@ function safeMember(member: NonNullable<MemberRecord>) {
     joinedAt: member.joinedAt,
     user: member.user,
     role: member.role,
+    serviceIds: member.serviceAccess.map((access) => access.serviceId),
   };
 }
 
@@ -103,5 +104,15 @@ export class MembershipService {
   async revokeInvitation(organizationId: string, id: string) {
     const result = await this.repository.revokeInvitation(organizationId, id);
     if (result.count !== 1) throw new AppError(404, "Pending invitation not found.", "INVITATION_NOT_FOUND");
+  }
+
+  async updateServices(organizationId: string, actorUserId: string, id: string, input: UpdateMemberServicesInput) {
+    const member = await this.repository.findMemberById(organizationId, id);
+    if (!member) throw new AppError(404, "Membership not found.", "MEMBERSHIP_NOT_FOUND");
+    if (member.role.code === "ORGANIZATION_OWNER") throw new AppError(409, "The organization owner always has access to enabled services.", "OWNER_SERVICE_ACCESS_PROTECTED");
+    const enabledIds = new Set((await this.repository.enabledOrganizationServices(organizationId)).map((item) => item.serviceId));
+    if (input.serviceIds.some((serviceId) => !enabledIds.has(serviceId))) throw new AppError(400, "Only services enabled for this organization can be assigned.", "INVALID_SERVICE_ASSIGNMENT");
+    await this.repository.replaceServiceAccess(organizationId, id, actorUserId, [...new Set(input.serviceIds)]);
+    return { membershipId: id, serviceIds: [...new Set(input.serviceIds)] };
   }
 }

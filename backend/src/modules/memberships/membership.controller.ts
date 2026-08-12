@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import { AppError } from "../../shared/errors/app-error.js";
 import { success } from "../../shared/responses/api-response.js";
 import { MembershipService } from "./membership.service.js";
-import type { AcceptInvitationInput, InviteMemberInput, UpdateMembershipInput } from "./membership.validation.js";
+import type { AcceptInvitationInput, InviteMemberInput, UpdateMembershipInput, UpdateMemberServicesInput } from "./membership.validation.js";
 
 const service = new MembershipService();
 function auth(request: Parameters<RequestHandler>[0]) {
@@ -35,4 +35,8 @@ export const removeMembership: RequestHandler = async (request, response) => {
 export const revokeInvitation: RequestHandler = async (request, response) => {
   await service.revokeInvitation(auth(request).organizationId, routeId(request.params.id));
   response.json(success({}, "Invitation revoked."));
+};
+export const updateMemberServices: RequestHandler = async (request, response) => {
+  const context = auth(request);
+  response.json(success(await service.updateServices(context.organizationId, context.userId, routeId(request.params.id), request.body as UpdateMemberServicesInput), "Member service access updated."));
 };

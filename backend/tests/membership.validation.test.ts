@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptInvitationSchema, inviteMemberSchema, updateMembershipSchema } from "../src/modules/memberships/membership.validation.js";
+import { acceptInvitationSchema, inviteMemberSchema, updateMembershipSchema, updateMemberServicesSchema } from "../src/modules/memberships/membership.validation.js";
 import { hashInvitationToken, newInvitationToken } from "../src/modules/memberships/membership.tokens.js";
 
 describe("membership security and validation", () => {
@@ -23,5 +23,15 @@ describe("membership security and validation", () => {
     const token = newInvitationToken();
     expect(hashInvitationToken(token)).toHaveLength(64);
     expect(hashInvitationToken(token)).not.toContain(token);
+  });
+});
+
+describe("member service access validation", () => {
+  it("accepts a unique-looking list of service UUIDs", () => {
+    expect(updateMemberServicesSchema.parse({ serviceIds: ["00000000-0000-4000-8000-000000000001"] }).serviceIds).toHaveLength(1);
+  });
+
+  it("rejects arbitrary service identifiers", () => {
+    expect(() => updateMemberServicesSchema.parse({ serviceIds: ["CRM"] })).toThrow();
   });
 });

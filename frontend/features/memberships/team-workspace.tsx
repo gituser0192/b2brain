@@ -10,6 +10,7 @@ interface Member {
   joinedAt: string;
   user: { id: string; firstName: string; lastName: string | null; email: string; status: string };
   role: { code: string; name: string };
+  serviceIds: string[];
 }
 interface Invitation {
   id: string;
@@ -24,12 +25,15 @@ interface ListResponse { success: true; data: { members: Member[]; invitations: 
 interface InviteResponse { success: true; message: string; data: { invitation: Invitation; acceptPath: string }; }
 interface RoleOption { code: string; name: string; isSystem: boolean; }
 interface RolesResponse { success: true; data: { roles: RoleOption[] }; }
+interface ServiceOption { id: string; code: string; name: string; }
+interface ServicesResponse { success: true; data: ServiceOption[]; }
 
 export function TeamWorkspace() {
   const { session, authorizedRequest } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [email, setEmail] = useState("");
@@ -41,10 +45,11 @@ export function TeamWorkspace() {
 
   const load = useCallback(async () => {
     try {
-      const [response, roleResponse] = await Promise.all([authorizedRequest<ListResponse>("/memberships"), authorizedRequest<RolesResponse>("/roles")]);
+      const [response, roleResponse, serviceResponse] = await Promise.all([authorizedRequest<ListResponse>("/memberships"), authorizedRequest<RolesResponse>("/roles"), authorizedRequest<ServicesResponse>("/services/enabled")]);
       setMembers(response.data.members);
       setInvitations(response.data.invitations);
       setRoleOptions(roleResponse.data.roles.filter((role) => role.code !== "ORGANIZATION_OWNER"));
+      setServiceOptions(serviceResponse.data);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Unable to load your team.");
     } finally { setLoading(false); }
@@ -89,6 +94,16 @@ export function TeamWorkspace() {
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to remove this member."); }
   }
 
+  async function toggleMemberService(member: Member, serviceId: string, enabled: boolean) {
+    const serviceIds = enabled ? [...new Set([...member.serviceIds, serviceId])] : member.serviceIds.filter((id) => id !== serviceId);
+    setError("");
+    try {
+      await authorizedRequest(`/memberships/${member.id}/services`, { method: "PUT", body: JSON.stringify({ serviceIds }) });
+      setNotice("Member service access updated.");
+      await load();
+    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update service access."); }
+  }
+
   async function revokeInvitation(id: string) {
     try {
       await authorizedRequest(`/memberships/invitations/${id}`, { method: "DELETE" });
@@ -128,6 +143,7 @@ export function TeamWorkspace() {
                 <span className={`member-status ${member.status.toLowerCase()}`}><i />{member.status === "ACTIVE" ? "Active" : "Suspended"}</span>
                 {canManage && !protectedOwner ? <select value={member.role.code} onChange={(event) => void updateMember(member.id, { roleCode: event.target.value })}>{roleOptions.map((role) => <option value={role.code} key={role.code}>{role.name}</option>)}</select> : <span className="role-label">{member.role.name}</span>}
                 {canManage && !protectedOwner ? <div className="member-actions"><button onClick={() => void updateMember(member.id, { status: member.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })}>{member.status === "ACTIVE" ? "Suspend" : "Restore"}</button><button className="danger" onClick={() => void removeMember(member.id)}>Remove</button></div> : <span className="owner-lock">Protected owner</span>}
+                {!protectedOwner && <div className="member-service-access"><strong>Assigned services</strong>{serviceOptions.length === 0 ? <span>No organization services enabled.</span> : <div>{serviceOptions.map((service) => <label key={service.id}><input type="checkbox" checked={member.serviceIds.includes(service.id)} disabled={!canManage || member.status !== "ACTIVE"} onChange={(event) => void toggleMemberService(member, service.id, event.target.checked)} /><span>{service.name}</span></label>)}</div>}</div>}
               </article>;
             })}
           </div>

@@ -12,5 +12,5 @@ export const serviceContext: RequestHandler = async (request, response) => {
 
 export const enabledServices: RequestHandler = async (request, response) => {
   if (!request.auth) throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
-  response.json(success(await service.enabled(request.auth.organizationId)));
+  response.json(success(await service.enabled(request.auth.organizationId, request.auth.membershipId, request.auth.roleCode)));
 };

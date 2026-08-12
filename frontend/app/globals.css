@@ -735,3 +735,4 @@ a { color: inherit; }
     grid-column: auto;
   }
 }
+.member-service-access{border-top:1px solid #e5ebf2;grid-column:1/-1;margin-top:8px;padding-top:10px}.member-service-access>strong{display:block;font-size:11px;margin-bottom:8px}.member-service-access>span{color:#718096;font-size:10px}.member-service-access>div{display:flex;flex-wrap:wrap;gap:7px}.member-service-access label{align-items:center;background:#f7f9fc;border:1px solid #dce5ef;border-radius:7px;display:flex;gap:6px;padding:7px 9px}.member-service-access label:has(input:checked){background:#edf7ff;border-color:#69b8f5}.member-service-access input{accent-color:#1188e8}.member-service-access label span{font-size:10px;font-weight:700}

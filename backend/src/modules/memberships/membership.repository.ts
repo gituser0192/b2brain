@@ -4,6 +4,7 @@ import { prisma } from "../../database/prisma.js";
 const memberInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, status: true } },
   role: { select: { code: true, name: true } },
+  serviceAccess: { select: { serviceId: true } },
 } satisfies Prisma.OrganizationMembershipInclude;
 
 export class MembershipRepository {
@@ -51,6 +52,15 @@ export class MembershipRepository {
   }
   revokeInvitation(organizationId: string, id: string) {
     return prisma.membershipInvitation.updateMany({ where: { id, organizationId, status: "PENDING" }, data: { status: "REVOKED" } });
+  }
+  enabledOrganizationServices(organizationId: string) {
+    return prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { serviceId: true } });
+  }
+  replaceServiceAccess(organizationId: string, membershipId: string, actorUserId: string, serviceIds: string[]) {
+    return prisma.$transaction(async (tx) => {
+      await tx.membershipServiceAccess.deleteMany({ where: { organizationId, membershipId, serviceId: { notIn: serviceIds } } });
+      if (serviceIds.length) await tx.membershipServiceAccess.createMany({ data: serviceIds.map((serviceId) => ({ organizationId, membershipId, serviceId, createdById: actorUserId, updatedById: actorUserId })), skipDuplicates: true });
+    });
   }
 }
 

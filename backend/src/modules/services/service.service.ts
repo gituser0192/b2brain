@@ -40,9 +40,10 @@ export class ServiceCatalogueService {
     };
   }
 
-  async enabled(organizationId: string) {
+  async enabled(organizationId: string, membershipId: string, roleCode: string) {
     const records = await this.repository.enabledForOrganization(organizationId);
-    return records.map((record) => ({
+    const assignedIds = roleCode === "ORGANIZATION_OWNER" ? null : new Set(await this.repository.assignedServiceIds(organizationId, membershipId));
+    return records.filter((record) => !assignedIds || assignedIds.has(record.serviceId)).map((record) => ({
       id: record.id,
       code: record.service.code,
       name: record.service.name,

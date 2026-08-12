@@ -1,6 +1,9 @@
 import { prisma } from "../../database/prisma.js";
 
 export class ServiceRepository {
+  async assignedServiceIds(organizationId: string, membershipId: string) {
+    return (await prisma.membershipServiceAccess.findMany({ where: { organizationId, membershipId }, select: { serviceId: true } })).map((item) => item.serviceId);
+  }
   catalog() {
     return prisma.service.findMany({
       where: { status: "ACTIVE", archivedAt: null },

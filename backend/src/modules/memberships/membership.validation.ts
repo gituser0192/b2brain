@@ -18,6 +18,11 @@ export const updateMembershipSchema = z.object({
   status: z.enum(["ACTIVE", "SUSPENDED"]).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, "Provide a role or status.");
 
+export const updateMemberServicesSchema = z.object({
+  serviceIds: z.array(z.string().uuid()).max(100),
+}).strict();
+
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
 export type UpdateMembershipInput = z.infer<typeof updateMembershipSchema>;
+export type UpdateMemberServicesInput = z.infer<typeof updateMemberServicesSchema>;

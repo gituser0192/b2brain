@@ -1,12 +1,13 @@
 import { prisma } from "../../database/prisma.js";
 
 export class DashboardService {
-  async summary(organizationId: string, permissions: string[], days: number | null) {
+  async summary(organizationId: string, membershipId: string, roleCode: string, permissions: string[], days: number | null) {
     const organization = await prisma.organization.findFirst({ where: { id: organizationId, deletedAt: null }, select: { currency: true } });
     const organizationPlan = await prisma.organizationPlan.findUnique({ where: { organizationId } });
     const planExpired = Boolean(organizationPlan && (["PAST_DUE", "EXPIRED", "CANCELED"].includes(organizationPlan.status) || (organizationPlan.status === "TRIAL" && organizationPlan.trialEndsAt && organizationPlan.trialEndsAt <= new Date()) || (organizationPlan.expiresAt && organizationPlan.expiresAt <= new Date())));
     const since = days === null ? undefined : new Date(Date.now() - days * 86400000);
-    const enabled = new Set(planExpired ? [] : (await prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { service: { select: { code: true } } } })).map((item) => item.service.code));
+    const assignedServiceIds = roleCode === "ORGANIZATION_OWNER" ? null : new Set((await prisma.membershipServiceAccess.findMany({ where: { organizationId, membershipId }, select: { serviceId: true } })).map((item) => item.serviceId));
+    const enabled = new Set(planExpired ? [] : (await prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null }, ...(assignedServiceIds ? { serviceId: { in: [...assignedServiceIds] } } : {}) }, select: { service: { select: { code: true } } } })).map((item) => item.service.code));
     const can = (service: string, permission: string) => enabled.has(service) && permissions.includes(permission);
     const date = since ? { gte: since } : undefined;
     const [customers, followUps, deals, quotations, projects, overdueTasks, employees, invoices, payments, unmatchedPayments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
