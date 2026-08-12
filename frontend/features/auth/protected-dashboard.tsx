@@ -32,6 +32,9 @@ import { ActionCentreWorkspace } from "@/features/action-centre/action-centre-wo
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: "D", permission: null },
+];
+
+const ownerNavItems = [
   { key: "welcome", label: "Workspace Setup", icon: "W", permission: null },
   { key: "people", label: "Access & Team", icon: "T", permission: "MEMBERSHIP_VIEW" },
   { key: "roles", label: "Roles", icon: "R", permission: "ROLE_VIEW" },
@@ -61,7 +64,9 @@ export function ProtectedDashboard() {
   if (isLoading || !session) return <main className="screen-loader"><span className="spinner dark" /><p>Opening your workspace…</p></main>;
 
   const initials = `${session.user.firstName[0] ?? ""}${session.user.lastName?.[0] ?? ""}`.toUpperCase();
-  const hasOrganizationUpdate = session.membership.permissions.includes("ORGANIZATION_UPDATE");
+  const isOrganizationOwner = session.membership.role.code === "ORGANIZATION_OWNER";
+  const hasOrganizationUpdate = isOrganizationOwner && session.membership.permissions.includes("ORGANIZATION_UPDATE");
+  const visibleNavItems = isOrganizationOwner ? [...navItems, ...ownerNavItems] : navItems;
   function toggleOrganizationEditor(organization: AuthOrganization) {
     if (!editing) setForm({ name: organization.name, timezone: organization.timezone, currency: organization.currency });
     setEditing((value) => !value);
@@ -87,7 +92,7 @@ export function ProtectedDashboard() {
       <aside className="dashboard-sidebar">
         <div className="dashboard-logo"><Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} /><span><strong>B² Brain</strong><small>Workspace</small></span></div>
         <nav aria-label="Primary navigation">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             (() => {
               const enabled = item.permission === null || session.membership.permissions.includes(item.permission);
               return <button key={item.label} className={activeView === item.key ? "active" : ""} disabled={!enabled} onClick={() => enabled && setActiveView(item.key as ActiveView)}>
@@ -153,7 +158,7 @@ export function ProtectedDashboard() {
             <div className="setup-list">
               <article className="setup-item complete"><span className="setup-state">✓</span><div><h3>Workspace created</h3><p>Your isolated organization and owner account are ready.</p></div><span className="item-status">Complete</span></article>
               <article className="setup-item"><span className="setup-state">2</span><div><h3>Confirm organization preferences</h3><p>Check your name, timezone, and operating currency.</p></div><button onClick={() => toggleOrganizationEditor(session.organization)} disabled={!hasOrganizationUpdate}>{editing ? "Close" : "Review"}</button></article>
-              <article className="setup-item"><span className="setup-state">3</span><div><h3>Invite your team</h3><p>Create secure invitations and assign the right starting role.</p></div><button onClick={() => setActiveView("people")}>Open People</button></article>
+              {isOrganizationOwner && <article className="setup-item"><span className="setup-state">3</span><div><h3>Invite your team</h3><p>Create secure invitations and assign the right starting role.</p></div><button onClick={() => setActiveView("people")}>Open People</button></article>}
               <article className="setup-item"><span className="setup-state">4</span><div><h3>Start your first business module</h3><p>Assigned modules will appear automatically when your platform plan enables them.</p></div><span className="item-status">Awaiting access</span></article>
             </div>
 

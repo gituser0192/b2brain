@@ -41,6 +41,11 @@ export const requirePlatformAdmin: RequestHandler = (request, _response, next) =
   next();
 };
 
+export const requireOrganizationOwner: RequestHandler = (request, _response, next) => {
+  if (request.auth?.roleCode !== "ORGANIZATION_OWNER") return next(new AppError(403, "Organization owner access is required.", "ORGANIZATION_OWNER_REQUIRED"));
+  next();
+};
+
 export const requireEnabledService = (serviceCode: string): RequestHandler => async (request, _response, next) => {
   if (!request.auth) return next(new AppError(401, "Authentication is required.", "UNAUTHENTICATED"));
   const plan = await prisma.organizationPlan.findUnique({ where: { organizationId: request.auth.organizationId } });
