@@ -76,7 +76,7 @@ export function BridgeManager() {
     [connector, setConnector] = useState(connectorBlank),
     [event, setEvent] = useState(eventBlank),
     [selected, setSelected] = useState(""),
-    [open, setOpen] = useState<"connector" | "event" | "credentials" | null>(
+    [open, setOpen] = useState<"connector" | "event" | "credentials" | "website-form" | null>(
       null,
     ),
     [error, setError] = useState(""),
@@ -86,6 +86,15 @@ export function BridgeManager() {
       businessAccountId: "",
       accessToken: "",
       appSecret: "",
+    }),
+    [websiteForm, setWebsiteForm] = useState({
+      title: "How can we help?",
+      description: "Share your requirement and our team will contact you.",
+      submitLabel: "Send inquiry",
+      successMessage: "Thank you. Your inquiry has been received.",
+      accentColor: "#087ce3",
+      askService: true,
+      serviceLabel: "Service required",
     });
   const load = useCallback(async () => {
     const [r, d] = await Promise.all([
@@ -170,6 +179,18 @@ export function BridgeManager() {
           ? e.message
           : "Unable to save WhatsApp credentials.",
       );
+    }
+  }
+  async function saveWebsiteForm() {
+    try {
+      await authorizedRequest(`/automation-bridge/connectors/${selected}/website-form`, {
+        method: "PUT",
+        body: JSON.stringify(websiteForm),
+      });
+      setOpen(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Unable to configure website form.");
     }
   }
   async function createReply(item: Event) {
@@ -313,6 +334,12 @@ export function BridgeManager() {
                     <code>/api/v1/webhooks/intake/{c.webhookKey}</code>
                   </>
                 )}
+                {c.type === "WEBSITE" && (
+                  <footer>
+                    <button onClick={() => { setSelected(c.id); setOpen("website-form"); }}>Configure lead form</button>
+                    <button onClick={() => window.open(`/forms/${c.webhookKey}`, "_blank")}>Preview</button>
+                  </footer>
+                )}
               </article>
             ))
           )}
@@ -395,13 +422,31 @@ export function BridgeManager() {
               <h3>
                 {open === "credentials"
                   ? "Configure WhatsApp"
+                  : open === "website-form"
+                    ? "Configure website lead form"
                   : open === "connector"
                     ? "Create connector"
                     : "Receive controlled test event"}
               </h3>
               <button onClick={() => setOpen(null)}>×</button>
             </header>
-            {open === "credentials" ? (
+            {open === "website-form" ? (
+              <>
+                <div className="agent-form-grid">
+                  <label><span>Form title</span><input value={websiteForm.title} onChange={(e) => setWebsiteForm({ ...websiteForm, title: e.target.value })} /></label>
+                  <label><span>Button label</span><input value={websiteForm.submitLabel} onChange={(e) => setWebsiteForm({ ...websiteForm, submitLabel: e.target.value })} /></label>
+                  <label><span>Service field label</span><input value={websiteForm.serviceLabel} onChange={(e) => setWebsiteForm({ ...websiteForm, serviceLabel: e.target.value })} /></label>
+                  <label><span>Accent color</span><input type="color" value={websiteForm.accentColor} onChange={(e) => setWebsiteForm({ ...websiteForm, accentColor: e.target.value })} /></label>
+                </div>
+                <label><span>Description</span><textarea rows={2} value={websiteForm.description} onChange={(e) => setWebsiteForm({ ...websiteForm, description: e.target.value })} /></label>
+                <label><span>Success message</span><textarea rows={2} value={websiteForm.successMessage} onChange={(e) => setWebsiteForm({ ...websiteForm, successMessage: e.target.value })} /></label>
+                <label><input type="checkbox" checked={websiteForm.askService} onChange={(e) => setWebsiteForm({ ...websiteForm, askService: e.target.checked })} /> Ask which service the customer needs</label>
+                <div className="inventory-control-note">
+                  Embed code: <code>{`<iframe src="${typeof window !== "undefined" ? window.location.origin : "https://your-b2brain-domain"}/forms/${connectors.find((item) => item.id === selected)?.webhookKey ?? "FORM_KEY"}" width="100%" height="720" style="border:0" loading="lazy"></iframe>`}</code>
+                </div>
+                <footer><button onClick={() => setOpen(null)}>Cancel</button><button onClick={() => void saveWebsiteForm()}>Save form</button></footer>
+              </>
+            ) : open === "credentials" ? (
               <>
                 <label>
                   <span>WhatsApp connector</span>
