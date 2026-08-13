@@ -47,33 +47,24 @@ export const requireOrganizationOwner: RequestHandler = (request, _response, nex
   next();
 };
 
-export const requireEnabledService = (serviceCode: string): RequestHandler => async (request, _response, next) => {
-  if (!request.auth) return next(new AppError(401, "Authentication is required.", "UNAUTHENTICATED"));
-  const plan = await prisma.organizationPlan.findUnique({ where: { organizationId: request.auth.organizationId } });
+export async function verifyServiceAccess(context: NonNullable<Express.Request["auth"]>, serviceCode: string, permission?: string) {
+  const plan = await prisma.organizationPlan.findUnique({ where: { organizationId: context.organizationId } });
   if (plan) {
     const expired = plan.status === "PAST_DUE" || plan.status === "CANCELED" || plan.status === "EXPIRED" || (plan.status === "TRIAL" && Boolean(plan.trialEndsAt && plan.trialEndsAt <= new Date())) || Boolean(plan.expiresAt && plan.expiresAt <= new Date());
-    if (expired) {
-      if (!["PAST_DUE", "EXPIRED", "CANCELED"].includes(plan.status)) await prisma.organizationPlan.update({ where: { organizationId: request.auth.organizationId }, data: { status: "EXPIRED" } });
-      return next(new AppError(403, "This organization's service plan has expired.", "SERVICE_PLAN_EXPIRED"));
-    }
+    if (expired) throw new AppError(403, "This organization's service plan has expired.", "SERVICE_PLAN_EXPIRED");
   }
-  const enabled = await prisma.organizationService.findFirst({
-    where: {
-      organizationId: request.auth.organizationId,
-      status: "ENABLED",
-      deletedAt: null,
-      service: { code: serviceCode, status: "ACTIVE", archivedAt: null },
-    },
-    select: { id: true },
-  });
-  if (!enabled) return next(new AppError(403, `${serviceCode} is not enabled for this organization.`, "SERVICE_NOT_ENABLED"));
-  if (request.auth.roleCode !== "ORGANIZATION_OWNER") {
-    const assigned = await prisma.membershipServiceAccess.findFirst({
-      where: { organizationId: request.auth.organizationId, membershipId: request.auth.membershipId, service: { code: serviceCode } },
-      select: { id: true, accessMode: true },
-    });
-    if (!assigned) return next(new AppError(403, `${serviceCode} is not assigned to your account.`, "MEMBER_SERVICE_NOT_ASSIGNED"));
-    request.auth.serviceAccessMode = assigned.accessMode;
-  }
-  next();
+  const enabled = await prisma.organizationService.findFirst({ where: { organizationId: context.organizationId, status: "ENABLED", deletedAt: null, service: { code: serviceCode, status: "ACTIVE", archivedAt: null } }, select: { id: true } });
+  if (!enabled) throw new AppError(403, `${serviceCode} is not enabled for this organization.`, "SERVICE_NOT_ENABLED");
+  if (permission && !context.permissions.includes(permission)) throw new AppError(403, "You do not have permission to perform this action.", "FORBIDDEN");
+  if (context.roleCode === "ORGANIZATION_OWNER") return "READ_WRITE" as const;
+  const assigned = await prisma.membershipServiceAccess.findFirst({ where: { organizationId: context.organizationId, membershipId: context.membershipId, service: { code: serviceCode } }, select: { accessMode: true } });
+  if (!assigned) throw new AppError(403, `${serviceCode} is not assigned to your account.`, "MEMBER_SERVICE_NOT_ASSIGNED");
+  if (permission && assigned.accessMode === "READ_ONLY" && !permission.endsWith("_VIEW")) throw new AppError(403, "This service is assigned as read only.", "MEMBER_SERVICE_READ_ONLY");
+  return assigned.accessMode;
+}
+
+export const requireEnabledService = (serviceCode: string): RequestHandler => async (request, _response, next) => {
+  if (!request.auth) return next(new AppError(401, "Authentication is required.", "UNAUTHENTICATED"));
+  try { request.auth.serviceAccessMode = await verifyServiceAccess(request.auth, serviceCode); next(); }
+  catch (error) { next(error); }
 };

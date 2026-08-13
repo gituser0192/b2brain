@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireEnabledService,
   requirePermission,
+  verifyServiceAccess,
 } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { success } from "../../shared/responses/api-response.js";
@@ -147,13 +148,20 @@ inquiryRouter.post(
   validateBody(conversionSchema),
   async (r, s) => {
     const c = context(r);
+    const conversion = r.body as ConversionInput;
+    if (conversion.target === "CUSTOMER") await verifyServiceAccess(c, "CRM", "CRM_CREATE");
+    if (conversion.target === "DEAL") {
+      await verifyServiceAccess(c, "CRM", "CRM_CREATE");
+      await verifyServiceAccess(c, "SALES", "DEAL_MANAGE");
+    }
+    if (conversion.target === "SUPPORT") await verifyServiceAccess(c, "SUPPORT", "SUPPORT_MANAGE");
     s.json(
       success(
         await service.convert(
           c.organizationId,
           c.userId,
           String(r.params.id),
-          r.body as ConversionInput,
+          conversion,
         ),
         "Inquiry converted.",
       ),

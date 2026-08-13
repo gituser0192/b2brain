@@ -69,7 +69,7 @@ const blank = () => ({
   responseDueAt: "",
   disqualifiedReason: "",
 });
-export function InquiryWorkspace() {
+export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "sales" | "support") => void }) {
   const { session, authorizedRequest } = useAuth(),
     [items, setItems] = useState<Item[]>([]),
     [employees, setEmployees] = useState<Ref[]>([]),
@@ -243,6 +243,7 @@ export function InquiryWorkspace() {
         body: JSON.stringify(body),
       });
       await load();
+      onNavigate(target === "CUSTOMER" ? "crm" : target === "DEAL" ? "sales" : "support");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Conversion failed.");
     }
