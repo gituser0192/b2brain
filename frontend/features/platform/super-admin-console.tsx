@@ -21,7 +21,7 @@ interface PlatformService { id: string; code: string; name: string; description:
 interface ServicePlan { id: string; code: string; name: string; description: string | null; status: "DRAFT" | "ACTIVE" | "ARCHIVED"; monthlyPrice: number; yearlyPrice: number; currency: string; serviceIds: string[]; organizationCount: number; }
 interface PlatformInvitation { id: string; email: string; organizationName: string; status: string; expiresAt: string; createdAt: string; type: "NEW_ORGANIZATION" | "REACTIVATE_ORGANIZATION"; }
 interface OverviewResponse { success: true; data: { organizations: PlatformOrganization[]; services: PlatformService[]; invitations: PlatformInvitation[]; plans: ServicePlan[] }; }
-interface InviteResponse { success: true; data: { invitation: PlatformInvitation; signupPath: string }; }
+interface InviteResponse { success: true; data: { invitation: PlatformInvitation; signupPath: string; emailDelivered: boolean }; }
 
 const BILLING_WARNING_CUTOFF = Date.now() + 7 * 86400000;
 const PAYMENT_PREVIEW_COUNT = 3;

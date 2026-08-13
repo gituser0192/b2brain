@@ -6,7 +6,7 @@ function repository(status: "ACTIVE" | "REMOVED") {
     findUser: vi.fn().mockResolvedValue({ id: "user-1" }),
     findMembership: vi.fn().mockResolvedValue({ id: "membership-1", status }),
     findRole: vi.fn().mockResolvedValue({ id: "role-1" }),
-    createInvitation: vi.fn().mockImplementation(async (data) => ({ id: "invitation-1", email: "member@example.com", status: "PENDING", expiresAt: data.expiresAt, role: { code: "ORGANIZATION_MEMBER", name: "Member" } })),
+    createInvitation: vi.fn().mockImplementation(async (data) => ({ id: "invitation-1", email: "member@example.com", status: "PENDING", expiresAt: data.expiresAt, role: { code: "ORGANIZATION_MEMBER", name: "Member" }, organization: { name: "Test organization" } })),
   };
 }
 

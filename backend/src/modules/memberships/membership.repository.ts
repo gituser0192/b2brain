@@ -34,7 +34,7 @@ export class MembershipRepository {
   }
   async createInvitation(data: Prisma.MembershipInvitationUncheckedCreateInput) {
     await prisma.membershipInvitation.updateMany({ where: { organizationId: data.organizationId, email: data.email, status: "PENDING" }, data: { status: "REVOKED" } });
-    return prisma.membershipInvitation.create({ data, include: { role: { select: { code: true, name: true } } } });
+    return prisma.membershipInvitation.create({ data, include: { role: { select: { code: true, name: true } }, organization: { select: { name: true } } } });
   }
   findInvitation(tokenHash: string) {
     return prisma.membershipInvitation.findUnique({ where: { tokenHash }, include: { organization: true, role: true } });

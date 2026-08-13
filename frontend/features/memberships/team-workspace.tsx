@@ -22,7 +22,7 @@ interface Invitation {
   invitedBy: { firstName: string; lastName: string | null };
 }
 interface ListResponse { success: true; data: { members: Member[]; invitations: Invitation[] }; }
-interface InviteResponse { success: true; message: string; data: { invitation: Invitation; acceptPath: string }; }
+interface InviteResponse { success: true; message: string; data: { invitation: Invitation; acceptPath: string; emailDelivered: boolean }; }
 interface RoleOption { code: string; name: string; isSystem: boolean; }
 interface RolesResponse { success: true; data: { roles: RoleOption[] }; }
 interface ServiceOption { id: string; code: string; name: string; }
@@ -69,7 +69,7 @@ export function TeamWorkspace() {
       const response = await authorizedRequest<InviteResponse>("/memberships/invitations", { method: "POST", body: JSON.stringify({ email, roleCode }) });
       setInviteUrl(`${window.location.origin}${response.data.acceptPath}`);
       setEmail("");
-      setNotice("Invitation created. Copy the secure link and send it to the invited person.");
+      setNotice(response.data.emailDelivered ? "Invitation created and emailed to the invited person." : "Invitation created. Email is not configured, so copy and send the secure link.");
       await load();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Unable to create the invitation.");

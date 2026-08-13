@@ -8,6 +8,7 @@ import { hashPlatformInvitationToken } from "../platform/platform.tokens.js";
 import type { AuthContext, LoginInput, RegisterInput, SessionMetadata } from "./auth.types.js";
 import type { ForgotPasswordInput, ResetPasswordInput } from "./auth.validation.js";
 import { hashPasswordResetToken, newPasswordResetToken, passwordResetExpiry } from "./password-reset.tokens.js";
+import { EmailService } from "../../shared/email/email.service.js";
 
 const OWNER_CODE = "ORGANIZATION_OWNER";
 
@@ -35,7 +36,7 @@ function safeData(membership: MembershipContext) {
 }
 
 export class AuthService {
-  constructor(private readonly repository = new AuthRepository()) {}
+  constructor(private readonly repository = new AuthRepository(), private readonly email = new EmailService()) {}
 
   async register(input: RegisterInput) {
     const invitation = await this.repository.findPlatformInvitation(hashPlatformInvitationToken(input.invitationToken));
@@ -113,7 +114,9 @@ export class AuthService {
     if (!user || user.deletedAt || user.status !== "ACTIVE") return {};
     const token = newPasswordResetToken();
     await this.repository.createPasswordReset(user.id, hashPasswordResetToken(token), passwordResetExpiry());
-    return env.NODE_ENV === "development" ? { resetPath: `/reset-password?token=${encodeURIComponent(token)}` } : {};
+    const resetPath = `/reset-password?token=${encodeURIComponent(token)}`;
+    await this.email.passwordReset(user.email, resetPath);
+    return env.NODE_ENV === "development" ? { resetPath } : {};
   }
   async resetPassword(input: ResetPasswordInput) {
     const reset = await this.repository.findPasswordReset(hashPasswordResetToken(input.token));

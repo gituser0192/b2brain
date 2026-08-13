@@ -3,9 +3,10 @@ import { PlatformRepository } from "./platform.repository.js";
 import { hashPlatformInvitationToken, newPlatformInvitationToken, platformInvitationExpiry } from "./platform.tokens.js";
 import type { CreatePlatformInvitationInput, OrganizationPlanAssignmentInput, ServicePlanInput, SubscriptionPaymentInput } from "./platform.validation.js";
 import type { OrganizationAccessInput } from "./platform.validation.js";
+import { EmailService } from "../../shared/email/email.service.js";
 
 export class PlatformService {
-  constructor(private readonly repository = new PlatformRepository()) {}
+  constructor(private readonly repository = new PlatformRepository(), private readonly email = new EmailService()) {}
 
   async overview() {
     await this.repository.expireDuePlans();
@@ -90,9 +91,12 @@ export class PlatformService {
     const type = removedOwnerMembership ? "REACTIVATE_ORGANIZATION" : "NEW_ORGANIZATION";
     const organizationName = removedOwnerMembership?.organization.name ?? input.organizationName;
     const invitation = await this.repository.createInvitation(input.email, organizationName, actorUserId, hashPlatformInvitationToken(token), platformInvitationExpiry(), type, removedOwnerMembership?.organizationId);
+    const signupPath = `/signup?token=${encodeURIComponent(token)}`;
+    const delivery = await this.email.organizationInvitation(invitation.email, invitation.organizationName, signupPath);
     return {
       invitation: { id: invitation.id, email: invitation.email, organizationName: invitation.organizationName, status: invitation.status, expiresAt: invitation.expiresAt, type: invitation.type },
-      signupPath: `/signup?token=${encodeURIComponent(token)}`,
+      signupPath,
+      emailDelivered: delivery.delivered,
     };
   }
 

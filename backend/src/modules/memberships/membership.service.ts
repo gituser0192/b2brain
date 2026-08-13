@@ -4,6 +4,7 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { MembershipRepository, type MemberRecord } from "./membership.repository.js";
 import { hashInvitationToken, invitationExpiry, newInvitationToken } from "./membership.tokens.js";
 import type { AcceptInvitationInput, InviteMemberInput, UpdateMembershipInput, UpdateMemberServicesInput } from "./membership.validation.js";
+import { EmailService } from "../../shared/email/email.service.js";
 
 function safeMember(member: NonNullable<MemberRecord>) {
   return {
@@ -17,7 +18,7 @@ function safeMember(member: NonNullable<MemberRecord>) {
 }
 
 export class MembershipService {
-  constructor(private readonly repository = new MembershipRepository()) {}
+  constructor(private readonly repository = new MembershipRepository(), private readonly email = new EmailService()) {}
 
   async list(organizationId: string) {
     const [members, invitations] = await Promise.all([this.repository.list(organizationId), this.repository.listInvitations(organizationId)]);
@@ -51,9 +52,12 @@ export class MembershipService {
       tokenHash: hashInvitationToken(token),
       expiresAt: invitationExpiry(),
     });
+    const acceptPath = `/accept-invitation?token=${encodeURIComponent(token)}`;
+    const delivery = await this.email.invitation(invitation.email, invitation.organization.name, acceptPath);
     return {
       invitation: { id: invitation.id, email: invitation.email, status: invitation.status, expiresAt: invitation.expiresAt, role: invitation.role },
-      acceptPath: `/accept-invitation?token=${encodeURIComponent(token)}`,
+      acceptPath,
+      emailDelivered: delivery.delivered,
     };
   }
 

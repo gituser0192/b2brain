@@ -19,6 +19,12 @@ const envSchema = z.object({
   SUPER_ADMIN_EMAIL: z.string().email().optional().transform((value) => value?.toLowerCase()),
   BRIDGE_ENCRYPTION_KEY: z.string().optional().transform((value) => value || undefined),
   META_GRAPH_API_VERSION: z.string().default("v23.0"),
+  SMTP_HOST: z.string().optional().transform((value) => value || undefined),
+  SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+  SMTP_SECURE: z.string().default("false").transform((value) => value === "true"),
+  SMTP_USER: z.string().optional().transform((value) => value || undefined),
+  SMTP_PASSWORD: z.string().optional().transform((value) => value || undefined),
+  EMAIL_FROM: z.string().default("B2 Brain <no-reply@b2brain.local>"),
 });
 
 const result = envSchema.safeParse(process.env);
