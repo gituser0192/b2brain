@@ -9,18 +9,19 @@ function repository(status: "ACTIVE" | "REMOVED") {
     createInvitation: vi.fn().mockImplementation(async (data) => ({ id: "invitation-1", email: "member@example.com", status: "PENDING", expiresAt: data.expiresAt, role: { code: "ORGANIZATION_MEMBER", name: "Member" }, organization: { name: "Test organization" } })),
   };
 }
+const email = { invitation: vi.fn().mockResolvedValue({ delivered: true, preview: false }) };
 
 describe("removed member reinvitations", () => {
   it("allows a removed membership to receive a new invitation", async () => {
     const fake = repository("REMOVED");
-    const service = new MembershipService(fake as never);
+    const service = new MembershipService(fake as never, email as never);
     await expect(service.invite("00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", { email: "member@example.com", roleCode: "ORGANIZATION_MEMBER" })).resolves.toMatchObject({ invitation: { email: "member@example.com" } });
     expect(fake.createInvitation).toHaveBeenCalledOnce();
   });
 
   it("continues to reject an active membership", async () => {
     const fake = repository("ACTIVE");
-    const service = new MembershipService(fake as never);
+    const service = new MembershipService(fake as never, email as never);
     await expect(service.invite("00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", { email: "member@example.com", roleCode: "ORGANIZATION_MEMBER" })).rejects.toMatchObject({ code: "MEMBERSHIP_ALREADY_EXISTS" });
     expect(fake.createInvitation).not.toHaveBeenCalled();
   });
