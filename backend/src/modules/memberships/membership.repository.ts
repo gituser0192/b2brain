@@ -4,7 +4,7 @@ import { prisma } from "../../database/prisma.js";
 const memberInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, status: true } },
   role: { select: { code: true, name: true } },
-  serviceAccess: { select: { serviceId: true } },
+  serviceAccess: { select: { serviceId: true, accessMode: true } },
 } satisfies Prisma.OrganizationMembershipInclude;
 
 export class MembershipRepository {
@@ -57,10 +57,11 @@ export class MembershipRepository {
   enabledOrganizationServices(organizationId: string) {
     return prisma.organizationService.findMany({ where: { organizationId, status: "ENABLED", deletedAt: null, service: { status: "ACTIVE", archivedAt: null } }, select: { serviceId: true } });
   }
-  replaceServiceAccess(organizationId: string, membershipId: string, actorUserId: string, serviceIds: string[]) {
+  replaceServiceAccess(organizationId: string, membershipId: string, actorUserId: string, services: { serviceId: string; accessMode: "READ_ONLY" | "READ_WRITE" }[]) {
     return prisma.$transaction(async (tx) => {
+      const serviceIds = services.map((item) => item.serviceId);
       await tx.membershipServiceAccess.deleteMany({ where: { organizationId, membershipId, serviceId: { notIn: serviceIds } } });
-      if (serviceIds.length) await tx.membershipServiceAccess.createMany({ data: serviceIds.map((serviceId) => ({ organizationId, membershipId, serviceId, createdById: actorUserId, updatedById: actorUserId })), skipDuplicates: true });
+      for (const item of services) await tx.membershipServiceAccess.upsert({ where: { membershipId_serviceId: { membershipId, serviceId: item.serviceId } }, update: { accessMode: item.accessMode, updatedById: actorUserId }, create: { organizationId, membershipId, serviceId: item.serviceId, accessMode: item.accessMode, createdById: actorUserId, updatedById: actorUserId } });
     });
   }
 }

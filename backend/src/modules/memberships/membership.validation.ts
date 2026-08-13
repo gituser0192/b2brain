@@ -19,7 +19,7 @@ export const updateMembershipSchema = z.object({
 }).strict().refine((value) => Object.keys(value).length > 0, "Provide a role or status.");
 
 export const updateMemberServicesSchema = z.object({
-  serviceIds: z.array(z.string().uuid()).max(100),
+  services: z.array(z.object({ serviceId: z.string().uuid(), accessMode: z.enum(["READ_ONLY", "READ_WRITE"]) }).strict()).max(100),
 }).strict();
 
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;

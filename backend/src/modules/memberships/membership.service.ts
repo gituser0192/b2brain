@@ -13,7 +13,7 @@ function safeMember(member: NonNullable<MemberRecord>) {
     joinedAt: member.joinedAt,
     user: member.user,
     role: member.role,
-    serviceIds: member.serviceAccess.map((access) => access.serviceId),
+    serviceAccess: member.serviceAccess,
   };
 }
 
@@ -116,8 +116,9 @@ export class MembershipService {
     if (!member) throw new AppError(404, "Membership not found.", "MEMBERSHIP_NOT_FOUND");
     if (member.role.code === "ORGANIZATION_OWNER") throw new AppError(409, "The organization owner always has access to enabled services.", "OWNER_SERVICE_ACCESS_PROTECTED");
     const enabledIds = new Set((await this.repository.enabledOrganizationServices(organizationId)).map((item) => item.serviceId));
-    if (input.serviceIds.some((serviceId) => !enabledIds.has(serviceId))) throw new AppError(400, "Only services enabled for this organization can be assigned.", "INVALID_SERVICE_ASSIGNMENT");
-    await this.repository.replaceServiceAccess(organizationId, id, actorUserId, [...new Set(input.serviceIds)]);
-    return { membershipId: id, serviceIds: [...new Set(input.serviceIds)] };
+    if (input.services.some((item) => !enabledIds.has(item.serviceId))) throw new AppError(400, "Only services enabled for this organization can be assigned.", "INVALID_SERVICE_ASSIGNMENT");
+    const services = [...new Map(input.services.map((item) => [item.serviceId, item])).values()];
+    await this.repository.replaceServiceAccess(organizationId, id, actorUserId, services);
+    return { membershipId: id, services };
   }
 }

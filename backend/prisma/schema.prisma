@@ -701,6 +701,11 @@ enum ReminderChannel {
   WHATSAPP
 }
 
+enum MemberServiceAccessMode {
+  READ_ONLY
+  READ_WRITE
+}
+
 model User {
   id                          String                        @id @default(uuid()) @db.Uuid
   firstName                   String
@@ -1180,19 +1185,20 @@ model OrganizationService {
 }
 
 model MembershipServiceAccess {
-  id             String                 @id @default(uuid()) @db.Uuid
-  organizationId String                 @db.Uuid
-  membershipId   String                 @db.Uuid
-  serviceId      String                 @db.Uuid
-  createdById    String                 @db.Uuid
-  updatedById    String                 @db.Uuid
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  membership     OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  service        Service                @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  createdBy      User                   @relation("MemberServiceAccessCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User                   @relation("MemberServiceAccessUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  membershipId   String                  @db.Uuid
+  serviceId      String                  @db.Uuid
+  accessMode     MemberServiceAccessMode @default(READ_ONLY)
+  createdById    String                  @db.Uuid
+  updatedById    String                  @db.Uuid
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership     OrganizationMembership  @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  service        Service                 @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdBy      User                    @relation("MemberServiceAccessCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                    @relation("MemberServiceAccessUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
   @@unique([membershipId, serviceId])
   @@index([organizationId, membershipId])

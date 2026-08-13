@@ -33,6 +33,7 @@ export const requireActiveOrganization = requireActiveContext;
 
 export const requirePermission = (permission: string): RequestHandler => (request, _response, next) => {
   if (!request.auth?.permissions.includes(permission)) return next(new AppError(403, "You do not have permission to perform this action.", "FORBIDDEN"));
+  if (request.auth.serviceAccessMode === "READ_ONLY" && !permission.endsWith("_VIEW")) return next(new AppError(403, "This service is assigned as read only.", "MEMBER_SERVICE_READ_ONLY"));
   next();
 };
 
@@ -69,9 +70,10 @@ export const requireEnabledService = (serviceCode: string): RequestHandler => as
   if (request.auth.roleCode !== "ORGANIZATION_OWNER") {
     const assigned = await prisma.membershipServiceAccess.findFirst({
       where: { organizationId: request.auth.organizationId, membershipId: request.auth.membershipId, service: { code: serviceCode } },
-      select: { id: true },
+      select: { id: true, accessMode: true },
     });
     if (!assigned) return next(new AppError(403, `${serviceCode} is not assigned to your account.`, "MEMBER_SERVICE_NOT_ASSIGNED"));
+    request.auth.serviceAccessMode = assigned.accessMode;
   }
   next();
 };

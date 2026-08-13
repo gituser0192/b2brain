@@ -5,6 +5,7 @@ export interface AuthContext {
   roleCode: string;
   permissions: string[];
   isPlatformAdmin: boolean;
+  serviceAccessMode?: "READ_ONLY" | "READ_WRITE";
 }
 
 export interface SessionMetadata { userAgent?: string; ipAddress?: string; }

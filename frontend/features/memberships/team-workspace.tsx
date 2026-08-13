@@ -10,7 +10,7 @@ interface Member {
   joinedAt: string;
   user: { id: string; firstName: string; lastName: string | null; email: string; status: string };
   role: { code: string; name: string };
-  serviceIds: string[];
+  serviceAccess: { serviceId: string; accessMode: "READ_ONLY" | "READ_WRITE" }[];
 }
 interface Invitation {
   id: string;
@@ -95,13 +95,23 @@ export function TeamWorkspace() {
   }
 
   async function toggleMemberService(member: Member, serviceId: string, enabled: boolean) {
-    const serviceIds = enabled ? [...new Set([...member.serviceIds, serviceId])] : member.serviceIds.filter((id) => id !== serviceId);
+    const services = enabled ? [...member.serviceAccess, { serviceId, accessMode: "READ_ONLY" as const }] : member.serviceAccess.filter((item) => item.serviceId !== serviceId);
     setError("");
     try {
-      await authorizedRequest(`/memberships/${member.id}/services`, { method: "PUT", body: JSON.stringify({ serviceIds }) });
+      await authorizedRequest(`/memberships/${member.id}/services`, { method: "PUT", body: JSON.stringify({ services }) });
       setNotice("Member service access updated.");
       await load();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update service access."); }
+  }
+
+  async function changeServiceMode(member: Member, serviceId: string, accessMode: "READ_ONLY" | "READ_WRITE") {
+    const services = member.serviceAccess.map((item) => item.serviceId === serviceId ? { ...item, accessMode } : item);
+    setError("");
+    try {
+      await authorizedRequest(`/memberships/${member.id}/services`, { method: "PUT", body: JSON.stringify({ services }) });
+      setNotice("Service access mode updated.");
+      await load();
+    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update access mode."); }
   }
 
   async function revokeInvitation(id: string) {
@@ -143,7 +153,7 @@ export function TeamWorkspace() {
                 <span className={`member-status ${member.status.toLowerCase()}`}><i />{member.status === "ACTIVE" ? "Active" : "Suspended"}</span>
                 {canManage && !protectedOwner ? <select value={member.role.code} onChange={(event) => void updateMember(member.id, { roleCode: event.target.value })}>{roleOptions.map((role) => <option value={role.code} key={role.code}>{role.name}</option>)}</select> : <span className="role-label">{member.role.name}</span>}
                 {canManage && !protectedOwner ? <div className="member-actions"><button onClick={() => void updateMember(member.id, { status: member.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })}>{member.status === "ACTIVE" ? "Suspend" : "Restore"}</button><button className="danger" onClick={() => void removeMember(member.id)}>Remove</button></div> : <span className="owner-lock">Protected owner</span>}
-                {!protectedOwner && <div className="member-service-access"><strong>Assigned services</strong>{serviceOptions.length === 0 ? <span>No organization services enabled.</span> : <div>{serviceOptions.map((service) => <label key={service.id}><input type="checkbox" checked={member.serviceIds.includes(service.id)} disabled={!canManage || member.status !== "ACTIVE"} onChange={(event) => void toggleMemberService(member, service.id, event.target.checked)} /><span>{service.name}</span></label>)}</div>}</div>}
+                {!protectedOwner && <div className="member-service-access"><strong>Assigned services</strong>{serviceOptions.length === 0 ? <span>No organization services enabled.</span> : <div>{serviceOptions.map((service) => { const access = member.serviceAccess.find((item) => item.serviceId === service.id); return <div className={access ? "service-access-item assigned" : "service-access-item"} key={service.id}><label><input type="checkbox" checked={Boolean(access)} disabled={!canManage || member.status !== "ACTIVE"} onChange={(event) => void toggleMemberService(member, service.id, event.target.checked)} /><span>{service.name}</span></label>{access && <select value={access.accessMode} disabled={!canManage || member.status !== "ACTIVE"} onChange={(event) => void changeServiceMode(member, service.id, event.target.value as "READ_ONLY" | "READ_WRITE")}><option value="READ_ONLY">Read only</option><option value="READ_WRITE">Read & write</option></select>}</div>})}</div>}</div>}
               </article>;
             })}
           </div>

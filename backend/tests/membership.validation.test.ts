@@ -28,10 +28,10 @@ describe("membership security and validation", () => {
 
 describe("member service access validation", () => {
   it("accepts a unique-looking list of service UUIDs", () => {
-    expect(updateMemberServicesSchema.parse({ serviceIds: ["00000000-0000-4000-8000-000000000001"] }).serviceIds).toHaveLength(1);
+    expect(updateMemberServicesSchema.parse({ services: [{ serviceId: "00000000-0000-4000-8000-000000000001", accessMode: "READ_ONLY" }] }).services).toHaveLength(1);
   });
 
   it("rejects arbitrary service identifiers", () => {
-    expect(() => updateMemberServicesSchema.parse({ serviceIds: ["CRM"] })).toThrow();
+    expect(() => updateMemberServicesSchema.parse({ services: [{ serviceId: "CRM", accessMode: "READ_WRITE" }] })).toThrow();
   });
 });
