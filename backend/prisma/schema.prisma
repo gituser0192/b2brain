@@ -716,6 +716,7 @@ model User {
   isPlatformAdmin             Boolean                       @default(false)
   memberships                 OrganizationMembership[]
   refreshSessions             RefreshSession[]
+  passwordResetTokens         PasswordResetToken[]
   invitationsSent             MembershipInvitation[]        @relation("InvitationSender")
   organizationServicesCreated OrganizationService[]         @relation("OrganizationServiceCreatedBy")
   organizationServicesUpdated OrganizationService[]         @relation("OrganizationServiceUpdatedBy")
@@ -932,6 +933,19 @@ model OrganizationMembership {
   @@index([userId, status])
   @@index([organizationId, status])
   @@index([roleId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@index([expiresAt])
 }
 
 model Role {

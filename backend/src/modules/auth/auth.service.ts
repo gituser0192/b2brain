@@ -6,6 +6,8 @@ import { AuthRepository, type MembershipContext } from "./auth.repository.js";
 import { hashRefreshToken, issueAccessToken, newRefreshToken, refreshExpiry } from "./auth.tokens.js";
 import { hashPlatformInvitationToken } from "../platform/platform.tokens.js";
 import type { AuthContext, LoginInput, RegisterInput, SessionMetadata } from "./auth.types.js";
+import type { ForgotPasswordInput, ResetPasswordInput } from "./auth.validation.js";
+import { hashPasswordResetToken, newPasswordResetToken, passwordResetExpiry } from "./password-reset.tokens.js";
 
 const OWNER_CODE = "ORGANIZATION_OWNER";
 
@@ -106,6 +108,20 @@ export class AuthService {
   }
 
   async logout(token?: string) { if (token) await this.repository.revokeSession(hashRefreshToken(token)); }
+  async forgotPassword(input: ForgotPasswordInput) {
+    const user = await this.repository.findUserByEmail(input.email);
+    if (!user || user.deletedAt || user.status !== "ACTIVE") return {};
+    const token = newPasswordResetToken();
+    await this.repository.createPasswordReset(user.id, hashPasswordResetToken(token), passwordResetExpiry());
+    return env.NODE_ENV === "development" ? { resetPath: `/reset-password?token=${encodeURIComponent(token)}` } : {};
+  }
+  async resetPassword(input: ResetPasswordInput) {
+    const reset = await this.repository.findPasswordReset(hashPasswordResetToken(input.token));
+    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) throw new AppError(410, "This password reset link is invalid or expired.", "PASSWORD_RESET_INVALID");
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id, timeCost: Math.max(2, Math.min(5, env.PASSWORD_HASH_COST - 9)), memoryCost: 65_536, parallelism: 1 });
+    if (!(await this.repository.resetPassword(reset.userId, reset.id, passwordHash))) throw new AppError(410, "This password reset link is invalid or expired.", "PASSWORD_RESET_INVALID");
+    return {};
+  }
   async me(context: AuthContext) {
     const membership = await this.repository.findActiveContextByMembership(context.membershipId);
     if (!membership || membership.organizationId !== context.organizationId || membership.userId !== context.userId) throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");

@@ -66,4 +66,24 @@ export class AuthRepository {
   revokeSession(tokenHash: string) {
     return this.db.refreshSession.updateMany({ where: { tokenHash, revokedAt: null }, data: { revokedAt: new Date() } });
   }
+
+  async createPasswordReset(userId: string, tokenHash: string, expiresAt: Date) {
+    return this.db.$transaction(async (tx) => {
+      await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } });
+      return tx.passwordResetToken.create({ data: { userId, tokenHash, expiresAt } });
+    });
+  }
+
+  findPasswordReset(tokenHash: string) { return this.db.passwordResetToken.findUnique({ where: { tokenHash } }); }
+
+  resetPassword(userId: string, resetId: string, passwordHash: string) {
+    return this.db.$transaction(async (tx) => {
+      const claimed = await tx.passwordResetToken.updateMany({ where: { id: resetId, userId, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+      if (claimed.count !== 1) return false;
+      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      await tx.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } });
+      return true;
+    });
+  }
 }

@@ -5,6 +5,7 @@ import { success } from "../../shared/responses/api-response.js";
 import { AuthService } from "./auth.service.js";
 import type { SessionMetadata } from "./auth.types.js";
 import type { LoginInput, RegisterInput } from "./auth.types.js";
+import type { ForgotPasswordInput, ResetPasswordInput } from "./auth.validation.js";
 import { durationMs } from "./auth.tokens.js";
 
 const service = new AuthService();
@@ -67,4 +68,10 @@ export const logout: RequestHandler = async (request, response) => {
 export const me: RequestHandler = async (request, response) => {
   if (!request.auth) throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
   response.json(success(await service.me(request.auth)));
+};
+export const forgotPassword: RequestHandler = async (request, response) => response.json(success(await service.forgotPassword(request.body as ForgotPasswordInput), "If an eligible account exists, password reset instructions are ready."));
+export const resetPassword: RequestHandler = async (request, response) => {
+  await service.resetPassword(request.body as ResetPasswordInput);
+  response.clearCookie(env.COOKIE_NAME, cookieOptions());
+  response.json(success({}, "Password changed. Sign in with your new password."));
 };

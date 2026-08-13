@@ -38,6 +38,7 @@ export function AcceptInvitationForm() {
       <label><span>Password</span><input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={8} maxLength={128} required /><small>At least 8 characters with a letter and number.</small></label>
       <button disabled={submitting}>{submitting ? "Joining…" : "Accept invitation"}</button>
       <Link href="/login">Already have access? Sign in</Link>
+      <Link href="/forgot-password">Existing account but forgot the password?</Link>
     </form>
   );
 }
