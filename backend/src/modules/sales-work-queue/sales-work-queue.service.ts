@@ -25,6 +25,267 @@ const person = (
 ) => (value ? `${value.firstName} ${value.lastName ?? ""}`.trim() : null);
 
 export class SalesWorkQueueService {
+  async journeys(
+    organizationId: string,
+    membershipId: string,
+    roleCode: string,
+    permissions: string[],
+  ) {
+    const enabled = await prisma.organizationService.findMany({
+      where: {
+        organizationId,
+        status: "ENABLED",
+        deletedAt: null,
+        service: { status: "ACTIVE", archivedAt: null },
+      },
+      select: { serviceId: true, service: { select: { code: true } } },
+    });
+    const assigned =
+      roleCode === "ORGANIZATION_OWNER"
+        ? null
+        : new Set(
+            (
+              await prisma.membershipServiceAccess.findMany({
+                where: { organizationId, membershipId },
+                select: { serviceId: true },
+              })
+            ).map((item) => item.serviceId),
+          );
+    const accessible = new Set(
+      enabled
+        .filter((item) => assigned === null || assigned.has(item.serviceId))
+        .map((item) => item.service.code),
+    );
+    const canLeads = accessible.has("LEADS") && permissions.includes("INQUIRY_VIEW");
+    const canCrm = accessible.has("CRM") && permissions.includes("CRM_VIEW");
+    const canCrmActivity =
+      accessible.has("CRM") && permissions.includes("CRM_ACTIVITY_VIEW");
+    const canFinance =
+      accessible.has("FINANCE") && permissions.includes("FINANCE_VIEW");
+
+    const customers = await prisma.customer.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        OR: [
+          { deals: { some: { organizationId, deletedAt: null } } },
+          { quotations: { some: { organizationId, archivedAt: null } } },
+          ...(canLeads
+            ? [{ inquiries: { some: { organizationId, deletedAt: null } } }]
+            : []),
+          ...(canFinance
+            ? [{ invoices: { some: { organizationId, deletedAt: null } } }]
+            : []),
+        ],
+      },
+      select: {
+        id: true,
+        displayName: true,
+        status: true,
+        createdAt: true,
+        deals: {
+          where: { organizationId, deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            stage: true,
+            amount: true,
+            currency: true,
+            probability: true,
+            createdAt: true,
+            updatedAt: true,
+            closedAt: true,
+          },
+          orderBy: { updatedAt: "desc" },
+        },
+        quotations: {
+          where: { organizationId, archivedAt: null },
+          select: {
+            id: true,
+            quotationNumber: true,
+            status: true,
+            total: true,
+            currency: true,
+            inquiryId: true,
+            dealId: true,
+            invoiceId: true,
+            createdAt: true,
+            sentAt: true,
+            acceptedAt: true,
+            convertedAt: true,
+            validUntil: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        inquiries: {
+          where: { organizationId, deletedAt: null },
+          select: { id: true, subject: true, source: true, status: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        },
+        activities: {
+          where: { organizationId, deletedAt: null },
+          select: { id: true, type: true, summary: true, occurredAt: true },
+          orderBy: { occurredAt: "desc" },
+          take: 20,
+        },
+        followUps: {
+          where: { organizationId, deletedAt: null },
+          select: { id: true, title: true, status: true, dueAt: true, completedAt: true },
+          orderBy: { dueAt: "desc" },
+          take: 20,
+        },
+        invoices: {
+          where: { organizationId, deletedAt: null },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+            total: true,
+            currency: true,
+            issueDate: true,
+            sourceQuotation: { select: { id: true } },
+            payments: {
+              where: { organizationId, deletedAt: null },
+              select: { id: true, amount: true, currency: true, paidAt: true, method: true },
+              orderBy: { paidAt: "desc" },
+            },
+          },
+          orderBy: { issueDate: "desc" },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    });
+
+    const rows = customers.map((customer) => {
+      type Event = {
+        id: string;
+        kind: "INQUIRY" | "CRM" | "FOLLOW_UP" | "DEAL" | "QUOTATION" | "INVOICE" | "PAYMENT";
+        title: string;
+        detail: string;
+        occurredAt: Date;
+        status?: string;
+        amount?: number;
+        currency?: string;
+      };
+      const events: Event[] = [];
+      if (canCrm)
+        events.push({
+          id: `customer:${customer.id}`,
+          kind: "CRM",
+          title: "Customer created",
+          detail: customer.displayName,
+          occurredAt: customer.createdAt,
+          status: customer.status,
+        });
+      for (const inquiry of canLeads ? customer.inquiries : [])
+        events.push({
+          id: `inquiry:${inquiry.id}`,
+          kind: "INQUIRY",
+          title: inquiry.subject,
+          detail: `${inquiry.source.replaceAll("_", " ")} inquiry`,
+          occurredAt: inquiry.createdAt,
+          status: inquiry.status,
+        });
+      for (const activity of canCrmActivity ? customer.activities : [])
+        events.push({
+          id: `activity:${activity.id}`,
+          kind: "CRM",
+          title: activity.summary,
+          detail: activity.type.replaceAll("_", " "),
+          occurredAt: activity.occurredAt,
+        });
+      for (const followUp of canCrmActivity ? customer.followUps : [])
+        events.push({
+          id: `follow-up:${followUp.id}`,
+          kind: "FOLLOW_UP",
+          title: followUp.title,
+          detail: "CRM follow-up",
+          occurredAt: followUp.completedAt ?? followUp.dueAt,
+          status: followUp.status,
+        });
+      for (const deal of customer.deals)
+        events.push({
+          id: `deal:${deal.id}`,
+          kind: "DEAL",
+          title: deal.name,
+          detail: `${deal.probability}% probability`,
+          occurredAt: deal.closedAt ?? deal.updatedAt ?? deal.createdAt,
+          status: deal.stage,
+          amount: Number(deal.amount),
+          currency: deal.currency,
+        });
+      for (const quotation of customer.quotations)
+        events.push({
+          id: `quotation:${quotation.id}`,
+          kind: "QUOTATION",
+          title: quotation.quotationNumber,
+          detail: quotation.dealId ? "Linked sales quotation" : "Sales quotation",
+          occurredAt:
+            quotation.convertedAt ??
+            quotation.acceptedAt ??
+            quotation.sentAt ??
+            quotation.createdAt,
+          status: quotation.status,
+          amount: Number(quotation.total),
+          currency: quotation.currency,
+        });
+      for (const invoice of canFinance ? customer.invoices : []) {
+        events.push({
+          id: `invoice:${invoice.id}`,
+          kind: "INVOICE",
+          title: invoice.invoiceNumber,
+          detail: invoice.sourceQuotation ? "Created from quotation" : "Finance invoice",
+          occurredAt: invoice.issueDate,
+          status: invoice.status,
+          amount: Number(invoice.total),
+          currency: invoice.currency,
+        });
+        for (const payment of invoice.payments)
+          events.push({
+            id: `payment:${payment.id}`,
+            kind: "PAYMENT",
+            title: `Payment for ${invoice.invoiceNumber}`,
+            detail: payment.method.replaceAll("_", " "),
+            occurredAt: payment.paidAt,
+            status: "RECEIVED",
+            amount: Number(payment.amount),
+            currency: payment.currency,
+          });
+      }
+      events.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+      const dealValue = customer.deals
+        .filter((item) => item.stage !== "LOST")
+        .reduce((sum, item) => sum + Number(item.amount), 0);
+      const received = events
+        .filter((item) => item.kind === "PAYMENT")
+        .reduce((sum, item) => sum + (item.amount ?? 0), 0);
+      return {
+        customer: { id: customer.id, displayName: customer.displayName },
+        currentStage:
+          events.find((item) => ["PAYMENT", "INVOICE", "QUOTATION", "DEAL", "INQUIRY"].includes(item.kind))?.kind ?? "CRM",
+        lastActivityAt: events[0]?.occurredAt ?? customer.createdAt,
+        metrics: {
+          deals: customer.deals.length,
+          quotations: customer.quotations.length,
+          dealValue,
+          received,
+        },
+        events,
+      };
+    });
+    rows.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
+    return {
+      journeys: rows,
+      visibility: {
+        leads: canLeads,
+        crm: canCrm,
+        crmActivity: canCrmActivity,
+        finance: canFinance,
+      },
+    };
+  }
+
   async list(
     organizationId: string,
     actorUserId: string,

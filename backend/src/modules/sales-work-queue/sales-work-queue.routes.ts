@@ -44,6 +44,24 @@ salesWorkQueueRouter.get(
     );
   },
 );
+salesWorkQueueRouter.get(
+  "/journeys",
+  requirePermission("DEAL_VIEW"),
+  async (request, response) => {
+    if (!request.auth)
+      throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
+    response.json(
+      success(
+        await service.journeys(
+          request.auth.organizationId,
+          request.auth.membershipId,
+          request.auth.roleCode,
+          request.auth.permissions,
+        ),
+      ),
+    );
+  },
+);
 salesWorkQueueRouter.patch(
   "/crm-follow-ups/:id/complete",
   requireEnabledService("CRM"),

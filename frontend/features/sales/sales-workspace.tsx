@@ -1,5 +1,6 @@
 "use client";
 import { SalesWorkQueue } from "./sales-work-queue";
+import { SalesJourney } from "./sales-journey";
 import { QuotationManager } from "./quotation-manager";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
@@ -149,6 +150,7 @@ export function SalesWorkspace({ onNavigate }: { onNavigate: (view: "inquiries" 
       </header>
       {error && <div className="dashboard-notice error">{error}</div>}
       <SalesWorkQueue onNavigate={onNavigate} />
+      <SalesJourney />
       <QuotationManager />
       <section className="sales-metrics">
         <article>
