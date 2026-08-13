@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
@@ -7,12 +7,14 @@ import type {
   EventDecisionInput,
   IntakeInput,
 } from "./bridge.validation.js";
+import { LeadAssignmentService } from "../inquiries/lead-assignment.service.js";
 const connectorView={id:true,name:true,type:true,status:true,mode:true,provider:true,externalAccountRef:true,webhookKey:true,whatsappPhoneNumberId:true,whatsappBusinessAccountId:true,credentialsConfiguredAt:true,lastReceivedAt:true,lastSuccessfulAt:true,lastErrorAt:true,lastErrorMessage:true,createdAt:true,_count:{select:{events:true,messageDrafts:true}}}as const;
 const eventInclude = {
   connector: { select: { id: true, name: true, type: true, mode: true } },
   attempts: { orderBy: { createdAt: "desc" as const } },
 };
 export class BridgeService {
+  private assignment = new LeadAssignmentService();
   async list(org: string) {
     const [connectors, events] = await Promise.all([
       prisma.integrationConnector.findMany({
@@ -137,7 +139,7 @@ export class BridgeService {
       .update(JSON.stringify(payload))
       .digest("hex");
     try {
-      return await prisma.$transaction(async (tx) => {
+      const received = await prisma.$transaction(async (tx) => {
         const event = await tx.integrationEvent.create({
           data: {
             organizationId: org,
@@ -161,6 +163,12 @@ export class BridgeService {
         });
         return event;
       });
+      if (
+        connector.mode !== "MANUAL_APPROVAL" &&
+        ["INQUIRY", "SUPPORT_REQUEST", "COMPLAINT", "SALES_OPPORTUNITY", "ORDER_REQUEST"].includes(input.kind)
+      )
+        return this.process(org, user, received.id);
+      return received;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -173,6 +181,40 @@ export class BridgeService {
         );
       throw error;
     }
+  }
+  async receiveExternal(
+    webhookKey: string,
+    secret: string | undefined,
+    input: IntakeInput,
+  ) {
+    const connector = await prisma.integrationConnector.findFirst({
+      where: { webhookKey, status: "ACTIVE", deletedAt: null },
+      select: { id: true, organizationId: true, createdById: true, signingSecretHash: true, type: true },
+    });
+    if (!connector || !connector.signingSecretHash)
+      throw new AppError(404, "Active connector was not found.", "CONNECTOR_NOT_FOUND");
+    if (connector.type === "WHATSAPP")
+      throw new AppError(400, "WhatsApp events must use the verified Meta webhook endpoint.", "WRONG_WEBHOOK_ENDPOINT");
+    if (!secret)
+      throw new AppError(401, "Webhook authentication is required.", "INVALID_WEBHOOK_SECRET");
+    const digest = createHash("sha256").update(secret).digest("hex");
+    if (
+      digest.length !== connector.signingSecretHash.length ||
+      !timingSafeEqual(Buffer.from(digest), Buffer.from(connector.signingSecretHash))
+    )
+      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SECRET");
+    const communication = ["INQUIRY", "SUPPORT_REQUEST", "COMPLAINT", "SALES_OPPORTUNITY", "ORDER_REQUEST"].includes(input.kind);
+    if (communication && !(await prisma.organizationService.findFirst({
+      where: {
+        organizationId: connector.organizationId,
+        status: "ENABLED",
+        deletedAt: null,
+        service: { code: "LEADS", status: "ACTIVE", archivedAt: null },
+      },
+      select: { id: true },
+    })))
+      throw new AppError(403, "Lead & Inquiry Management is not enabled for this organization.", "SERVICE_NOT_ENABLED");
+    return this.intake(connector.organizationId, connector.createdById, connector.id, input);
   }
   private async process(org: string, user: string, id: string) {
     const event = await prisma.integrationEvent.findFirst({
@@ -200,7 +242,7 @@ export class BridgeService {
     };
     const matchedCustomer=await prisma.customer.findFirst({where:{organizationId:org,deletedAt:null,OR:[...(payload.email?[{email:{equals:payload.email,mode:"insensitive" as const}}]:[]),...(payload.phone?[{phone:payload.phone}]:[])]},select:{id:true}});
     const attempt = event.attemptCount + 1;
-    return prisma.$transaction(async (tx) => {
+    const processed = await prisma.$transaction(async (tx) => {
       await tx.automationAttempt.create({
         data: {
           organizationId: org,
@@ -257,6 +299,8 @@ export class BridgeService {
               phone: payload.phone ?? null,
               subject: payload.subject!,
               message: payload.message!,
+              nextFollowUpAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              followUpNote: "Review and respond to this automatically captured inquiry.",
               createdById: user,
               updatedById: user,
               timeline: {
@@ -327,6 +371,41 @@ export class BridgeService {
         throw error;
       }
     });
+    if (processed.resultType === "INQUIRY" && processed.resultId) {
+      const inquiry = await prisma.inquiry.findFirst({
+        where: { id: processed.resultId, organizationId: org, deletedAt: null },
+      });
+      if (inquiry) {
+        const assignedEmployeeId = await this.assignment.assignNewInquiry(org, user, inquiry);
+        if (!assignedEmployeeId) {
+          const owner = await prisma.organizationMembership.findFirst({
+            where: {
+              organizationId: org,
+              status: "ACTIVE",
+              role: { code: "ORGANIZATION_OWNER" },
+              user: { status: "ACTIVE", deletedAt: null },
+            },
+            select: { userId: true },
+          });
+          if (owner)
+            await prisma.notification.create({
+              data: {
+                organizationId: org,
+                recipientId: owner.userId,
+                type: "FOLLOW_UP_DUE",
+                title: `New automated inquiry: ${inquiry.subject}`,
+                message: `${inquiry.contactName} was captured from ${event.connector.name} and needs assignment or response.`,
+                sourceType: "INQUIRY",
+                sourceId: inquiry.id,
+                actionPath: "/dashboard?view=inquiries",
+                createdById: user,
+                updatedById: user,
+              },
+            });
+        }
+      }
+    }
+    return processed;
   }
   async decide(
     org: string,

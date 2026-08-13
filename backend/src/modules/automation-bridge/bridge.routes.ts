@@ -24,6 +24,19 @@ const service = new BridgeService(),
     return r.auth;
   };
 export const bridgeRouter = Router();
+export const bridgeWebhookRouter = Router();
+bridgeWebhookRouter.post(
+  "/:webhookKey",
+  validateBody(intakeSchema),
+  async (request, response) => {
+    const result = await service.receiveExternal(
+      String(request.params.webhookKey),
+      request.header("x-b2brain-secret"),
+      request.body as IntakeInput,
+    );
+    response.status(202).json(success(result, "External event accepted."));
+  },
+);
 bridgeRouter.use(
   requireAuth,
   requireActiveContext,
@@ -88,17 +101,13 @@ bridgeRouter.post(
   validateBody(intakeSchema),
   async (r, s) => {
     const c = auth(r);
-    s.status(202).json(
-      success(
-        await service.intake(
-          c.organizationId,
-          c.userId,
-          String(r.params.id),
-          r.body as IntakeInput,
-        ),
-        "Event received without automatic business conversion.",
-      ),
+    const event = await service.intake(
+      c.organizationId,
+      c.userId,
+      String(r.params.id),
+      r.body as IntakeInput,
     );
+    s.status(202).json(success(event, event.status === "COMPLETED" ? "Event received and routed automatically." : "Event received for approval."));
   },
 );
 bridgeRouter.post(

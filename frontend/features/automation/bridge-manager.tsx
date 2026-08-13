@@ -307,6 +307,12 @@ export function BridgeManager() {
                     <code>/api/v1/webhooks/whatsapp/{c.webhookKey}</code>
                   </>
                 )}
+                {c.type !== "WHATSAPP" && (
+                  <>
+                    <small>POST signed events to</small>
+                    <code>/api/v1/webhooks/intake/{c.webhookKey}</code>
+                  </>
+                )}
               </article>
             ))
           )}
