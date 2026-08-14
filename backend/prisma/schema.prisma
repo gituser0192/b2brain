@@ -474,6 +474,25 @@ enum ProviderMessageType {
   SYSTEM_EVENT
 }
 
+enum ProviderApprovalStatus {
+  NOT_REQUIRED
+  PENDING_INTERNAL
+  PENDING_CUSTOMER
+  APPROVED
+  REJECTED
+}
+
+enum ProviderRequestEventType {
+  CREATED
+  ASSIGNED
+  STATUS_CHANGED
+  WORK_CREATED
+  APPROVAL_REQUESTED
+  APPROVAL_DECIDED
+  MESSAGE_SENT
+  COMPLETED
+}
+
 enum ChangeRisk {
   LOW
   MEDIUM
@@ -1615,34 +1634,35 @@ model BusinessRecommendation {
 }
 
 model Project {
-  id              String                 @id @default(uuid()) @db.Uuid
-  organizationId  String                 @db.Uuid
-  customerId      String?                @db.Uuid
-  name            String
-  code            String
-  description     String?
-  status          ProjectStatus          @default(PLANNING)
-  priority        ProjectPriority        @default(MEDIUM)
-  startDate       DateTime?
-  dueDate         DateTime?
-  completedAt     DateTime?
-  ownerId         String                 @db.Uuid
-  createdById     String                 @db.Uuid
-  updatedById     String                 @db.Uuid
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  deletedAt       DateTime?
-  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer        Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  owner           User                   @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  createdBy       User                   @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy       User                   @relation("ProjectUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  tasks           ProjectTask[]
-  members         ProjectMember[]
-  websiteRequests WebsiteChangeRequest[]
-  calendarEvents  CalendarEvent[]
-  invoices        Invoice[]
-  expenses        Expense[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  organizationId          String                   @db.Uuid
+  customerId              String?                  @db.Uuid
+  name                    String
+  code                    String
+  description             String?
+  status                  ProjectStatus            @default(PLANNING)
+  priority                ProjectPriority          @default(MEDIUM)
+  startDate               DateTime?
+  dueDate                 DateTime?
+  completedAt             DateTime?
+  ownerId                 String                   @db.Uuid
+  createdById             String                   @db.Uuid
+  updatedById             String                   @db.Uuid
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  deletedAt               DateTime?
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer                Customer?                @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  owner                   User                     @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdBy               User                     @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy               User                     @relation("ProjectUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  tasks                   ProjectTask[]
+  members                 ProjectMember[]
+  websiteRequests         WebsiteChangeRequest[]
+  calendarEvents          CalendarEvent[]
+  invoices                Invoice[]
+  expenses                Expense[]
+  providerServiceRequests ProviderServiceRequest[] @relation("ProviderRequestWorkProject")
 
   @@unique([organizationId, code])
   @@index([organizationId, status, deletedAt, dueDate])
@@ -1651,26 +1671,27 @@ model Project {
 }
 
 model ProjectTask {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @db.Uuid
-  projectId      String       @db.Uuid
-  title          String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  priority       TaskPriority @default(MEDIUM)
-  assignedToId   String?      @db.Uuid
-  dueDate        DateTime?
-  completedAt    DateTime?
-  createdById    String       @db.Uuid
-  updatedById    String       @db.Uuid
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  deletedAt      DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignedTo     User?        @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy      User         @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User         @relation("TaskUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  id                      String                   @id @default(uuid()) @db.Uuid
+  organizationId          String                   @db.Uuid
+  projectId               String                   @db.Uuid
+  title                   String
+  description             String?
+  status                  TaskStatus               @default(TODO)
+  priority                TaskPriority             @default(MEDIUM)
+  assignedToId            String?                  @db.Uuid
+  dueDate                 DateTime?
+  completedAt             DateTime?
+  createdById             String                   @db.Uuid
+  updatedById             String                   @db.Uuid
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  deletedAt               DateTime?
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                 Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo              User?                    @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy               User                     @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy               User                     @relation("TaskUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  providerServiceRequests ProviderServiceRequest[] @relation("ProviderRequestWorkTask")
 
   @@index([organizationId, projectId, status, deletedAt, dueDate])
   @@index([organizationId, assignedToId, status, dueDate])
@@ -2414,32 +2435,61 @@ model WebsiteChangeRequest {
 }
 
 model ProviderServiceRequest {
-  id               String                   @id @default(uuid()) @db.Uuid
-  organizationId   String                   @db.Uuid
-  requestNumber    String
-  category         ProviderRequestCategory
-  subject          String
-  description      String
-  priority         TicketPriority           @default(MEDIUM)
-  status           ManagedServiceStatus     @default(SUBMITTED)
-  assignedToId     String?                  @db.Uuid
-  customerUpdate   String?
-  internalNote     String?
-  firstRespondedAt DateTime?
-  completedAt      DateTime?
-  createdById      String                   @db.Uuid
-  updatedById      String                   @db.Uuid
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
-  deletedAt        DateTime?
-  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy        User                     @relation("ProviderRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy        User                     @relation("ProviderRequestUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  messages         ProviderServiceMessage[]
+  id                    String                   @id @default(uuid()) @db.Uuid
+  organizationId        String                   @db.Uuid
+  requestNumber         String
+  category              ProviderRequestCategory
+  subject               String
+  description           String
+  priority              TicketPriority           @default(MEDIUM)
+  status                ManagedServiceStatus     @default(SUBMITTED)
+  assignedToId          String?                  @db.Uuid
+  customerUpdate        String?
+  internalNote          String?
+  workOrganizationId    String?                  @db.Uuid
+  workProjectId         String?                  @db.Uuid
+  workTaskId            String?                  @db.Uuid
+  responseDueAt         DateTime?
+  resolutionDueAt       DateTime?
+  approvalStatus        ProviderApprovalStatus   @default(NOT_REQUIRED)
+  approvalNote          String?
+  approvalDecidedById   String?                  @db.Uuid
+  approvalDecidedAt     DateTime?
+  completionSummary     String?
+  completionEvidenceUrl String?
+  verificationResult    String?
+  firstRespondedAt      DateTime?
+  completedAt           DateTime?
+  createdById           String                   @db.Uuid
+  updatedById           String                   @db.Uuid
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  deletedAt             DateTime?
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy             User                     @relation("ProviderRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy             User                     @relation("ProviderRequestUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  messages              ProviderServiceMessage[]
+  events                ProviderRequestEvent[]
+  workProject           Project?                 @relation("ProviderRequestWorkProject", fields: [workProjectId], references: [id], onDelete: SetNull)
+  workTask              ProjectTask?             @relation("ProviderRequestWorkTask", fields: [workTaskId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, requestNumber])
   @@index([organizationId, status, deletedAt])
   @@index([status, priority, updatedAt])
+}
+
+model ProviderRequestEvent {
+  id              String                   @id @default(uuid()) @db.Uuid
+  organizationId  String                   @db.Uuid
+  requestId       String                   @db.Uuid
+  type            ProviderRequestEventType
+  summary         String
+  customerVisible Boolean                  @default(false)
+  actorUserId     String                   @db.Uuid
+  createdAt       DateTime                 @default(now())
+  request         ProviderServiceRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, requestId, createdAt])
 }
 
 model ProviderServiceMessage {

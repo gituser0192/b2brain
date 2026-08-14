@@ -23,6 +23,13 @@ interface Request {
   createdAt: string;
   updatedAt: string;
   messages: Message[];
+  responseDueAt: string | null;
+  resolutionDueAt: string | null;
+  approvalStatus: string;
+  completionSummary: string | null;
+  completionEvidenceUrl: string | null;
+  verificationResult: string | null;
+  events: { id: string; type: string; summary: string; createdAt: string }[];
 }
 interface Response {
   success: true;
@@ -47,7 +54,7 @@ const categories = [
 ];
 
 export function ServiceRequestWorkspace() {
-  const { authorizedRequest } = useAuth();
+  const { session, authorizedRequest } = useAuth();
   const [requests, setRequests] = useState<Request[]>([]);
   const [selected, setSelected] = useState<Request | null>(null);
   const [form, setForm] = useState(blank);
@@ -110,6 +117,27 @@ export function ServiceRequestWorkspace() {
         reason instanceof ApiError
           ? reason.message
           : "Unable to send your message.",
+      );
+    }
+  }
+  async function decideApproval(approved: boolean) {
+    if (!selected) return;
+    const note = window.prompt(
+      approved ? "Add your approval note:" : "Explain what must be changed:",
+      approved ? "Approved to proceed." : "Please revise the proposed action.",
+    );
+    if (!note || note.trim().length < 2) return;
+    try {
+      await authorizedRequest(`/service-requests/${selected.id}/approval`, {
+        method: "POST",
+        body: JSON.stringify({ approved, note }),
+      });
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to send your approval decision.",
       );
     }
   }
@@ -183,6 +211,75 @@ export function ServiceRequestWorkspace() {
                 <div className="provider-help-update">
                   <small>LATEST B² BRAIN UPDATE</small>
                   <strong>{selected.customerUpdate}</strong>
+                </div>
+              )}
+              <div className="customer-execution-status">
+                <span>
+                  <small>Response target</small>
+                  <strong>
+                    {selected.responseDueAt
+                      ? new Date(selected.responseDueAt).toLocaleString()
+                      : "Not set"}
+                  </strong>
+                </span>
+                <span>
+                  <small>Resolution target</small>
+                  <strong>
+                    {selected.resolutionDueAt
+                      ? new Date(selected.resolutionDueAt).toLocaleString()
+                      : "Not set"}
+                  </strong>
+                </span>
+                <span>
+                  <small>Approval</small>
+                  <strong>
+                    {selected.approvalStatus.replaceAll("_", " ")}
+                  </strong>
+                </span>
+              </div>
+              {selected.approvalStatus === "PENDING_CUSTOMER" && session?.membership.role.code === "ORGANIZATION_OWNER" && (
+                <div className="customer-approval-box">
+                  <strong>
+                    B² Brain needs your approval before continuing.
+                  </strong>
+                  <div>
+                    <button onClick={() => void decideApproval(false)}>
+                      Request changes
+                    </button>
+                    <button onClick={() => void decideApproval(true)}>
+                      Approve action
+                    </button>
+                  </div>
+                </div>
+              )}
+              {selected.completionSummary && (
+                <div className="customer-completion">
+                  <small>COMPLETED WORK</small>
+                  <strong>{selected.completionSummary}</strong>
+                  <p>{selected.verificationResult}</p>
+                  {selected.completionEvidenceUrl && (
+                    <a
+                      href={selected.completionEvidenceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View completion evidence ↗
+                    </a>
+                  )}
+                </div>
+              )}
+              {selected.events.length > 0 && (
+                <div className="customer-request-timeline">
+                  <h4>Progress history</h4>
+                  {selected.events.map((event) => (
+                    <span key={event.id}>
+                      <b>{event.type.replaceAll("_", " ")}</b>
+                      {event.summary}
+                      <small>
+                        {new Date(event.createdAt).toLocaleString()}
+                      </small>
+                    </span>
+                  ))}
                 </div>
               )}
               <div className="provider-help-conversation">

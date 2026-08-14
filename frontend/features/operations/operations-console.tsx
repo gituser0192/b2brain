@@ -68,6 +68,34 @@ interface ProviderRequest {
   organization: { id: string; name: string; slug: string };
   createdBy: { firstName: string; lastName: string | null; email: string };
   messages: ServiceMessage[];
+  responseDueAt: string | null;
+  resolutionDueAt: string | null;
+  workProjectId: string | null;
+  workTaskId: string | null;
+  approvalStatus: string;
+  approvalNote: string | null;
+  completionSummary: string | null;
+  completionEvidenceUrl: string | null;
+  verificationResult: string | null;
+  workProject: {
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+  } | null;
+  workTask: {
+    id: string;
+    title: string;
+    status: string;
+    dueDate: string | null;
+  } | null;
+  events: {
+    id: string;
+    type: string;
+    summary: string;
+    customerVisible: boolean;
+    createdAt: string;
+  }[];
 }
 interface Response {
   success: true;
@@ -105,6 +133,20 @@ export function OperationsConsole() {
   const [replyType, setReplyType] = useState<
     "PROVIDER_REPLY" | "INTERNAL_NOTE"
   >("PROVIDER_REPLY");
+  const [workForm, setWorkForm] = useState({
+    assignedToId: "",
+    dueAt: "",
+    checklist:
+      "Review customer request\nPrepare proposed action\nVerify completed work",
+  });
+  const [approvalNote, setApprovalNote] = useState(
+    "Reviewed against the customer request and delivery scope.",
+  );
+  const [completion, setCompletion] = useState({
+    summary: "",
+    evidenceUrl: "",
+    verification: "",
+  });
   const [operators, setOperators] = useState<Operator[]>([]);
   const [metrics, setMetrics] = useState({
     total: 0,
@@ -134,6 +176,10 @@ export function OperationsConsole() {
   const canManage = Boolean(
     session?.user.isPlatformAdmin ||
     session?.membership.permissions.includes("PROVIDER_REQUEST_MANAGE"),
+  );
+  const canApprove = Boolean(
+    session?.user.isPlatformAdmin ||
+    session?.membership.permissions.includes("PROVIDER_SENSITIVE_APPROVE"),
   );
 
   const load = useCallback(async () => {
@@ -292,6 +338,88 @@ export function OperationsConsole() {
       setSaving(false);
     }
   }
+  async function createWork() {
+    if (!selectedService || !workForm.assignedToId) return;
+    setSaving(true);
+    setError("");
+    try {
+      await authorizedRequest(
+        `/managed-services/service-requests/${selectedService.id}/work`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            assignedToId: workForm.assignedToId,
+            dueAt: new Date(workForm.dueAt).toISOString(),
+            checklist: workForm.checklist
+              .split("\n")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          }),
+        },
+      );
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to create delivery work.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function decideApproval(
+    decision: "REQUEST_INTERNAL" | "REQUEST_CUSTOMER" | "APPROVE" | "REJECT",
+  ) {
+    if (!selectedService) return;
+    setSaving(true);
+    setError("");
+    try {
+      await authorizedRequest(
+        `/managed-services/service-requests/${selectedService.id}/approval`,
+        {
+          method: "POST",
+          body: JSON.stringify({ decision, note: approvalNote }),
+        },
+      );
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to record approval.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function completeWork() {
+    if (!selectedService) return;
+    setSaving(true);
+    setError("");
+    try {
+      await authorizedRequest(
+        `/managed-services/service-requests/${selectedService.id}/complete`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            summary: completion.summary,
+            evidenceUrl: completion.evidenceUrl || null,
+            verification: completion.verification,
+          }),
+        },
+      );
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to complete this work.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (isLoading || loading || !canView)
     return (
@@ -416,6 +544,197 @@ export function OperationsConsole() {
                   <small>CUSTOMER REQUEST</small>
                   <p>{selectedService.description}</p>
                 </div>
+                <section className="execution-panel">
+                  <header>
+                    <div>
+                      <small>CONTROLLED EXECUTION</small>
+                      <h3>
+                        {selectedService.workTask
+                          ? `${selectedService.workProject?.code} · Work linked`
+                          : "Create delivery work"}
+                      </h3>
+                    </div>
+                    <span>
+                      {selectedService.approvalStatus.replaceAll("_", " ")}
+                    </span>
+                  </header>
+                  <div className="execution-sla">
+                    <span>
+                      <small>First response due</small>
+                      <strong>
+                        {selectedService.responseDueAt
+                          ? new Date(
+                              selectedService.responseDueAt,
+                            ).toLocaleString()
+                          : "Not set"}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>Resolution due</small>
+                      <strong>
+                        {selectedService.resolutionDueAt
+                          ? new Date(
+                              selectedService.resolutionDueAt,
+                            ).toLocaleString()
+                          : "Not set"}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>Task</small>
+                      <strong>
+                        {selectedService.workTask?.status ?? "Not created"}
+                      </strong>
+                    </span>
+                  </div>
+                  {!selectedService.workTask && canManage && (
+                    <div className="execution-form">
+                      <select
+                        value={workForm.assignedToId}
+                        onChange={(event) =>
+                          setWorkForm({
+                            ...workForm,
+                            assignedToId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Assign eligible employee</option>
+                        {operators.map((operator) => (
+                          <option key={operator.id} value={operator.id}>
+                            {operator.firstName} {operator.lastName ?? ""}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="datetime-local"
+                        value={workForm.dueAt}
+                        onChange={(event) =>
+                          setWorkForm({
+                            ...workForm,
+                            dueAt: event.target.value,
+                          })
+                        }
+                      />
+                      <textarea
+                        rows={3}
+                        value={workForm.checklist}
+                        onChange={(event) =>
+                          setWorkForm({
+                            ...workForm,
+                            checklist: event.target.value,
+                          })
+                        }
+                      />
+                      <button
+                        disabled={
+                          saving ||
+                          !workForm.assignedToId ||
+                          !workForm.dueAt ||
+                          workForm.checklist.trim().length < 2
+                        }
+                        onClick={() => void createWork()}
+                      >
+                        Create project & task
+                      </button>
+                    </div>
+                  )}
+                  {selectedService.workTask && canApprove && (
+                    <div className="approval-control">
+                      <input
+                        value={approvalNote}
+                        onChange={(event) =>
+                          setApprovalNote(event.target.value)
+                        }
+                      />
+                      <div>
+                        <button
+                          onClick={() =>
+                            void decideApproval("REQUEST_INTERNAL")
+                          }
+                        >
+                          Request internal approval
+                        </button>
+                        <button
+                          onClick={() =>
+                            void decideApproval("REQUEST_CUSTOMER")
+                          }
+                        >
+                          Request customer approval
+                        </button>
+                        <button onClick={() => void decideApproval("APPROVE")}>
+                          Approve
+                        </button>
+                        <button
+                          className="danger"
+                          onClick={() => void decideApproval("REJECT")}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {selectedService.workTask &&
+                    canManage &&
+                    canApprove &&
+                    selectedService.status !== "COMPLETED" && (
+                      <div className="completion-control">
+                        <textarea
+                          rows={2}
+                          placeholder="Completion summary"
+                          value={completion.summary}
+                          onChange={(event) =>
+                            setCompletion({
+                              ...completion,
+                              summary: event.target.value,
+                            })
+                          }
+                        />
+                        <input
+                          placeholder="Evidence URL (optional)"
+                          value={completion.evidenceUrl}
+                          onChange={(event) =>
+                            setCompletion({
+                              ...completion,
+                              evidenceUrl: event.target.value,
+                            })
+                          }
+                        />
+                        <textarea
+                          rows={2}
+                          placeholder="Verification result"
+                          value={completion.verification}
+                          onChange={(event) =>
+                            setCompletion({
+                              ...completion,
+                              verification: event.target.value,
+                            })
+                          }
+                        />
+                        <button
+                          disabled={
+                            saving ||
+                            completion.summary.trim().length < 5 ||
+                            completion.verification.trim().length < 3
+                          }
+                          onClick={() => void completeWork()}
+                        >
+                          Complete with evidence
+                        </button>
+                      </div>
+                    )}
+                  {selectedService.events.length > 0 && (
+                    <div className="execution-history">
+                      {selectedService.events.map((event) => (
+                        <span key={event.id}>
+                          <b>{event.type.replaceAll("_", " ")}</b>
+                          {event.summary}
+                          <small>
+                            {new Date(event.createdAt).toLocaleString()}
+                          </small>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </section>
                 <div className="operations-form">
                   <label>
                     <span>Status</span>
@@ -480,7 +799,11 @@ export function OperationsConsole() {
                   </label>
                   <button
                     onClick={() => void saveServiceRequest()}
-                    disabled={!canManage || saving || serviceForm.customerUpdate.trim().length < 2}
+                    disabled={
+                      !canManage ||
+                      saving ||
+                      serviceForm.customerUpdate.trim().length < 2
+                    }
                   >
                     Save request status
                   </button>
@@ -502,46 +825,47 @@ export function OperationsConsole() {
                     </article>
                   ))}
                 </div>
-                {canWork && !["COMPLETED", "CANCELED"].includes(
-                  selectedService.status,
-                ) && (
-                  <div className="operations-reply">
-                    <div>
-                      <button
-                        className={
-                          replyType === "PROVIDER_REPLY" ? "active" : ""
+                {canWork &&
+                  !["COMPLETED", "CANCELED"].includes(
+                    selectedService.status,
+                  ) && (
+                    <div className="operations-reply">
+                      <div>
+                        <button
+                          className={
+                            replyType === "PROVIDER_REPLY" ? "active" : ""
+                          }
+                          onClick={() => setReplyType("PROVIDER_REPLY")}
+                        >
+                          Reply to customer
+                        </button>
+                        <button
+                          className={
+                            replyType === "INTERNAL_NOTE" ? "active" : ""
+                          }
+                          onClick={() => setReplyType("INTERNAL_NOTE")}
+                        >
+                          Internal note
+                        </button>
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={reply}
+                        onChange={(event) => setReply(event.target.value)}
+                        placeholder={
+                          replyType === "INTERNAL_NOTE"
+                            ? "Only B² Brain can see this note…"
+                            : "Write a reply visible to the customer…"
                         }
-                        onClick={() => setReplyType("PROVIDER_REPLY")}
-                      >
-                        Reply to customer
-                      </button>
+                      />
                       <button
-                        className={
-                          replyType === "INTERNAL_NOTE" ? "active" : ""
-                        }
-                        onClick={() => setReplyType("INTERNAL_NOTE")}
+                        disabled={saving || !reply.trim()}
+                        onClick={() => void sendServiceReply()}
                       >
-                        Internal note
+                        Save message
                       </button>
                     </div>
-                    <textarea
-                      rows={3}
-                      value={reply}
-                      onChange={(event) => setReply(event.target.value)}
-                      placeholder={
-                        replyType === "INTERNAL_NOTE"
-                          ? "Only B² Brain can see this note…"
-                          : "Write a reply visible to the customer…"
-                      }
-                    />
-                    <button
-                      disabled={saving || !reply.trim()}
-                      onClick={() => void sendServiceReply()}
-                    >
-                      Save message
-                    </button>
-                  </div>
-                )}
+                  )}
               </article>
             )}
           </section>
@@ -685,7 +1009,11 @@ export function OperationsConsole() {
                   </label>
                   <button
                     onClick={() => void save()}
-                    disabled={!canManage || saving || form.customerUpdate.trim().length < 2}
+                    disabled={
+                      !canManage ||
+                      saving ||
+                      form.customerUpdate.trim().length < 2
+                    }
                   >
                     {saving ? "Saving…" : "Save progress update"}
                   </button>
