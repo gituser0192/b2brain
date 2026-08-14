@@ -19,13 +19,13 @@ interface SubmitResponse { success: true; data: { accepted: true; successMessage
 
 export function WebsiteLeadForm({ formKey }: { formKey: string }) {
   const [config, setConfig] = useState<Config | null>(null);
-  const [startedAt, setStartedAt] = useState(Date.now());
+  const [startedAt, setStartedAt] = useState(0);
   const [form, setForm] = useState({ contactName: "", email: "", phone: "", service: "", message: "", website: "" });
   const [state, setState] = useState<"LOADING" | "READY" | "SENDING" | "SENT" | "ERROR">("LOADING");
   const [message, setMessage] = useState("");
   useEffect(() => {
     void apiRequest<ConfigResponse>(`/public/forms/${encodeURIComponent(formKey)}`)
-      .then((response) => { setConfig(response.data); setState("READY"); })
+      .then((response) => { setConfig(response.data); setStartedAt(Date.now()); setState("READY"); })
       .catch((error) => { setMessage(error instanceof ApiError ? error.message : "This inquiry form is unavailable."); setState("ERROR"); });
   }, [formKey]);
   async function submit(event: FormEvent) {
