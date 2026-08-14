@@ -16,6 +16,7 @@ export const connectorSchema = z
       .string()
       .trim()
       .max(200)
+      .nullable()
       .optional()
       .or(z.literal(""))
       .transform((v) => v || null),
