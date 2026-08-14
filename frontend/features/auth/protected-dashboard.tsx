@@ -131,7 +131,7 @@ export function ProtectedDashboard() {
       <main className="dashboard-main welcome-dashboard">
         <header className="dashboard-header">
           <div><p>{new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</p><h1>{session.organization.name}</h1></div>
-          <div className="header-actions">{session.user.isPlatformAdmin && <button onClick={() => router.push("/super-admin")}>Super Admin</button>}<NotificationCenter /><span className="status-pill"><i /> Workspace active</span><button onClick={() => void logout().then(() => router.replace("/login"))}>Sign out</button></div>
+          <div className="header-actions">{session.user.isPlatformAdmin && <><button onClick={() => router.push("/operations")}>Operations</button><button onClick={() => router.push("/super-admin")}>Super Admin</button></>}<NotificationCenter /><span className="status-pill"><i /> Workspace active</span><button onClick={() => void logout().then(() => router.replace("/login"))}>Sign out</button></div>
         </header>
 
         {notice && <div className="dashboard-notice success">{notice}</div>}

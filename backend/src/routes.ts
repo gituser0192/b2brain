@@ -36,6 +36,7 @@ import { salesWorkQueueRouter } from "./modules/sales-work-queue/sales-work-queu
 import { followUpAutomationRouter } from "./modules/follow-up-automation/follow-up-automation.routes.js";
 import { publicQuotationRouter, quotationRouter } from "./modules/quotations/quotation.routes.js";
 import { paymentCollectionRouter } from "./modules/payment-collection/payment-collection.routes.js";
+import { managedServiceDeskRouter } from "./modules/managed-services/managed-service.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -85,3 +86,4 @@ apiRouter.use("/follow-up-automation", followUpAutomationRouter);
 apiRouter.use("/quotations", quotationRouter);
 apiRouter.use("/public/quotations", publicQuotationRouter);
 apiRouter.use("/payment-collection", paymentCollectionRouter);
+apiRouter.use("/managed-services", managedServiceDeskRouter);

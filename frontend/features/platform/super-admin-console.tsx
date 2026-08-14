@@ -162,7 +162,7 @@ export function SuperAdminConsole() {
     <aside className="platform-sidebar">
       <div className="dashboard-logo"><Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} /><span><strong>B² Brain</strong><small>Super Admin</small></span></div>
       <div className="platform-identity"><span>Platform control</span><strong>{session.user.firstName} {session.user.lastName}</strong><small>{session.user.email}</small></div>
-      <nav><button className="active"><span>O</span>Organizations</button><button disabled><span>A</span>AI Agents <small>Soon</small></button><button disabled><span>H</span>Audit log <small>Soon</small></button></nav>
+      <nav><button className="active"><span>O</span>Organizations</button><button onClick={() => router.push("/operations")}><span>W</span>Operations</button><button disabled><span>A</span>AI Agents <small>Soon</small></button><button disabled><span>H</span>Audit log <small>Soon</small></button></nav>
       <div className="platform-sidebar-actions"><button onClick={() => router.push("/dashboard")}>Organization workspace</button><button onClick={() => void logout().then(() => router.replace("/login"))}>Sign out</button></div>
     </aside>
     <main className="platform-main">

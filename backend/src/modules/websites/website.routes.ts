@@ -1,1 +1,205 @@
-import{Router,type RequestHandler}from"express";import{AppError}from"../../shared/errors/app-error.js";import{requireActiveContext,requireAuth,requireEnabledService,requirePermission}from"../../middleware/auth.js";import{validateBody}from"../../middleware/validate.js";import{success}from"../../shared/responses/api-response.js";import{WebsiteService}from"./website.service.js";import{approvalSchema,deploymentSchema,requestSchema,websiteSchema,type ApprovalInput,type DeploymentInput,type RequestInput,type WebsiteInput}from"./website.validation.js";const service=new WebsiteService();function auth(request:Parameters<RequestHandler>[0]){if(!request.auth)throw new AppError(401,"Authentication required.","UNAUTHENTICATED");return request.auth}export const websiteRouter=Router();websiteRouter.use(requireAuth,requireActiveContext,requireEnabledService("WEBSITES"));websiteRouter.get("/",requirePermission("WEBSITE_VIEW"),async(request,response)=>response.json(success(await service.list(auth(request).organizationId,request.query.archived==="true"))));websiteRouter.post("/",requirePermission("WEBSITE_MANAGE"),validateBody(websiteSchema),async(request,response)=>{const context=auth(request);response.status(201).json(success(await service.createWebsite(context.organizationId,context.userId,request.body as WebsiteInput),"Website registered."))});websiteRouter.put("/:id",requirePermission("WEBSITE_MANAGE"),validateBody(websiteSchema),async(request,response)=>{const context=auth(request);await service.updateWebsite(context.organizationId,context.userId,String(request.params.id),request.body as WebsiteInput);response.json(success({},"Website updated."))});websiteRouter.post("/requests",requirePermission("WEBSITE_MANAGE"),validateBody(requestSchema),async(request,response)=>{const context=auth(request);response.status(201).json(success(await service.createRequest(context.organizationId,context.userId,request.body as RequestInput),"Change request created."))});websiteRouter.put("/requests/:id",requirePermission("WEBSITE_MANAGE"),validateBody(requestSchema),async(request,response)=>{const context=auth(request);response.json(success(await service.updateRequest(context.organizationId,context.userId,String(request.params.id),request.body as RequestInput),"Change request updated."))});websiteRouter.post("/requests/:id/approval",requirePermission("WEBSITE_APPROVE"),validateBody(approvalSchema),async(request,response)=>{const context=auth(request);response.json(success(await service.approve(context.organizationId,context.userId,String(request.params.id),request.body as ApprovalInput),"Approval decision recorded."))});websiteRouter.post("/:id/deployments",requirePermission("WEBSITE_DEPLOY"),validateBody(deploymentSchema),async(request,response)=>{const context=auth(request);response.status(201).json(success(await service.deploy(context.organizationId,context.userId,String(request.params.id),request.body as DeploymentInput),"Deployment record created."))});websiteRouter.delete("/:id",requirePermission("WEBSITE_MANAGE"),async(request,response)=>{const context=auth(request);await service.archive(context.organizationId,context.userId,String(request.params.id));response.json(success({},"Website archived."))});websiteRouter.post("/:id/restore",requirePermission("WEBSITE_MANAGE"),async(request,response)=>{const context=auth(request);await service.restore(context.organizationId,context.userId,String(request.params.id));response.json(success({},"Website restored."))});
+import { Router, type RequestHandler } from "express";
+import { AppError } from "../../shared/errors/app-error.js";
+import {
+  requireActiveContext,
+  requireAuth,
+  requireEnabledService,
+  requirePermission,
+} from "../../middleware/auth.js";
+import { validateBody } from "../../middleware/validate.js";
+import { success } from "../../shared/responses/api-response.js";
+import { WebsiteService } from "./website.service.js";
+import {
+  approvalSchema,
+  deploymentSchema,
+  providerSubmissionSchema,
+  requestSchema,
+  websiteSchema,
+  type ApprovalInput,
+  type DeploymentInput,
+  type RequestInput,
+  type WebsiteInput,
+} from "./website.validation.js";
+const service = new WebsiteService();
+function auth(request: Parameters<RequestHandler>[0]) {
+  if (!request.auth)
+    throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
+  return request.auth;
+}
+export const websiteRouter = Router();
+websiteRouter.use(
+  requireAuth,
+  requireActiveContext,
+  requireEnabledService("WEBSITES"),
+);
+websiteRouter.get(
+  "/",
+  requirePermission("WEBSITE_VIEW"),
+  async (request, response) =>
+    response.json(
+      success(
+        await service.list(
+          auth(request).organizationId,
+          request.query.archived === "true",
+        ),
+      ),
+    ),
+);
+websiteRouter.post(
+  "/",
+  requirePermission("WEBSITE_MANAGE"),
+  validateBody(websiteSchema),
+  async (request, response) => {
+    const context = auth(request);
+    response
+      .status(201)
+      .json(
+        success(
+          await service.createWebsite(
+            context.organizationId,
+            context.userId,
+            request.body as WebsiteInput,
+          ),
+          "Website registered.",
+        ),
+      );
+  },
+);
+websiteRouter.put(
+  "/:id",
+  requirePermission("WEBSITE_MANAGE"),
+  validateBody(websiteSchema),
+  async (request, response) => {
+    const context = auth(request);
+    await service.updateWebsite(
+      context.organizationId,
+      context.userId,
+      String(request.params.id),
+      request.body as WebsiteInput,
+    );
+    response.json(success({}, "Website updated."));
+  },
+);
+websiteRouter.post(
+  "/requests",
+  requirePermission("WEBSITE_MANAGE"),
+  validateBody(requestSchema),
+  async (request, response) => {
+    const context = auth(request);
+    response
+      .status(201)
+      .json(
+        success(
+          await service.createRequest(
+            context.organizationId,
+            context.userId,
+            request.body as RequestInput,
+          ),
+          "Change request created.",
+        ),
+      );
+  },
+);
+websiteRouter.put(
+  "/requests/:id",
+  requirePermission("WEBSITE_MANAGE"),
+  validateBody(requestSchema),
+  async (request, response) => {
+    const context = auth(request);
+    response.json(
+      success(
+        await service.updateRequest(
+          context.organizationId,
+          context.userId,
+          String(request.params.id),
+          request.body as RequestInput,
+        ),
+        "Change request updated.",
+      ),
+    );
+  },
+);
+websiteRouter.post(
+  "/requests/:id/submit-to-provider",
+  requirePermission("WEBSITE_MANAGE"),
+  validateBody(providerSubmissionSchema),
+  async (request, response) => {
+    const context = auth(request);
+    response.json(
+      success(
+        await service.submitToProvider(
+          context.organizationId,
+          context.userId,
+          String(request.params.id),
+        ),
+        "Request submitted to B² Brain Operations.",
+      ),
+    );
+  },
+);
+websiteRouter.post(
+  "/requests/:id/approval",
+  requirePermission("WEBSITE_APPROVE"),
+  validateBody(approvalSchema),
+  async (request, response) => {
+    const context = auth(request);
+    response.json(
+      success(
+        await service.approve(
+          context.organizationId,
+          context.userId,
+          String(request.params.id),
+          request.body as ApprovalInput,
+        ),
+        "Approval decision recorded.",
+      ),
+    );
+  },
+);
+websiteRouter.post(
+  "/:id/deployments",
+  requirePermission("WEBSITE_DEPLOY"),
+  validateBody(deploymentSchema),
+  async (request, response) => {
+    const context = auth(request);
+    response
+      .status(201)
+      .json(
+        success(
+          await service.deploy(
+            context.organizationId,
+            context.userId,
+            String(request.params.id),
+            request.body as DeploymentInput,
+          ),
+          "Deployment record created.",
+        ),
+      );
+  },
+);
+websiteRouter.delete(
+  "/:id",
+  requirePermission("WEBSITE_MANAGE"),
+  async (request, response) => {
+    const context = auth(request);
+    await service.archive(
+      context.organizationId,
+      context.userId,
+      String(request.params.id),
+    );
+    response.json(success({}, "Website archived."));
+  },
+);
+websiteRouter.post(
+  "/:id/restore",
+  requirePermission("WEBSITE_MANAGE"),
+  async (request, response) => {
+    const context = auth(request);
+    await service.restore(
+      context.organizationId,
+      context.userId,
+      String(request.params.id),
+    );
+    response.json(success({}, "Website restored."));
+  },
+);

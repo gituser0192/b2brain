@@ -445,6 +445,16 @@ enum WebsiteRequestStatus {
   CANCELED
 }
 
+enum ManagedServiceStatus {
+  SUBMITTED
+  TRIAGED
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  AWAITING_CUSTOMER_APPROVAL
+  COMPLETED
+  CANCELED
+}
+
 enum ChangeRisk {
   LOW
   MEDIUM
@@ -2336,38 +2346,46 @@ model ManagedWebsite {
 }
 
 model WebsiteChangeRequest {
-  id             String               @id @default(uuid()) @db.Uuid
-  organizationId String               @db.Uuid
-  websiteId      String               @db.Uuid
-  projectId      String?              @db.Uuid
-  requestNumber  String
-  title          String
-  description    String
-  type           WebsiteRequestType
-  priority       ProjectPriority      @default(MEDIUM)
-  risk           ChangeRisk           @default(LOW)
-  status         WebsiteRequestStatus @default(REQUESTED)
-  deadline       DateTime?
-  approvalNotes  String?
-  approvedById   String?              @db.Uuid
-  approvedAt     DateTime?
-  createdById    String               @db.Uuid
-  updatedById    String               @db.Uuid
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  deletedAt      DateTime?
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  website        ManagedWebsite       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  project        Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  approvedBy     User?                @relation("WebsiteRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
-  createdBy      User                 @relation("WebsiteRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User                 @relation("WebsiteRequestUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  deployments    WebsiteDeployment[]
-  calendarEvents CalendarEvent[]
+  id                     String                @id @default(uuid()) @db.Uuid
+  organizationId         String                @db.Uuid
+  websiteId              String                @db.Uuid
+  projectId              String?               @db.Uuid
+  requestNumber          String
+  title                  String
+  description            String
+  type                   WebsiteRequestType
+  priority               ProjectPriority       @default(MEDIUM)
+  risk                   ChangeRisk            @default(LOW)
+  status                 WebsiteRequestStatus  @default(REQUESTED)
+  deadline               DateTime?
+  approvalNotes          String?
+  submittedToProviderAt  DateTime?
+  providerStatus         ManagedServiceStatus?
+  providerAssignedToId   String?               @db.Uuid
+  providerCustomerUpdate String?
+  providerInternalNote   String?
+  providerUpdatedAt      DateTime?
+  providerCompletedAt    DateTime?
+  approvedById           String?               @db.Uuid
+  approvedAt             DateTime?
+  createdById            String                @db.Uuid
+  updatedById            String                @db.Uuid
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  deletedAt              DateTime?
+  organization           Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  website                ManagedWebsite        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  project                Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  approvedBy             User?                 @relation("WebsiteRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy              User                  @relation("WebsiteRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy              User                  @relation("WebsiteRequestUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  deployments            WebsiteDeployment[]
+  calendarEvents         CalendarEvent[]
 
   @@unique([organizationId, requestNumber])
   @@index([organizationId, status, risk, deletedAt])
   @@index([organizationId, websiteId, deadline])
+  @@index([submittedToProviderAt, providerStatus, providerUpdatedAt])
 }
 
 model WebsiteDeployment {
