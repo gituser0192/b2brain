@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
+import { WhatsappFollowUpWorkspace } from "./whatsapp-follow-up-workspace";
 type Connector = {
   id: string;
   name: string;
@@ -415,6 +416,7 @@ export function BridgeManager() {
           ))
         )}
       </section>
+      <WhatsappFollowUpWorkspace />
       {open && (
         <div className="agent-modal">
           <div className="agent-dialog bridge-dialog">

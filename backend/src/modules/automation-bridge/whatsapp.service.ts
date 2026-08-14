@@ -5,7 +5,10 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { decryptSecret, encryptSecret } from "./bridge.crypto.js";
 import { BridgeService } from "./bridge.service.js";
 import type {
+  IntakeInput,
   MessageDraftInput,
+  WhatsappEscalationInput,
+  WhatsappTemplateDraftInput,
   WhatsappCredentialsInput,
 } from "./bridge.validation.js";
 type MetaPayload = {
@@ -162,11 +165,8 @@ export class WhatsappService {
             message.type === "text"
               ? (message.text?.body ?? "")
               : `[${message.type ?? "unsupported"} message]`;
-        try { await this.bridge.intake(
-            connector.organizationId,
-            connector.createdById,
-            connector.id,
-            {
+        try {
+          const input: IntakeInput = {
               externalEventId: message.id,
               eventName: "whatsapp.message.received",
               kind: message.type === "text" ? "INQUIRY" : "UNKNOWN",
@@ -179,8 +179,16 @@ export class WhatsappService {
                 messageType: message.type ?? "unknown",
                 timestamp: message.timestamp ?? null,
               },
-            },
-        ); accepted++; } catch(error) { if(!(error instanceof AppError&&error.code==="DUPLICATE_EVENT"))throw error; }
+            };
+          const existing = await prisma.inquiry.findFirst({
+            where: { organizationId: connector.organizationId, source: "WHATSAPP", phone: message.from, deletedAt: null, status: { notIn: ["CONVERTED", "DISQUALIFIED", "SPAM"] } },
+            select: { id: true, status: true, firstRespondedAt: true },
+            orderBy: { createdAt: "desc" },
+          });
+          if (existing) await this.bridge.recordInboundReply(connector, existing, input);
+          else await this.bridge.intake(connector.organizationId, connector.createdById, connector.id, input);
+          accepted++;
+        } catch(error) { if(!(error instanceof AppError&&error.code==="DUPLICATE_EVENT"))throw error; }
         }
       }
     return { accepted };
@@ -195,6 +203,63 @@ export class WhatsappService {
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+  }
+  async workspace(org: string) {
+    const [connectors, events, drafts, inquiries] = await Promise.all([
+      prisma.integrationConnector.findMany({ where: { organizationId: org, type: "WHATSAPP", deletedAt: null }, select: { id: true, name: true, status: true, credentialsConfiguredAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.integrationEvent.findMany({ where: { organizationId: org, connector: { type: "WHATSAPP" } }, select: { id: true, connectorId: true, resultId: true, payload: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 300 }),
+      prisma.automationMessageDraft.findMany({ where: { organizationId: org, connector: { type: "WHATSAPP" } }, select: { id: true, connectorId: true, eventId: true, recipient: true, body: true, status: true, createdAt: true, sentAt: true, failureMessage: true }, orderBy: { createdAt: "desc" }, take: 300 }),
+      prisma.inquiry.findMany({ where: { organizationId: org, phone: { not: null }, deletedAt: null, status: { notIn: ["DISQUALIFIED", "SPAM"] } }, select: { id: true, contactName: true, phone: true, subject: true, status: true, assignedEmployee: { select: { firstName: true, lastName: true } } }, orderBy: { updatedAt: "desc" }, take: 200 }),
+    ]);
+    const inquiryById = new Map(inquiries.map(item => [item.id, item]));
+    const conversations = new Map<string, { recipient: string; inquiry: typeof inquiries[number] | null; messages: Array<{ id: string; direction: "INBOUND" | "OUTBOUND"; body: string; status: string; occurredAt: Date }> }>();
+    for (const event of events) {
+      const payload = event.payload as { phone?: string | null; message?: string | null };
+      if (!payload.phone || !payload.message) continue;
+      const recipient = payload.phone.replace(/^\+/, "");
+      const conversation = conversations.get(recipient) ?? { recipient, inquiry: event.resultId ? inquiryById.get(event.resultId) ?? null : inquiries.find(item => item.phone?.replace(/^\+/, "") === recipient) ?? null, messages: [] };
+      conversation.messages.push({ id: event.id, direction: "INBOUND", body: payload.message, status: "RECEIVED", occurredAt: event.createdAt });
+      conversations.set(recipient, conversation);
+    }
+    for (const draft of drafts) {
+      const recipient = draft.recipient.replace(/^\+/, "");
+      const conversation = conversations.get(recipient) ?? { recipient, inquiry: inquiries.find(item => item.phone?.replace(/^\+/, "") === recipient) ?? null, messages: [] };
+      conversation.messages.push({ id: draft.id, direction: "OUTBOUND", body: draft.body, status: draft.status, occurredAt: draft.sentAt ?? draft.createdAt });
+      conversations.set(recipient, conversation);
+    }
+    return { connectors, inquiries, conversations: [...conversations.values()].map(item => {
+      const messages = item.messages.sort((a,b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+      return { ...item, messages, lastMessageAt: messages.at(-1)?.occurredAt ?? null };
+    }).sort((a,b) => (b.lastMessageAt?.getTime() ?? 0) - (a.lastMessageAt?.getTime() ?? 0)) };
+  }
+  async templateDraft(org: string, user: string, input: WhatsappTemplateDraftInput) {
+    const [connector, inquiry, linkedEvent] = await Promise.all([
+      prisma.integrationConnector.findFirst({ where: { id: input.connectorId, organizationId: org, type: "WHATSAPP", status: "ACTIVE", deletedAt: null } }),
+      prisma.inquiry.findFirst({ where: { id: input.inquiryId, organizationId: org, deletedAt: null, phone: { not: null } } }),
+      prisma.integrationEvent.findFirst({ where: { organizationId: org, resultType: "INQUIRY", resultId: input.inquiryId, connector: { type: "WHATSAPP" } }, select: { id: true }, orderBy: { createdAt: "desc" } }),
+    ]);
+    if (!connector) throw new AppError(404, "Active WhatsApp connector was not found.", "CONNECTOR_NOT_FOUND");
+    if (!inquiry?.phone) throw new AppError(404, "Inquiry with a phone number was not found.", "INQUIRY_NOT_FOUND");
+    const templates = {
+      WELCOME: `Hello ${inquiry.contactName}, thank you for contacting us about ${inquiry.subject}. We have received your inquiry and will assist you shortly.`,
+      FOLLOW_UP: `Hello ${inquiry.contactName}, we are following up regarding ${inquiry.subject}. Please let us know if you would like to continue or need any clarification.`,
+      QUOTATION: `Hello ${inquiry.contactName}, your quotation regarding ${inquiry.subject} is ready. Please reply if you would like us to explain any details.`,
+      PAYMENT_REMINDER: `Hello ${inquiry.contactName}, this is a reminder regarding the pending payment connected to ${inquiry.subject}. Please reply if you need assistance.`,
+      HUMAN_HANDOFF: `Hello ${inquiry.contactName}, a member of our team will take over this conversation and assist you personally.`,
+    } as const;
+    return this.draft(org, user, connector.id, { eventId: linkedEvent?.id ?? null, recipient: inquiry.phone, body: input.customMessage ?? templates[input.template] });
+  }
+  async escalate(org: string, user: string, input: WhatsappEscalationInput) {
+    const inquiry = await prisma.inquiry.findFirst({ where: { id: input.inquiryId, organizationId: org, deletedAt: null }, select: { id: true, subject: true, assignedEmployee: { select: { linkedUserId: true } } } });
+    if (!inquiry) throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
+    const owner = await prisma.organizationMembership.findFirst({ where: { organizationId: org, status: "ACTIVE", role: { code: "ORGANIZATION_OWNER" } }, select: { userId: true } });
+    const recipientId = inquiry.assignedEmployee?.linkedUserId ?? owner?.userId;
+    if (!recipientId) throw new AppError(409, "No active person is available for escalation.", "ESCALATION_RECIPIENT_NOT_FOUND");
+    await prisma.$transaction([
+      prisma.inquiryTimeline.create({ data: { organizationId: org, inquiryId: inquiry.id, type: "NOTE", summary: "WhatsApp conversation escalated to a human", details: input.reason, createdById: user } }),
+      prisma.notification.upsert({ where: { organizationId_recipientId_sourceType_sourceId: { organizationId: org, recipientId, sourceType: "WHATSAPP_ESCALATION", sourceId: inquiry.id } }, update: { title: `Human help required: ${inquiry.subject}`, message: input.reason, readAt: null, deletedAt: null, updatedById: user }, create: { organizationId: org, recipientId, type: "AGENT_ALERT", title: `Human help required: ${inquiry.subject}`, message: input.reason, sourceType: "WHATSAPP_ESCALATION", sourceId: inquiry.id, actionPath: "/dashboard?view=inquiries", createdById: user, updatedById: user } }),
+    ]);
+    return { inquiryId: inquiry.id, recipientId };
   }
   async draft(
     org: string,
@@ -294,7 +359,7 @@ export class WhatsappService {
         throw new Error(
           result.error?.message ?? `Meta API returned ${response.status}`,
         );
-      return prisma.automationMessageDraft.update({
+      const sent = await prisma.automationMessageDraft.update({
         where: { id },
         data: {
           status: "SENT",
@@ -304,6 +369,11 @@ export class WhatsappService {
           updatedById: user,
         },
       });
+      if (draft.eventId) {
+        const linked = await prisma.integrationEvent.findFirst({ where: { id: draft.eventId, organizationId: org, resultType: "INQUIRY", resultId: { not: null } }, select: { resultId: true } });
+        if (linked?.resultId) await prisma.inquiryTimeline.create({ data: { organizationId: org, inquiryId: linked.resultId, type: "CONTACT_LOGGED", summary: "Approved WhatsApp message sent", details: draft.body, createdById: user } });
+      }
+      return sent;
     } catch (error) {
       await prisma.automationMessageDraft.update({
         where: { id },

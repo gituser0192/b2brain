@@ -216,6 +216,59 @@ export class BridgeService {
       throw new AppError(403, "Lead & Inquiry Management is not enabled for this organization.", "SERVICE_NOT_ENABLED");
     return this.intake(connector.organizationId, connector.createdById, connector.id, input);
   }
+  async recordInboundReply(
+    connector: { id: string; organizationId: string; createdById: string; name: string },
+    inquiry: { id: string; status: "NEW" | "REVIEWING" | "QUALIFIED" | "CONVERTED" | "DISQUALIFIED" | "SPAM"; firstRespondedAt: Date | null },
+    input: IntakeInput,
+  ) {
+    const payload = { contactName: input.contactName, email: input.email, phone: input.phone, subject: input.subject, message: input.message, raw: input.raw };
+    const payloadHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const event = await tx.integrationEvent.create({
+          data: {
+            organizationId: connector.organizationId,
+            connectorId: connector.id,
+            externalEventId: input.externalEventId,
+            eventName: input.eventName,
+            kind: "INQUIRY",
+            status: "COMPLETED",
+            signatureVerified: true,
+            payload: payload as Prisma.InputJsonValue,
+            payloadHash,
+            processedAt: new Date(),
+            resultType: "INQUIRY",
+            resultId: inquiry.id,
+            createdById: connector.createdById,
+            updatedById: connector.createdById,
+          },
+          include: eventInclude,
+        });
+        await tx.inquiry.update({
+          where: { id: inquiry.id },
+          data: {
+            firstRespondedAt: inquiry.firstRespondedAt ?? new Date(),
+            followUpCompletedAt: new Date(),
+            status: inquiry.status === "NEW" ? "REVIEWING" : inquiry.status,
+            updatedById: connector.createdById,
+            timeline: { create: { organizationId: connector.organizationId, type: "CONTACT_LOGGED", summary: "Customer replied on WhatsApp", details: input.message, createdById: connector.createdById } },
+          },
+        });
+        const enrollments = await tx.followUpEnrollment.findMany({ where: { organizationId: connector.organizationId, inquiryId: inquiry.id, status: "ACTIVE", sequence: { stopOnResponse: true } }, select: { id: true } });
+        if (enrollments.length) {
+          const ids = enrollments.map(item => item.id);
+          await tx.followUpEnrollment.updateMany({ where: { organizationId: connector.organizationId, id: { in: ids } }, data: { status: "STOPPED", stoppedAt: new Date(), stopReason: "Customer replied on WhatsApp.", nextStepAt: null, updatedById: connector.createdById } });
+          await tx.followUpExecution.updateMany({ where: { organizationId: connector.organizationId, enrollmentId: { in: ids }, status: "SCHEDULED" }, data: { status: "SKIPPED", outcome: "Customer replied on WhatsApp." } });
+        }
+        await tx.integrationConnector.update({ where: { id: connector.id }, data: { lastReceivedAt: new Date(), lastSuccessfulAt: new Date(), updatedById: connector.createdById } });
+        return event;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+        throw new AppError(409, "This external event was already received. No duplicate record was created.", "DUPLICATE_EVENT");
+      throw error;
+    }
+  }
   private async process(org: string, user: string, id: string) {
     const event = await prisma.integrationEvent.findFirst({
       where: { id, organizationId: org },

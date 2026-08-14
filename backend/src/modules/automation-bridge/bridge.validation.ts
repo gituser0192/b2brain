@@ -108,3 +108,7 @@ export type ConnectorInput = z.infer<typeof connectorSchema>;
 export type IntakeInput = z.infer<typeof intakeSchema>;
 export type EventDecisionInput = z.infer<typeof eventDecisionSchema>;
 export const whatsappCredentialsSchema=z.object({phoneNumberId:z.string().trim().min(5).max(100),businessAccountId:z.string().trim().min(5).max(100),accessToken:z.string().trim().min(20).max(1000),appSecret:z.string().trim().min(10).max(500)}).strict();export const messageDraftSchema=z.object({eventId:z.string().uuid().optional().nullable(),recipient:z.string().trim().regex(/^\+?[1-9]\d{6,14}$/),body:z.string().trim().min(1).max(4096)}).strict();export type WhatsappCredentialsInput=z.infer<typeof whatsappCredentialsSchema>;export type MessageDraftInput=z.infer<typeof messageDraftSchema>;
+export const whatsappTemplateDraftSchema=z.object({connectorId:z.string().uuid(),inquiryId:z.string().uuid(),template:z.enum(["WELCOME","FOLLOW_UP","QUOTATION","PAYMENT_REMINDER","HUMAN_HANDOFF"]),customMessage:z.string().trim().max(2000).optional().nullable().transform(value=>value||null)}).strict();
+export const whatsappEscalationSchema=z.object({inquiryId:z.string().uuid(),reason:z.string().trim().min(3).max(1000)}).strict();
+export type WhatsappTemplateDraftInput=z.infer<typeof whatsappTemplateDraftSchema>;
+export type WhatsappEscalationInput=z.infer<typeof whatsappEscalationSchema>;
