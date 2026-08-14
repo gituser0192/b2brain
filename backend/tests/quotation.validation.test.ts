@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   quotationConversionSchema,
   quotationSchema,
+  quotationShareSchema,
+  quotationPublicDecisionSchema,
   quotationStatusSchema,
 } from "../src/modules/quotations/quotation.validation.js";
 
@@ -53,4 +55,12 @@ describe("quotation validation", () => {
         dueDate: "2026-08-01T00:00:00.000Z",
       }),
     ).toThrow());
+  it("requires a connector only for WhatsApp sharing", () => {
+    expect(quotationShareSchema.parse({ channel: "EMAIL", connectorId: null }).channel).toBe("EMAIL");
+    expect(() => quotationShareSchema.parse({ channel: "WHATSAPP", connectorId: null })).toThrow();
+  });
+  it("accepts only customer acceptance or rejection", () => {
+    expect(quotationPublicDecisionSchema.parse({ decision: "ACCEPTED", note: "Approved" }).decision).toBe("ACCEPTED");
+    expect(() => quotationPublicDecisionSchema.parse({ decision: "SENT", note: null })).toThrow();
+  });
 });

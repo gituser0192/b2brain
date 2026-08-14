@@ -1,10 +1,16 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type QuotationStatus } from "@prisma/client";
+import { env } from "../../config/env.js";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
+import { EmailService } from "../../shared/email/email.service.js";
+import { WhatsappService } from "../automation-bridge/whatsapp.service.js";
 import type {
   QuotationConversionInput,
   QuotationFollowUpInput,
   QuotationInput,
+  QuotationPublicDecisionInput,
+  QuotationShareInput,
 } from "./quotation.validation.js";
 
 const include = {
@@ -18,6 +24,28 @@ const include = {
 } satisfies Prisma.QuotationInclude;
 
 export class QuotationService {
+  private email = new EmailService();
+  private whatsapp = new WhatsappService();
+  private token(id: string, organizationId: string, expiresAt: Date) {
+    const payload = Buffer.from(JSON.stringify({ id, organizationId, expiresAt: expiresAt.toISOString() })).toString("base64url");
+    const signature = createHmac("sha256", env.JWT_ACCESS_SECRET).update(`quotation:${payload}`).digest("base64url");
+    return `${payload}.${signature}`;
+  }
+  private verifyToken(token: string) {
+    const [payload, signature] = token.split(".");
+    if (!payload || !signature) throw new AppError(404, "Quotation link is invalid.", "QUOTATION_LINK_INVALID");
+    const expected = createHmac("sha256", env.JWT_ACCESS_SECRET).update(`quotation:${payload}`).digest("base64url");
+    if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected)))
+      throw new AppError(404, "Quotation link is invalid.", "QUOTATION_LINK_INVALID");
+    try {
+      const value = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { id: string; organizationId: string; expiresAt: string };
+      if (new Date(value.expiresAt) <= new Date()) throw new AppError(410, "Quotation link has expired.", "QUOTATION_LINK_EXPIRED");
+      return value;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(404, "Quotation link is invalid.", "QUOTATION_LINK_INVALID");
+    }
+  }
   private async validateContext(
     organizationId: string,
     input: Pick<QuotationInput, "customerId" | "inquiryId" | "dealId">,
@@ -267,6 +295,48 @@ export class QuotationService {
       },
       include,
     });
+  }
+  async share(organizationId: string, actorUserId: string, id: string, input: QuotationShareInput) {
+    const quotation = await prisma.quotation.findFirst({ where: { id, organizationId, archivedAt: null, status: { in: ["DRAFT", "SENT", "EXPIRED"] } }, include });
+    if (!quotation) throw new AppError(404, "Open quotation not found.", "QUOTATION_NOT_FOUND");
+    const expiresAt = quotation.validUntil > new Date() ? quotation.validUntil : new Date(Date.now() + 7 * 86_400_000);
+    const token = this.token(quotation.id, organizationId, expiresAt);
+    const path = `/quotation/${encodeURIComponent(token)}`;
+    const url = `${env.FRONTEND_URL}${path}`;
+    let delivery: { delivered: boolean; preview?: boolean; draftId?: string } = { delivered: false };
+    if (input.channel === "EMAIL") {
+      if (!quotation.customer.email) throw new AppError(409, "Customer email is missing.", "CUSTOMER_EMAIL_MISSING");
+      const result = await this.email.send({ to: quotation.customer.email, subject: `Quotation ${quotation.quotationNumber}`, text: `Review quotation ${quotation.quotationNumber}: ${url}`, html: `<h2>Quotation ${quotation.quotationNumber}</h2><p>Hello ${quotation.customer.displayName},</p><p>Your quotation is ready for review.</p><p><a href="${url}">View and respond to quotation</a></p><p>This secure link expires on ${expiresAt.toDateString()}.</p>` });
+      delivery = result;
+    }
+    if (input.channel === "WHATSAPP") {
+      if (!quotation.customer.phone) throw new AppError(409, "Customer phone number is missing.", "CUSTOMER_PHONE_MISSING");
+      const draft = await this.whatsapp.draft(organizationId, actorUserId, input.connectorId!, { eventId: null, recipient: quotation.customer.phone, body: `Hello ${quotation.customer.displayName}, your quotation ${quotation.quotationNumber} is ready. Review and respond securely: ${url}` });
+      delivery = { delivered: false, draftId: draft.id };
+    }
+    const updated = await prisma.quotation.update({ where: { id, organizationId }, data: { status: "SENT", sentAt: quotation.sentAt ?? new Date(), updatedById: actorUserId }, include });
+    await prisma.customerActivity.create({ data: { organizationId, customerId: quotation.customerId, type: "NOTE", summary: `Quotation ${quotation.quotationNumber} shared by ${input.channel.toLowerCase()}.`, details: input.channel === "LINK" ? "Secure link generated." : delivery.delivered ? "Delivery confirmed." : input.channel === "WHATSAPP" ? "WhatsApp approval draft created." : "Email delivery is not configured; secure link returned.", occurredAt: new Date(), createdById: actorUserId, updatedById: actorUserId } });
+    return { quotation: updated, path, expiresAt, delivery };
+  }
+  async publicView(token: string) {
+    const value = this.verifyToken(token);
+    const quotation = await prisma.quotation.findFirst({ where: { id: value.id, organizationId: value.organizationId, archivedAt: null }, include: { ...include, organization: { select: { name: true, currency: true } } } });
+    if (!quotation) throw new AppError(404, "Quotation was not found.", "QUOTATION_NOT_FOUND");
+    return quotation;
+  }
+  async publicDecision(token: string, input: QuotationPublicDecisionInput) {
+    const value = this.verifyToken(token);
+    const quotation = await prisma.quotation.findFirst({ where: { id: value.id, organizationId: value.organizationId, archivedAt: null }, include: { customer: { select: { displayName: true } } } });
+    if (!quotation) throw new AppError(404, "Quotation was not found.", "QUOTATION_NOT_FOUND");
+    if (quotation.status !== "SENT") throw new AppError(409, `This quotation is already ${quotation.status.toLowerCase()}.`, "QUOTATION_ALREADY_DECIDED");
+    if (quotation.validUntil < new Date()) throw new AppError(410, "This quotation has expired.", "QUOTATION_EXPIRED");
+    const timestamp = new Date();
+    const updated = await prisma.$transaction(async transaction => {
+      const result = await transaction.quotation.update({ where: { id: quotation.id, organizationId: quotation.organizationId }, data: { status: input.decision, acceptedAt: input.decision === "ACCEPTED" ? timestamp : null, rejectedAt: input.decision === "REJECTED" ? timestamp : null, updatedById: quotation.updatedById }, include });
+      await transaction.customerActivity.create({ data: { organizationId: quotation.organizationId, customerId: quotation.customerId, type: "NOTE", summary: `${quotation.customer.displayName} ${input.decision.toLowerCase()} quotation ${quotation.quotationNumber}.`, details: input.note, occurredAt: timestamp, createdById: quotation.updatedById, updatedById: quotation.updatedById } });
+      return result;
+    });
+    return updated;
   }
 
   async scheduleFollowUp(

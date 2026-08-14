@@ -276,6 +276,22 @@ export function QuotationManager() {
       "Quotation converted into an issued invoice.",
     );
   }
+  async function share(item: Quotation, channel: "EMAIL" | "WHATSAPP" | "LINK") {
+    try {
+      let connectorId: string | null = null;
+      if (channel === "WHATSAPP") {
+        const bridge = await authorizedRequest<{success:true;data:{connectors:{id:string;name:string;type:string;status:string}[]}}>("/automation-bridge");
+        const connectors = bridge.data.connectors.filter(connector => connector.type === "WHATSAPP" && connector.status === "ACTIVE");
+        if (!connectors.length) throw new ApiError(409, "Create an active WhatsApp connector first.");
+        connectorId = connectors[0]!.id;
+      }
+      const response = await authorizedRequest<{success:true;data:{path:string;delivery:{delivered:boolean;draftId?:string}}}>(`/quotations/${item.id}/share`, { method: "POST", body: JSON.stringify({ channel, connectorId }) });
+      if (channel === "LINK") window.open(response.data.path, "_blank");
+      if (channel === "EMAIL" && !response.data.delivery.delivered) window.open(response.data.path, "_blank");
+      setNotice(channel === "WHATSAPP" ? "WhatsApp approval draft created." : channel === "EMAIL" ? response.data.delivery.delivered ? "Quotation emailed successfully." : "Email is not configured; secure link generated." : "Secure quotation opened. Use Print / Save PDF to download it.");
+      await load();
+    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to share quotation."); }
+  }
 
   return (
     <section className="quotation-manager">
@@ -352,6 +368,9 @@ export function QuotationManager() {
               </div>
               {canManage && (
                 <footer>
+                  <button onClick={() => void share(item, "LINK")}>Preview / PDF</button>
+                  <button onClick={() => void share(item, "EMAIL")}>Email</button>
+                  <button onClick={() => void share(item, "WHATSAPP")}>WhatsApp draft</button>
                       {["DRAFT", "SENT", "EXPIRED"].includes(item.status) && (
                     <button onClick={() => show(item)}>Edit</button>
                   )}

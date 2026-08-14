@@ -55,6 +55,19 @@ export const quotationStatusSchema = z
   })
   .strict();
 
+export const quotationShareSchema = z.object({
+  channel: z.enum(["EMAIL", "WHATSAPP", "LINK"]),
+  connectorId: z.string().uuid().optional().nullable(),
+}).strict().superRefine((value, context) => {
+  if (value.channel === "WHATSAPP" && !value.connectorId)
+    context.addIssue({ code: "custom", path: ["connectorId"], message: "Select a WhatsApp connector." });
+});
+
+export const quotationPublicDecisionSchema = z.object({
+  decision: z.enum(["ACCEPTED", "REJECTED"]),
+  note: z.string().trim().max(1000).optional().nullable().transform(value => value || null),
+}).strict();
+
 export const quotationFollowUpSchema = z
   .object({
     dueAt: dateTime,
@@ -76,6 +89,8 @@ export const quotationConversionSchema = z
 
 export type QuotationInput = z.infer<typeof quotationSchema>;
 export type QuotationStatusInput = z.infer<typeof quotationStatusSchema>;
+export type QuotationShareInput = z.infer<typeof quotationShareSchema>;
+export type QuotationPublicDecisionInput = z.infer<typeof quotationPublicDecisionSchema>;
 export type QuotationFollowUpInput = z.infer<typeof quotationFollowUpSchema>;
 export type QuotationConversionInput = z.infer<
   typeof quotationConversionSchema

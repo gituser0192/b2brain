@@ -4,6 +4,7 @@ import {
   requireAuth,
   requireEnabledService,
   requirePermission,
+  verifyServiceAccess,
 } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { AppError } from "../../shared/errors/app-error.js";
@@ -14,10 +15,14 @@ import {
   quotationFollowUpSchema,
   quotationSchema,
   quotationStatusSchema,
+  quotationShareSchema,
+  quotationPublicDecisionSchema,
   type QuotationConversionInput,
   type QuotationFollowUpInput,
   type QuotationInput,
   type QuotationStatusInput,
+  type QuotationShareInput,
+  type QuotationPublicDecisionInput,
 } from "./quotation.validation.js";
 
 const service = new QuotationService();
@@ -28,6 +33,11 @@ function auth(request: Parameters<RequestHandler>[0]) {
 }
 
 export const quotationRouter = Router();
+export const publicQuotationRouter = Router();
+publicQuotationRouter.get("/:token", async (request, response) =>
+  response.json(success(await service.publicView(String(request.params.token)))));
+publicQuotationRouter.post("/:token/decision", validateBody(quotationPublicDecisionSchema), async (request, response) =>
+  response.json(success(await service.publicDecision(String(request.params.token), request.body as QuotationPublicDecisionInput), "Quotation response recorded.")));
 quotationRouter.use(
   requireAuth,
   requireActiveContext,
@@ -95,6 +105,16 @@ quotationRouter.patch(
         "Quotation status updated.",
       ),
     );
+  },
+);
+quotationRouter.post(
+  "/:id/share",
+  requirePermission("DEAL_MANAGE"),
+  validateBody(quotationShareSchema),
+  async (request, response) => {
+    const context = auth(request), input = request.body as QuotationShareInput;
+    if (input.channel === "WHATSAPP") await verifyServiceAccess(context, "AUTOMATION", "AUTOMATION_MANAGE");
+    response.json(success(await service.share(context.organizationId, context.userId, String(request.params.id), input), "Quotation sharing prepared."));
   },
 );
 quotationRouter.post(
