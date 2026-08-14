@@ -18,3 +18,10 @@ export const managedServiceUpdateSchema = z
   .strict();
 
 export type ManagedServiceUpdateInput = z.infer<typeof managedServiceUpdateSchema>;
+
+export const providerRequestUpdateSchema = managedServiceUpdateSchema;
+export const providerReplySchema = z.object({
+  type: z.enum(["PROVIDER_REPLY", "INTERNAL_NOTE"]),
+  body: z.string().trim().min(1).max(10000),
+}).strict();
+export type ProviderReplyInput = z.infer<typeof providerReplySchema>;
