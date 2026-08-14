@@ -30,7 +30,7 @@ function toContext(membership: MembershipContext): AuthContext {
 function safeData(membership: MembershipContext) {
   return {
     user: { id: membership.user.id, firstName: membership.user.firstName, lastName: membership.user.lastName, email: membership.user.email, status: membership.user.status, isPlatformAdmin: membership.user.isPlatformAdmin },
-    organization: { id: membership.organization.id, name: membership.organization.name, slug: membership.organization.slug, status: membership.organization.status, timezone: membership.organization.timezone, currency: membership.organization.currency },
+    organization: { id: membership.organization.id, name: membership.organization.name, slug: membership.organization.slug, status: membership.organization.status, timezone: membership.organization.timezone, currency: membership.organization.currency, isServiceProvider: membership.organization.isServiceProvider },
     membership: { id: membership.id, role: { code: membership.role.code, name: membership.role.name }, permissions: membership.role.permissions.map((item) => item.permission.code) },
   };
 }

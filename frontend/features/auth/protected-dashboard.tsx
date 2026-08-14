@@ -417,7 +417,11 @@ export function ProtectedDashboard() {
             <h1>{session.organization.name}</h1>
           </div>
           <div className="header-actions">
-            {session.user.isPlatformAdmin && (
+            {(session.user.isPlatformAdmin ||
+              (session.organization.isServiceProvider &&
+                session.membership.permissions.includes(
+                  "PROVIDER_REQUEST_VIEW",
+                ))) && (
               <>
                 <button onClick={() => router.push("/operations")}>
                   Operations

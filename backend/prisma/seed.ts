@@ -64,6 +64,10 @@ const permissions = [
   { code: "APPROVAL_VIEW", name: "View approvals", description: "View organization approval requests and decisions" },
   { code: "APPROVAL_DECIDE", name: "Decide approvals", description: "Approve, reject, or return controlled organization actions" },
   { code: "AUDIT_VIEW", name: "View audit history", description: "View immutable organization action and decision history" },
+  { code: "PROVIDER_REQUEST_VIEW", name: "View B2 Brain service requests", description: "View customer-approved requests in the B2 Brain delivery desk" },
+  { code: "PROVIDER_REQUEST_WORK", name: "Work B2 Brain service requests", description: "Reply, add internal notes, and progress assigned customer requests" },
+  { code: "PROVIDER_REQUEST_MANAGE", name: "Manage B2 Brain service desk", description: "Assign, reassign, prioritize, and manage service requests" },
+  { code: "PROVIDER_SENSITIVE_APPROVE", name: "Approve sensitive provider actions", description: "Approve plan, billing, finance, deployment, and other sensitive service actions" },
 ] as const;
 const roles = [
   { code: "ORGANIZATION_OWNER", name: "Organization Owner", description: "Owner of a customer organization", permissionCodes: ["ORGANIZATION_VIEW", "ORGANIZATION_UPDATE", "MEMBERSHIP_VIEW", "MEMBERSHIP_MANAGE", "ROLE_VIEW", "ROLE_MANAGE", "CRM_VIEW", "CRM_CREATE", "CRM_UPDATE", "CRM_ARCHIVE", "CRM_DELETE", "CRM_ACTIVITY_VIEW", "CRM_ACTIVITY_MANAGE", "CRM_FOLLOWUP_MANAGE", "AUTOMATION_VIEW", "AUTOMATION_MANAGE", "NOTIFICATION_VIEW", "PROJECT_VIEW", "PROJECT_CREATE", "PROJECT_UPDATE", "PROJECT_ARCHIVE", "TASK_VIEW", "TASK_MANAGE"] },
@@ -90,6 +94,7 @@ function calendarPermissions(roleCode: string) { return roleCode==="ORGANIZATION
 function inquiryPermissions(roleCode: string) { return roleCode==="ORGANIZATION_MEMBER"?["INQUIRY_VIEW"] as const:["INQUIRY_VIEW","INQUIRY_MANAGE","INQUIRY_CONVERT"] as const; }
 function stayPermissions(roleCode: string) { return roleCode==="ORGANIZATION_MEMBER"?["STAY_VIEW"] as const:["STAY_VIEW","STAY_MANAGE"] as const; }
 function governancePermissions(roleCode: string) { if(roleCode==="ORGANIZATION_MEMBER")return [] as const;if(roleCode==="ORGANIZATION_OWNER"||roleCode==="ORGANIZATION_ADMIN")return ["APPROVAL_VIEW","APPROVAL_DECIDE","AUDIT_VIEW"] as const;return ["APPROVAL_VIEW","AUDIT_VIEW"] as const; }
+function providerPermissions(roleCode: string) { return roleCode === "ORGANIZATION_OWNER" ? ["PROVIDER_REQUEST_VIEW", "PROVIDER_REQUEST_WORK", "PROVIDER_REQUEST_MANAGE", "PROVIDER_SENSITIVE_APPROVE"] as const : [] as const; }
 
 async function seed() {
   const permissionMap = new Map<string, string>();
@@ -98,7 +103,7 @@ async function seed() {
     permissionMap.set(item.code, permission.id);
   }
   for (const item of roles) {
-    const permissionCodes = [...item.permissionCodes, ...employeePermissions(item.code), ...salesPermissions(item.code), ...financePermissions(item.code), ...cataloguePermissions(item.code), ...orderPermissions(item.code), ...inventoryPermissions(item.code), ...marketingPermissions(item.code), ...analysisPermissions(), ...supportPermissions(item.code), ...websitePermissions(item.code), ...procurementPermissions(item.code), ...calendarPermissions(item.code), ...inquiryPermissions(item.code), ...stayPermissions(item.code), ...governancePermissions(item.code)];
+    const permissionCodes = [...item.permissionCodes, ...employeePermissions(item.code), ...salesPermissions(item.code), ...financePermissions(item.code), ...cataloguePermissions(item.code), ...orderPermissions(item.code), ...inventoryPermissions(item.code), ...marketingPermissions(item.code), ...analysisPermissions(), ...supportPermissions(item.code), ...websitePermissions(item.code), ...procurementPermissions(item.code), ...calendarPermissions(item.code), ...inquiryPermissions(item.code), ...stayPermissions(item.code), ...governancePermissions(item.code), ...providerPermissions(item.code)];
     const current = await prisma.role.findFirst({ where: { organizationId: null, code: item.code, isSystem: true } });
     const role = current
       ? await prisma.role.update({ where: { id: current.id }, data: { name: item.name, description: item.description } })

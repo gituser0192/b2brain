@@ -42,16 +42,17 @@ export class ManagedServiceDeskService {
         },
         orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
       }),
-      prisma.user.findMany({
-        where: { isPlatformAdmin: true, status: "ACTIVE", deletedAt: null },
-        select: { id: true, firstName: true, lastName: true, email: true },
-        orderBy: { firstName: "asc" },
+      prisma.organizationMembership.findMany({
+        where: { organization: { isServiceProvider: true, status: "ACTIVE", deletedAt: null }, status: "ACTIVE", user: { status: "ACTIVE", deletedAt: null }, role: { permissions: { some: { permission: { code: { in: ["PROVIDER_REQUEST_WORK", "PROVIDER_REQUEST_MANAGE"] } } } } } },
+        select: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        distinct: ["userId"],
+        orderBy: { user: { firstName: "asc" } },
       }),
     ]);
     return {
       requests,
       serviceRequests,
-      operators,
+      operators: operators.map((membership) => membership.user),
       metrics: {
         total: requests.length + serviceRequests.length,
         new: requests.filter((item) => item.providerStatus === "SUBMITTED").length + serviceRequests.filter((item) => item.status === "SUBMITTED").length,
@@ -68,10 +69,7 @@ export class ManagedServiceDeskService {
     });
     if (!current) throw new AppError(404, "Managed service request was not found.", "MANAGED_REQUEST_NOT_FOUND");
     if (input.assignedToId) {
-      const operator = await prisma.user.findFirst({
-        where: { id: input.assignedToId, isPlatformAdmin: true, status: "ACTIVE", deletedAt: null },
-        select: { id: true },
-      });
+      const operator = await prisma.organizationMembership.findFirst({ where: { userId: input.assignedToId, organization: { isServiceProvider: true, status: "ACTIVE", deletedAt: null }, status: "ACTIVE", user: { status: "ACTIVE", deletedAt: null }, role: { permissions: { some: { permission: { code: { in: ["PROVIDER_REQUEST_WORK", "PROVIDER_REQUEST_MANAGE"] } } } } } }, select: { id: true } });
       if (!operator) throw new AppError(404, "B² Brain operator was not found.", "OPERATOR_NOT_FOUND");
     }
     const now = new Date();
@@ -128,7 +126,7 @@ export class ManagedServiceDeskService {
     const current = await prisma.providerServiceRequest.findFirst({ where: { id, deletedAt: null }, select: { id: true, organizationId: true, createdById: true, firstRespondedAt: true } });
     if (!current) throw new AppError(404, "Service request was not found.", "SERVICE_REQUEST_NOT_FOUND");
     if (input.assignedToId) {
-      const operator = await prisma.user.findFirst({ where: { id: input.assignedToId, isPlatformAdmin: true, status: "ACTIVE", deletedAt: null }, select: { id: true } });
+      const operator = await prisma.organizationMembership.findFirst({ where: { userId: input.assignedToId, organization: { isServiceProvider: true, status: "ACTIVE", deletedAt: null }, status: "ACTIVE", user: { status: "ACTIVE", deletedAt: null }, role: { permissions: { some: { permission: { code: { in: ["PROVIDER_REQUEST_WORK", "PROVIDER_REQUEST_MANAGE"] } } } } } }, select: { id: true } });
       if (!operator) throw new AppError(404, "B² Brain operator was not found.", "OPERATOR_NOT_FOUND");
     }
     const now = new Date();

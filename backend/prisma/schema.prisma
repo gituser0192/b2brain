@@ -871,6 +871,7 @@ model Organization {
   name                    String
   slug                    String                        @unique
   status                  OrganizationStatus            @default(ACTIVE)
+  isServiceProvider       Boolean                       @default(false)
   timezone                String                        @default("Asia/Kolkata")
   currency                String                        @default("INR")
   createdAt               DateTime                      @default(now())
