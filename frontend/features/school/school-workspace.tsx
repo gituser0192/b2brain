@@ -7,6 +7,7 @@ import { StudentDirectory } from "./student-directory";
 import { TeacherDirectory } from "./teacher-directory";
 import { AttendanceWorkspace } from "./attendance-workspace";
 import { TimetableWorkspace } from "./timetable-workspace";
+import { SchoolImportCentre } from "./school-import-centre";
 
 type Section = {
   id: string;
@@ -191,6 +192,7 @@ export function SchoolWorkspace() {
           <strong>{data.metrics.students}</strong>
         </article>
       </section>
+      {canManage && <SchoolImportCentre onImported={load} />}
       {!!data.academicYears.length && (
         <StudentDirectory
           academicYears={data.academicYears}

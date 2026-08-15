@@ -797,6 +797,12 @@ enum SchoolSubstituteStatus {
   CANCELLED
 }
 
+enum SchoolImportStatus {
+  PREVIEWED
+  COMPLETED
+  EXPIRED
+}
+
 model User {
   id                          String                        @id @default(uuid()) @db.Uuid
   firstName                   String
@@ -950,6 +956,7 @@ model User {
   schoolTimetableUpdated      SchoolTimetableEntry[]        @relation("SchoolTimetableUpdatedBy")
   schoolSubstitutesCreated    SchoolSubstituteAssignment[]  @relation("SchoolSubstituteCreatedBy")
   schoolSubstitutesUpdated    SchoolSubstituteAssignment[]  @relation("SchoolSubstituteUpdatedBy")
+  schoolImportsCreated        SchoolImportBatch[]           @relation("SchoolImportCreatedBy")
 
   @@index([status, deletedAt])
 }
@@ -1051,6 +1058,7 @@ model Organization {
   schoolTeacherAttendance  SchoolTeacherAttendance[]
   schoolTimetableEntries   SchoolTimetableEntry[]
   schoolSubstitutes        SchoolSubstituteAssignment[]
+  schoolImportBatches      SchoolImportBatch[]
 
   @@index([status, deletedAt])
 }
@@ -3695,4 +3703,23 @@ model SchoolSubstituteAssignment {
   @@unique([timetableEntryId, attendanceDate])
   @@index([organizationId, attendanceDate, status])
   @@index([organizationId, substituteTeacherId, attendanceDate])
+}
+
+model SchoolImportBatch {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  createdById    String             @db.Uuid
+  fileName       String
+  status         SchoolImportStatus @default(PREVIEWED)
+  payload        Json
+  summary        Json
+  expiresAt      DateTime
+  completedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User               @relation("SchoolImportCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, expiresAt])
+  @@index([createdById, createdAt])
 }
