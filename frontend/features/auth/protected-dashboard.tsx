@@ -30,6 +30,7 @@ import { InquiryWorkspace } from "@/features/inquiries/inquiry-workspace";
 import { StayWorkspace } from "@/features/stay/stay-workspace";
 import { GovernanceWorkspace } from "@/features/governance/governance-workspace";
 import { ActionCentreWorkspace } from "@/features/action-centre/action-centre-workspace";
+import { SchoolWorkspace } from "@/features/school/school-workspace";
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: "D", permission: null },
@@ -99,7 +100,8 @@ export function ProtectedDashboard() {
     | "procurement"
     | "calendar"
     | "inquiries"
-    | "stay";
+    | "stay"
+    | "school";
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [enabledServices, setEnabledServices] = useState<string[]>([]);
 
@@ -245,6 +247,12 @@ export function ProtectedDashboard() {
                 onClick={() => setActiveView("stay")}
               >
                 <span className="nav-icon">H</span>B² Stay
+              </button>
+            )}
+          {enabledServices.includes("SCHOOL") &&
+            session.membership.permissions.includes("SCHOOL_VIEW") && (
+              <button className={activeView === "school" ? "active" : ""} onClick={() => setActiveView("school")}>
+                <span className="nav-icon">S</span>B² School
               </button>
             )}
           {enabledServices.includes("CATALOGUE") &&
@@ -455,7 +463,9 @@ export function ProtectedDashboard() {
         ) : activeView === "b2help" ? (
           <ServiceRequestWorkspace />
         ) : activeView === "actions" ||
-          activeView === "governance" ? null : activeView === "stay" ? (
+          activeView === "governance" ? null : activeView === "school" ? (
+          <SchoolWorkspace />
+        ) : activeView === "stay" ? (
           <StayWorkspace />
         ) : activeView === "inquiries" ? (
           <InquiryWorkspace onNavigate={(view) => setActiveView(view)} />

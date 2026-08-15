@@ -38,6 +38,7 @@ import { publicQuotationRouter, quotationRouter } from "./modules/quotations/quo
 import { paymentCollectionRouter } from "./modules/payment-collection/payment-collection.routes.js";
 import { managedServiceDeskRouter } from "./modules/managed-services/managed-service.routes.js";
 import { serviceRequestRouter } from "./modules/service-requests/service-request.routes.js";
+import { schoolRouter } from "./modules/school/school.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -89,3 +90,4 @@ apiRouter.use("/public/quotations", publicQuotationRouter);
 apiRouter.use("/payment-collection", paymentCollectionRouter);
 apiRouter.use("/managed-services", managedServiceDeskRouter);
 apiRouter.use("/service-requests", serviceRequestRouter);
+apiRouter.use("/school", schoolRouter);
