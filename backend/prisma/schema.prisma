@@ -769,6 +769,13 @@ enum SchoolEnrollmentStatus {
   COMPLETED
 }
 
+enum SchoolTeacherStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+  EXITED
+}
+
 model User {
   id                          String                        @id @default(uuid()) @db.Uuid
   firstName                   String
@@ -908,100 +915,109 @@ model User {
   schoolGuardiansUpdated      SchoolGuardian[]              @relation("SchoolGuardianUpdatedBy")
   schoolEnrollmentsCreated    SchoolEnrollment[]            @relation("SchoolEnrollmentCreatedBy")
   schoolEnrollmentsUpdated    SchoolEnrollment[]            @relation("SchoolEnrollmentUpdatedBy")
+  schoolSubjectsCreated       SchoolSubject[]               @relation("SchoolSubjectCreatedBy")
+  schoolSubjectsUpdated       SchoolSubject[]               @relation("SchoolSubjectUpdatedBy")
+  schoolTeachersCreated       SchoolTeacher[]               @relation("SchoolTeacherCreatedBy")
+  schoolTeachersUpdated       SchoolTeacher[]               @relation("SchoolTeacherUpdatedBy")
+  schoolAssignmentsCreated    SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentCreatedBy")
+  schoolAssignmentsUpdated    SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentUpdatedBy")
 
   @@index([status, deletedAt])
 }
 
 model Organization {
-  id                      String                        @id @default(uuid()) @db.Uuid
-  name                    String
-  slug                    String                        @unique
-  status                  OrganizationStatus            @default(ACTIVE)
-  isServiceProvider       Boolean                       @default(false)
-  timezone                String                        @default("Asia/Kolkata")
-  currency                String                        @default("INR")
-  createdAt               DateTime                      @default(now())
-  updatedAt               DateTime                      @updatedAt
-  deletedAt               DateTime?
-  memberships             OrganizationMembership[]
-  roles                   Role[]
-  invitations             MembershipInvitation[]
-  organizationServices    OrganizationService[]
-  memberServiceAccess     MembershipServiceAccess[]
-  organizationPlan        OrganizationPlan?
-  subscriptionPayments    SubscriptionPayment[]
-  serviceOverrides        OrganizationServiceOverride[]
-  entitlements            Entitlement[]
-  platformInvitations     PlatformInvitation[]
-  customers               Customer[]
-  customerActivities      CustomerActivity[]
-  customerFollowUps       CustomerFollowUp[]
-  notifications           Notification[]
-  agents                  AgentDefinition[]
-  agentRuns               AgentRun[]
-  voiceCallJobs           VoiceCallJob[]
-  approvalRequests        ApprovalRequest[]
-  auditEvents             AuditEvent[]
-  businessRecommendations BusinessRecommendation[]
-  projects                Project[]
-  projectTasks            ProjectTask[]
-  projectMembers          ProjectMember[]
-  employees               Employee[]
-  deals                   Deal[]
-  invoices                Invoice[]
-  quotations              Quotation[]
-  payments                Payment[]
-  paymentAccounts         PaymentAccount[]
-  incomingPayments        IncomingPaymentTransaction[]
-  paymentRefunds          PaymentRefund[]
-  expenses                Expense[]
-  catalogueItems          CatalogueItem[]
-  orders                  Order[]
-  warehouses              Warehouse[]
-  stockLevels             StockLevel[]
-  stockMovements          StockMovement[]
-  stockReservations       StockReservation[]
-  marketingCampaigns      MarketingCampaign[]
-  campaignLeads           CampaignLead[]
-  supportTickets          SupportTicket[]
-  ticketMessages          TicketMessage[]
-  ticketAttachments       TicketAttachment[]
-  providerServiceRequests ProviderServiceRequest[]
-  providerServiceMessages ProviderServiceMessage[]
-  managedWebsites         ManagedWebsite[]
-  websiteRequests         WebsiteChangeRequest[]
-  websiteDeployments      WebsiteDeployment[]
-  vendors                 Vendor[]
-  purchaseOrders          PurchaseOrder[]
-  goodsReceipts           GoodsReceipt[]
-  calendarEvents          CalendarEvent[]
-  calendarAttendees       CalendarEventAttendee[]
-  calendarReminders       CalendarReminder[]
-  inquiries               Inquiry[]
-  inquiryTimeline         InquiryTimeline[]
-  leadAssignmentRules     LeadAssignmentRule[]
-  leadAssignmentHistory   LeadAssignmentHistory[]
-  followUpSequences       FollowUpSequence[]
-  followUpEnrollments     FollowUpEnrollment[]
-  followUpExecutions      FollowUpExecution[]
-  integrationConnectors   IntegrationConnector[]
-  integrationEvents       IntegrationEvent[]
-  automationAttempts      AutomationAttempt[]
-  automationMessageDrafts AutomationMessageDraft[]
-  stayProperties          StayProperty[]
-  stayRooms               StayRoom[]
-  stayBeds                StayBed[]
-  stayResidents           StayResident[]
-  stayOccupancies         StayOccupancy[]
-  stayRentCharges         StayRentCharge[]
-  stayRentPayments        StayRentPayment[]
-  schoolAcademicYears     SchoolAcademicYear[]
-  schoolClasses           SchoolClass[]
-  schoolSections          SchoolSection[]
-  schoolStudents          SchoolStudent[]
-  schoolGuardians         SchoolGuardian[]
-  schoolStudentGuardians  SchoolStudentGuardian[]
-  schoolEnrollments       SchoolEnrollment[]
+  id                       String                        @id @default(uuid()) @db.Uuid
+  name                     String
+  slug                     String                        @unique
+  status                   OrganizationStatus            @default(ACTIVE)
+  isServiceProvider        Boolean                       @default(false)
+  timezone                 String                        @default("Asia/Kolkata")
+  currency                 String                        @default("INR")
+  createdAt                DateTime                      @default(now())
+  updatedAt                DateTime                      @updatedAt
+  deletedAt                DateTime?
+  memberships              OrganizationMembership[]
+  roles                    Role[]
+  invitations              MembershipInvitation[]
+  organizationServices     OrganizationService[]
+  memberServiceAccess      MembershipServiceAccess[]
+  organizationPlan         OrganizationPlan?
+  subscriptionPayments     SubscriptionPayment[]
+  serviceOverrides         OrganizationServiceOverride[]
+  entitlements             Entitlement[]
+  platformInvitations      PlatformInvitation[]
+  customers                Customer[]
+  customerActivities       CustomerActivity[]
+  customerFollowUps        CustomerFollowUp[]
+  notifications            Notification[]
+  agents                   AgentDefinition[]
+  agentRuns                AgentRun[]
+  voiceCallJobs            VoiceCallJob[]
+  approvalRequests         ApprovalRequest[]
+  auditEvents              AuditEvent[]
+  businessRecommendations  BusinessRecommendation[]
+  projects                 Project[]
+  projectTasks             ProjectTask[]
+  projectMembers           ProjectMember[]
+  employees                Employee[]
+  deals                    Deal[]
+  invoices                 Invoice[]
+  quotations               Quotation[]
+  payments                 Payment[]
+  paymentAccounts          PaymentAccount[]
+  incomingPayments         IncomingPaymentTransaction[]
+  paymentRefunds           PaymentRefund[]
+  expenses                 Expense[]
+  catalogueItems           CatalogueItem[]
+  orders                   Order[]
+  warehouses               Warehouse[]
+  stockLevels              StockLevel[]
+  stockMovements           StockMovement[]
+  stockReservations        StockReservation[]
+  marketingCampaigns       MarketingCampaign[]
+  campaignLeads            CampaignLead[]
+  supportTickets           SupportTicket[]
+  ticketMessages           TicketMessage[]
+  ticketAttachments        TicketAttachment[]
+  providerServiceRequests  ProviderServiceRequest[]
+  providerServiceMessages  ProviderServiceMessage[]
+  managedWebsites          ManagedWebsite[]
+  websiteRequests          WebsiteChangeRequest[]
+  websiteDeployments       WebsiteDeployment[]
+  vendors                  Vendor[]
+  purchaseOrders           PurchaseOrder[]
+  goodsReceipts            GoodsReceipt[]
+  calendarEvents           CalendarEvent[]
+  calendarAttendees        CalendarEventAttendee[]
+  calendarReminders        CalendarReminder[]
+  inquiries                Inquiry[]
+  inquiryTimeline          InquiryTimeline[]
+  leadAssignmentRules      LeadAssignmentRule[]
+  leadAssignmentHistory    LeadAssignmentHistory[]
+  followUpSequences        FollowUpSequence[]
+  followUpEnrollments      FollowUpEnrollment[]
+  followUpExecutions       FollowUpExecution[]
+  integrationConnectors    IntegrationConnector[]
+  integrationEvents        IntegrationEvent[]
+  automationAttempts       AutomationAttempt[]
+  automationMessageDrafts  AutomationMessageDraft[]
+  stayProperties           StayProperty[]
+  stayRooms                StayRoom[]
+  stayBeds                 StayBed[]
+  stayResidents            StayResident[]
+  stayOccupancies          StayOccupancy[]
+  stayRentCharges          StayRentCharge[]
+  stayRentPayments         StayRentPayment[]
+  schoolAcademicYears      SchoolAcademicYear[]
+  schoolClasses            SchoolClass[]
+  schoolSections           SchoolSection[]
+  schoolStudents           SchoolStudent[]
+  schoolGuardians          SchoolGuardian[]
+  schoolStudentGuardians   SchoolStudentGuardian[]
+  schoolEnrollments        SchoolEnrollment[]
+  schoolSubjects           SchoolSubject[]
+  schoolTeachers           SchoolTeacher[]
+  schoolTeacherAssignments SchoolTeacherAssignment[]
 
   @@index([status, deletedAt])
 }
@@ -3291,67 +3307,70 @@ model StayRentPayment {
 }
 
 model SchoolAcademicYear {
-  id             String             @id @default(uuid()) @db.Uuid
-  organizationId String             @db.Uuid
-  name           String
-  startsOn       DateTime
-  endsOn         DateTime
-  isCurrent      Boolean            @default(false)
-  createdById    String             @db.Uuid
-  updatedById    String             @db.Uuid
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  deletedAt      DateTime?
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User               @relation("SchoolAcademicYearCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User               @relation("SchoolAcademicYearUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  classes        SchoolClass[]
-  enrollments    SchoolEnrollment[]
+  id                 String                    @id @default(uuid()) @db.Uuid
+  organizationId     String                    @db.Uuid
+  name               String
+  startsOn           DateTime
+  endsOn             DateTime
+  isCurrent          Boolean                   @default(false)
+  createdById        String                    @db.Uuid
+  updatedById        String                    @db.Uuid
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  deletedAt          DateTime?
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User                      @relation("SchoolAcademicYearCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User                      @relation("SchoolAcademicYearUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  classes            SchoolClass[]
+  enrollments        SchoolEnrollment[]
+  teacherAssignments SchoolTeacherAssignment[]
 
   @@unique([organizationId, name])
   @@index([organizationId, isCurrent, deletedAt])
 }
 
 model SchoolClass {
-  id             String             @id @default(uuid()) @db.Uuid
-  organizationId String             @db.Uuid
-  academicYearId String             @db.Uuid
-  name           String
-  code           String
-  sortOrder      Int                @default(0)
-  createdById    String             @db.Uuid
-  updatedById    String             @db.Uuid
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  deletedAt      DateTime?
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  academicYear   SchoolAcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  createdBy      User               @relation("SchoolClassCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User               @relation("SchoolClassUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  sections       SchoolSection[]
-  enrollments    SchoolEnrollment[]
+  id                 String                    @id @default(uuid()) @db.Uuid
+  organizationId     String                    @db.Uuid
+  academicYearId     String                    @db.Uuid
+  name               String
+  code               String
+  sortOrder          Int                       @default(0)
+  createdById        String                    @db.Uuid
+  updatedById        String                    @db.Uuid
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  deletedAt          DateTime?
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  academicYear       SchoolAcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  createdBy          User                      @relation("SchoolClassCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User                      @relation("SchoolClassUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  sections           SchoolSection[]
+  enrollments        SchoolEnrollment[]
+  teacherAssignments SchoolTeacherAssignment[]
 
   @@unique([academicYearId, code])
   @@index([organizationId, academicYearId, deletedAt])
 }
 
 model SchoolSection {
-  id             String             @id @default(uuid()) @db.Uuid
-  organizationId String             @db.Uuid
-  classId        String             @db.Uuid
-  name           String
-  room           String?
-  capacity       Int?
-  createdById    String             @db.Uuid
-  updatedById    String             @db.Uuid
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  deletedAt      DateTime?
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  schoolClass    SchoolClass        @relation(fields: [classId], references: [id], onDelete: Restrict)
-  createdBy      User               @relation("SchoolSectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User               @relation("SchoolSectionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  enrollments    SchoolEnrollment[]
+  id                 String                    @id @default(uuid()) @db.Uuid
+  organizationId     String                    @db.Uuid
+  classId            String                    @db.Uuid
+  name               String
+  room               String?
+  capacity           Int?
+  createdById        String                    @db.Uuid
+  updatedById        String                    @db.Uuid
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  deletedAt          DateTime?
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schoolClass        SchoolClass               @relation(fields: [classId], references: [id], onDelete: Restrict)
+  createdBy          User                      @relation("SchoolSectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User                      @relation("SchoolSectionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  enrollments        SchoolEnrollment[]
+  teacherAssignments SchoolTeacherAssignment[]
 
   @@unique([classId, name])
   @@index([organizationId, classId, deletedAt])
@@ -3449,4 +3468,80 @@ model SchoolEnrollment {
   @@unique([sectionId, rollNumber])
   @@index([organizationId, academicYearId, classId, sectionId, status])
   @@index([organizationId, studentId, deletedAt])
+}
+
+model SchoolSubject {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  organizationId     String                    @db.Uuid
+  name               String
+  code               String
+  description        String?
+  createdById        String                    @db.Uuid
+  updatedById        String                    @db.Uuid
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  deletedAt          DateTime?
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User                      @relation("SchoolSubjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User                      @relation("SchoolSubjectUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  teacherAssignments SchoolTeacherAssignment[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, deletedAt])
+}
+
+model SchoolTeacher {
+  id                String                    @id @default(uuid()) @db.Uuid
+  organizationId    String                    @db.Uuid
+  employeeNumber    String
+  firstName         String
+  lastName          String?
+  email             String?
+  phone             String?
+  qualification     String?
+  joinedOn          DateTime
+  status            SchoolTeacherStatus       @default(ACTIVE)
+  maxPeriodsPerDay  Int                       @default(6)
+  maxPeriodsPerWeek Int                       @default(30)
+  createdById       String                    @db.Uuid
+  updatedById       String                    @db.Uuid
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  deletedAt         DateTime?
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User                      @relation("SchoolTeacherCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User                      @relation("SchoolTeacherUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  assignments       SchoolTeacherAssignment[]
+
+  @@unique([organizationId, employeeNumber])
+  @@index([organizationId, status, deletedAt])
+  @@index([organizationId, email, deletedAt])
+}
+
+model SchoolTeacherAssignment {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  teacherId      String             @db.Uuid
+  subjectId      String             @db.Uuid
+  academicYearId String             @db.Uuid
+  classId        String             @db.Uuid
+  sectionId      String             @db.Uuid
+  isClassTeacher Boolean            @default(false)
+  createdById    String             @db.Uuid
+  updatedById    String             @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teacher        SchoolTeacher      @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  subject        SchoolSubject      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  academicYear   SchoolAcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  schoolClass    SchoolClass        @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section        SchoolSection      @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  createdBy      User               @relation("SchoolTeacherAssignmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User               @relation("SchoolTeacherAssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([teacherId, subjectId, academicYearId, classId, sectionId])
+  @@index([organizationId, academicYearId, classId, sectionId, deletedAt])
+  @@index([organizationId, teacherId, deletedAt])
 }

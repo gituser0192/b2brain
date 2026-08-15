@@ -53,8 +53,15 @@ export const schoolStudentUpdateSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE", "TRANSFERRED", "GRADUATED"]),
 }).strict();
 
+export const schoolSubjectSchema = z.object({ name:z.string().trim().min(2).max(100), code:z.string().trim().min(1).max(20).transform(value=>value.toUpperCase()), description:optionalText(500) }).strict();
+export const schoolTeacherSchema = z.object({ firstName:z.string().trim().min(2).max(100), lastName:optionalText(100), email:z.string().trim().email().max(254).optional().or(z.literal("")).transform(value=>value||null), phone:z.string().trim().regex(/^\+?[1-9]\d{6,14}$/).optional().or(z.literal("")).transform(value=>value||null), qualification:optionalText(200), joinedOn:date, maxPeriodsPerDay:z.number().int().min(1).max(12), maxPeriodsPerWeek:z.number().int().min(1).max(70) }).strict();
+export const schoolTeacherAssignmentSchema = z.object({ teacherId:z.string().uuid(), subjectId:z.string().uuid(), academicYearId:z.string().uuid(), classId:z.string().uuid(), sectionId:z.string().uuid(), isClassTeacher:z.boolean() }).strict();
+
 export type AcademicYearInput = z.infer<typeof academicYearSchema>;
 export type SchoolClassInput = z.infer<typeof schoolClassSchema>;
 export type SchoolSectionInput = z.infer<typeof schoolSectionSchema>;
 export type SchoolStudentInput = z.infer<typeof schoolStudentSchema>;
 export type SchoolStudentUpdateInput = z.infer<typeof schoolStudentUpdateSchema>;
+export type SchoolSubjectInput = z.infer<typeof schoolSubjectSchema>;
+export type SchoolTeacherInput = z.infer<typeof schoolTeacherSchema>;
+export type SchoolTeacherAssignmentInput = z.infer<typeof schoolTeacherAssignmentSchema>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { academicYearSchema, schoolClassSchema, schoolSectionSchema, schoolStudentSchema } from "../src/modules/school/school.validation.js";
+import { academicYearSchema, schoolClassSchema, schoolSectionSchema, schoolStudentSchema, schoolSubjectSchema, schoolTeacherAssignmentSchema } from "../src/modules/school/school.validation.js";
 
 describe("school foundation validation", () => {
   it("accepts a valid academic year and rejects tenant ownership fields", () => {
@@ -16,4 +16,5 @@ describe("school foundation validation", () => {
     expect(schoolStudentSchema.parse(input).guardian.phone).toBe("+919876543210");
     expect(() => schoolStudentSchema.parse({ ...input, organizationId: crypto.randomUUID(), createdById: crypto.randomUUID() })).toThrow();
   });
+  it("normalizes subjects and protects teacher assignment ownership",()=>{expect(schoolSubjectSchema.parse({name:"Mathematics",code:"math",description:""}).code).toBe("MATH");const assignment={teacherId:crypto.randomUUID(),subjectId:crypto.randomUUID(),academicYearId:crypto.randomUUID(),classId:crypto.randomUUID(),sectionId:crypto.randomUUID(),isClassTeacher:false};expect(schoolTeacherAssignmentSchema.parse(assignment)).toEqual(assignment);expect(()=>schoolTeacherAssignmentSchema.parse({...assignment,organizationId:crypto.randomUUID()})).toThrow()});
 });

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
-import type { AcademicYearInput, SchoolClassInput, SchoolSectionInput, SchoolStudentInput, SchoolStudentUpdateInput } from "./school.validation.js";
+import type { AcademicYearInput, SchoolClassInput, SchoolSectionInput, SchoolStudentInput, SchoolStudentUpdateInput, SchoolSubjectInput, SchoolTeacherInput, SchoolTeacherAssignmentInput } from "./school.validation.js";
 
 export class SchoolService {
   async list(organizationId: string) {
@@ -15,7 +15,12 @@ export class SchoolService {
       include: { guardians: { include: { guardian: { select: { id: true, firstName: true, lastName: true, relationship: true, phone: true, email: true } } } }, enrollments: { where: { organizationId, deletedAt: null, status: "ACTIVE" }, include: { academicYear: { select: { id: true, name: true } }, schoolClass: { select: { id: true, name: true, code: true } }, section: { select: { id: true, name: true } } }, take: 1 } },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
     });
-    return { academicYears, students, metrics: { academicYears: academicYears.length, classes: academicYears.flatMap((item) => item.classes).length, sections: academicYears.flatMap((item) => item.classes.flatMap((schoolClass) => schoolClass.sections)).length, students: students.filter((item) => item.status === "ACTIVE").length } };
+    const [subjects,teachers,teacherAssignments]=await Promise.all([
+      prisma.schoolSubject.findMany({where:{organizationId,deletedAt:null},orderBy:{name:"asc"}}),
+      prisma.schoolTeacher.findMany({where:{organizationId,deletedAt:null},orderBy:[{firstName:"asc"},{lastName:"asc"}]}),
+      prisma.schoolTeacherAssignment.findMany({where:{organizationId,deletedAt:null},include:{teacher:{select:{id:true,employeeNumber:true,firstName:true,lastName:true}},subject:{select:{id:true,name:true,code:true}},academicYear:{select:{id:true,name:true}},schoolClass:{select:{id:true,name:true}},section:{select:{id:true,name:true}}},orderBy:{createdAt:"desc"}})
+    ]);
+    return { academicYears, students, subjects, teachers, teacherAssignments, metrics: { academicYears: academicYears.length, classes: academicYears.flatMap((item) => item.classes).length, sections: academicYears.flatMap((item) => item.classes.flatMap((schoolClass) => schoolClass.sections)).length, students: students.filter((item) => item.status === "ACTIVE").length, teachers:teachers.filter(item=>item.status==="ACTIVE").length, subjects:subjects.length } };
   }
 
   async createAcademicYear(organizationId: string, userId: string, input: AcademicYearInput) {
@@ -72,5 +77,18 @@ export class SchoolService {
       await tx.schoolEnrollment.updateMany({ where: { studentId: id, organizationId, status: "ACTIVE", deletedAt: null }, data: { status: "WITHDRAWN", deletedAt: now, updatedById: userId } });
       return tx.schoolStudent.update({ where: { id }, data: { status: "INACTIVE", deletedAt: now, updatedById: userId } });
     });
+  }
+
+  async createSubject(organizationId:string,userId:string,input:SchoolSubjectInput){return prisma.schoolSubject.create({data:{...input,organizationId,createdById:userId,updatedById:userId}})}
+  async createTeacher(organizationId:string,userId:string,input:SchoolTeacherInput){const employeeNumber=`TCH-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0,4).toUpperCase()}`;return prisma.schoolTeacher.create({data:{...input,organizationId,employeeNumber,createdById:userId,updatedById:userId}})}
+  async assignTeacher(organizationId:string,userId:string,input:SchoolTeacherAssignmentInput){
+    const [teacher,subject,section]=await Promise.all([
+      prisma.schoolTeacher.findFirst({where:{id:input.teacherId,organizationId,status:"ACTIVE",deletedAt:null},select:{id:true}}),
+      prisma.schoolSubject.findFirst({where:{id:input.subjectId,organizationId,deletedAt:null},select:{id:true}}),
+      prisma.schoolSection.findFirst({where:{id:input.sectionId,organizationId,deletedAt:null,schoolClass:{id:input.classId,organizationId,academicYearId:input.academicYearId,deletedAt:null}},select:{id:true}})
+    ]);
+    if(!teacher||!subject||!section)throw new AppError(404,"Teacher, subject, or academic placement was not found.","SCHOOL_ASSIGNMENT_CONTEXT_NOT_FOUND");
+    if(input.isClassTeacher){const existing=await prisma.schoolTeacherAssignment.findFirst({where:{organizationId,academicYearId:input.academicYearId,classId:input.classId,sectionId:input.sectionId,isClassTeacher:true,deletedAt:null},select:{id:true}});if(existing)throw new AppError(409,"This section already has a class teacher.","SCHOOL_CLASS_TEACHER_EXISTS")}
+    try{return await prisma.schoolTeacherAssignment.create({data:{...input,organizationId,createdById:userId,updatedById:userId}})}catch(error){if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2002")throw new AppError(409,"This teacher assignment already exists.","SCHOOL_TEACHER_ASSIGNMENT_EXISTS");throw error}
   }
 }
