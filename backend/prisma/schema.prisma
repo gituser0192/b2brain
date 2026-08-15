@@ -754,6 +754,21 @@ enum MemberServiceAccessMode {
   READ_WRITE
 }
 
+enum SchoolStudentStatus {
+  ACTIVE
+  INACTIVE
+  TRANSFERRED
+  GRADUATED
+}
+
+enum SchoolEnrollmentStatus {
+  ACTIVE
+  PROMOTED
+  TRANSFERRED
+  WITHDRAWN
+  COMPLETED
+}
+
 model User {
   id                          String                        @id @default(uuid()) @db.Uuid
   firstName                   String
@@ -887,6 +902,12 @@ model User {
   schoolClassesUpdated        SchoolClass[]                 @relation("SchoolClassUpdatedBy")
   schoolSectionsCreated       SchoolSection[]               @relation("SchoolSectionCreatedBy")
   schoolSectionsUpdated       SchoolSection[]               @relation("SchoolSectionUpdatedBy")
+  schoolStudentsCreated       SchoolStudent[]               @relation("SchoolStudentCreatedBy")
+  schoolStudentsUpdated       SchoolStudent[]               @relation("SchoolStudentUpdatedBy")
+  schoolGuardiansCreated      SchoolGuardian[]              @relation("SchoolGuardianCreatedBy")
+  schoolGuardiansUpdated      SchoolGuardian[]              @relation("SchoolGuardianUpdatedBy")
+  schoolEnrollmentsCreated    SchoolEnrollment[]            @relation("SchoolEnrollmentCreatedBy")
+  schoolEnrollmentsUpdated    SchoolEnrollment[]            @relation("SchoolEnrollmentUpdatedBy")
 
   @@index([status, deletedAt])
 }
@@ -977,6 +998,10 @@ model Organization {
   schoolAcademicYears     SchoolAcademicYear[]
   schoolClasses           SchoolClass[]
   schoolSections          SchoolSection[]
+  schoolStudents          SchoolStudent[]
+  schoolGuardians         SchoolGuardian[]
+  schoolStudentGuardians  SchoolStudentGuardian[]
+  schoolEnrollments       SchoolEnrollment[]
 
   @@index([status, deletedAt])
 }
@@ -3266,21 +3291,22 @@ model StayRentPayment {
 }
 
 model SchoolAcademicYear {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
   name           String
   startsOn       DateTime
   endsOn         DateTime
-  isCurrent      Boolean       @default(false)
-  createdById    String        @db.Uuid
-  updatedById    String        @db.Uuid
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  isCurrent      Boolean            @default(false)
+  createdById    String             @db.Uuid
+  updatedById    String             @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   deletedAt      DateTime?
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User          @relation("SchoolAcademicYearCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User          @relation("SchoolAcademicYearUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User               @relation("SchoolAcademicYearCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User               @relation("SchoolAcademicYearUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   classes        SchoolClass[]
+  enrollments    SchoolEnrollment[]
 
   @@unique([organizationId, name])
   @@index([organizationId, isCurrent, deletedAt])
@@ -3303,28 +3329,124 @@ model SchoolClass {
   createdBy      User               @relation("SchoolClassCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy      User               @relation("SchoolClassUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   sections       SchoolSection[]
+  enrollments    SchoolEnrollment[]
 
   @@unique([academicYearId, code])
   @@index([organizationId, academicYearId, deletedAt])
 }
 
 model SchoolSection {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @db.Uuid
-  classId        String       @db.Uuid
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  classId        String             @db.Uuid
   name           String
   room           String?
   capacity       Int?
-  createdById    String       @db.Uuid
-  updatedById    String       @db.Uuid
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdById    String             @db.Uuid
+  updatedById    String             @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   deletedAt      DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  schoolClass    SchoolClass  @relation(fields: [classId], references: [id], onDelete: Restrict)
-  createdBy      User         @relation("SchoolSectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User         @relation("SchoolSectionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schoolClass    SchoolClass        @relation(fields: [classId], references: [id], onDelete: Restrict)
+  createdBy      User               @relation("SchoolSectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User               @relation("SchoolSectionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  enrollments    SchoolEnrollment[]
 
   @@unique([classId, name])
   @@index([organizationId, classId, deletedAt])
+}
+
+model SchoolStudent {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  studentNumber  String
+  firstName      String
+  lastName       String?
+  dateOfBirth    DateTime?
+  gender         String?
+  admissionDate  DateTime
+  status         SchoolStudentStatus     @default(ACTIVE)
+  createdById    String                  @db.Uuid
+  updatedById    String                  @db.Uuid
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  deletedAt      DateTime?
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                    @relation("SchoolStudentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                    @relation("SchoolStudentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  guardians      SchoolStudentGuardian[]
+  enrollments    SchoolEnrollment[]
+
+  @@unique([organizationId, studentNumber])
+  @@index([organizationId, status, deletedAt])
+}
+
+model SchoolGuardian {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  firstName      String
+  lastName       String?
+  relationship   String
+  phone          String
+  email          String?
+  address        String?
+  createdById    String                  @db.Uuid
+  updatedById    String                  @db.Uuid
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  deletedAt      DateTime?
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                    @relation("SchoolGuardianCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                    @relation("SchoolGuardianUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  students       SchoolStudentGuardian[]
+
+  @@index([organizationId, phone, deletedAt])
+  @@index([organizationId, email, deletedAt])
+}
+
+model SchoolStudentGuardian {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  studentId      String         @db.Uuid
+  guardianId     String         @db.Uuid
+  isPrimary      Boolean        @default(false)
+  canPickup      Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        SchoolStudent  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian       SchoolGuardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, guardianId])
+  @@index([organizationId, studentId])
+  @@index([organizationId, guardianId])
+}
+
+model SchoolEnrollment {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  studentId      String                 @db.Uuid
+  academicYearId String                 @db.Uuid
+  classId        String                 @db.Uuid
+  sectionId      String                 @db.Uuid
+  rollNumber     String?
+  status         SchoolEnrollmentStatus @default(ACTIVE)
+  joinedOn       DateTime
+  createdById    String                 @db.Uuid
+  updatedById    String                 @db.Uuid
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  deletedAt      DateTime?
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        SchoolStudent          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear   SchoolAcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  schoolClass    SchoolClass            @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section        SchoolSection          @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  createdBy      User                   @relation("SchoolEnrollmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                   @relation("SchoolEnrollmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, academicYearId])
+  @@unique([sectionId, rollNumber])
+  @@index([organizationId, academicYearId, classId, sectionId, status])
+  @@index([organizationId, studentId, deletedAt])
 }
