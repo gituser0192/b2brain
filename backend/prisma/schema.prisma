@@ -791,6 +791,12 @@ enum SchoolTeacherAttendanceStatus {
   LEAVE
 }
 
+enum SchoolSubstituteStatus {
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id                          String                        @id @default(uuid()) @db.Uuid
   firstName                   String
@@ -940,6 +946,10 @@ model User {
   studentAttendanceUpdated    SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceUpdatedBy")
   teacherAttendanceMarked     SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceMarkedBy")
   teacherAttendanceUpdated    SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceUpdatedBy")
+  schoolTimetableCreated      SchoolTimetableEntry[]        @relation("SchoolTimetableCreatedBy")
+  schoolTimetableUpdated      SchoolTimetableEntry[]        @relation("SchoolTimetableUpdatedBy")
+  schoolSubstitutesCreated    SchoolSubstituteAssignment[]  @relation("SchoolSubstituteCreatedBy")
+  schoolSubstitutesUpdated    SchoolSubstituteAssignment[]  @relation("SchoolSubstituteUpdatedBy")
 
   @@index([status, deletedAt])
 }
@@ -1039,6 +1049,8 @@ model Organization {
   schoolTeacherAssignments SchoolTeacherAssignment[]
   schoolStudentAttendance  SchoolStudentAttendance[]
   schoolTeacherAttendance  SchoolTeacherAttendance[]
+  schoolTimetableEntries   SchoolTimetableEntry[]
+  schoolSubstitutes        SchoolSubstituteAssignment[]
 
   @@index([status, deletedAt])
 }
@@ -3345,6 +3357,7 @@ model SchoolAcademicYear {
   classes            SchoolClass[]
   enrollments        SchoolEnrollment[]
   teacherAssignments SchoolTeacherAssignment[]
+  timetableEntries   SchoolTimetableEntry[]
 
   @@unique([organizationId, name])
   @@index([organizationId, isCurrent, deletedAt])
@@ -3369,6 +3382,7 @@ model SchoolClass {
   sections           SchoolSection[]
   enrollments        SchoolEnrollment[]
   teacherAssignments SchoolTeacherAssignment[]
+  timetableEntries   SchoolTimetableEntry[]
 
   @@unique([academicYearId, code])
   @@index([organizationId, academicYearId, deletedAt])
@@ -3392,6 +3406,7 @@ model SchoolSection {
   updatedBy          User                      @relation("SchoolSectionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   enrollments        SchoolEnrollment[]
   teacherAssignments SchoolTeacherAssignment[]
+  timetableEntries   SchoolTimetableEntry[]
 
   @@unique([classId, name])
   @@index([organizationId, classId, deletedAt])
@@ -3508,14 +3523,15 @@ model SchoolSubject {
   createdBy          User                      @relation("SchoolSubjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy          User                      @relation("SchoolSubjectUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   teacherAssignments SchoolTeacherAssignment[]
+  timetableEntries   SchoolTimetableEntry[]
 
   @@unique([organizationId, code])
   @@index([organizationId, deletedAt])
 }
 
 model SchoolTeacher {
-  id                String                    @id @default(uuid()) @db.Uuid
-  organizationId    String                    @db.Uuid
+  id                String                       @id @default(uuid()) @db.Uuid
+  organizationId    String                       @db.Uuid
   employeeNumber    String
   firstName         String
   lastName          String?
@@ -3523,19 +3539,22 @@ model SchoolTeacher {
   phone             String?
   qualification     String?
   joinedOn          DateTime
-  status            SchoolTeacherStatus       @default(ACTIVE)
-  maxPeriodsPerDay  Int                       @default(6)
-  maxPeriodsPerWeek Int                       @default(30)
-  createdById       String                    @db.Uuid
-  updatedById       String                    @db.Uuid
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
+  status            SchoolTeacherStatus          @default(ACTIVE)
+  maxPeriodsPerDay  Int                          @default(6)
+  maxPeriodsPerWeek Int                          @default(30)
+  createdById       String                       @db.Uuid
+  updatedById       String                       @db.Uuid
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
   deletedAt         DateTime?
-  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         User                      @relation("SchoolTeacherCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy         User                      @relation("SchoolTeacherUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization      Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User                         @relation("SchoolTeacherCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User                         @relation("SchoolTeacherUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   assignments       SchoolTeacherAssignment[]
   attendance        SchoolTeacherAttendance[]
+  timetableEntries  SchoolTimetableEntry[]
+  substitutionsFor  SchoolSubstituteAssignment[] @relation("AbsentSchoolTeacher")
+  substituteDuties  SchoolSubstituteAssignment[] @relation("SubstituteSchoolTeacher")
 
   @@unique([organizationId, employeeNumber])
   @@index([organizationId, status, deletedAt])
@@ -3543,27 +3562,28 @@ model SchoolTeacher {
 }
 
 model SchoolTeacherAssignment {
-  id             String             @id @default(uuid()) @db.Uuid
-  organizationId String             @db.Uuid
-  teacherId      String             @db.Uuid
-  subjectId      String             @db.Uuid
-  academicYearId String             @db.Uuid
-  classId        String             @db.Uuid
-  sectionId      String             @db.Uuid
-  isClassTeacher Boolean            @default(false)
-  createdById    String             @db.Uuid
-  updatedById    String             @db.Uuid
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  deletedAt      DateTime?
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  teacher        SchoolTeacher      @relation(fields: [teacherId], references: [id], onDelete: Restrict)
-  subject        SchoolSubject      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  academicYear   SchoolAcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  schoolClass    SchoolClass        @relation(fields: [classId], references: [id], onDelete: Restrict)
-  section        SchoolSection      @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  createdBy      User               @relation("SchoolTeacherAssignmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User               @relation("SchoolTeacherAssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  id               String                 @id @default(uuid()) @db.Uuid
+  organizationId   String                 @db.Uuid
+  teacherId        String                 @db.Uuid
+  subjectId        String                 @db.Uuid
+  academicYearId   String                 @db.Uuid
+  classId          String                 @db.Uuid
+  sectionId        String                 @db.Uuid
+  isClassTeacher   Boolean                @default(false)
+  createdById      String                 @db.Uuid
+  updatedById      String                 @db.Uuid
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teacher          SchoolTeacher          @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  subject          SchoolSubject          @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  academicYear     SchoolAcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  schoolClass      SchoolClass            @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section          SchoolSection          @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  createdBy        User                   @relation("SchoolTeacherAssignmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy        User                   @relation("SchoolTeacherAssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  timetableEntries SchoolTimetableEntry[]
 
   @@unique([teacherId, subjectId, academicYearId, classId, sectionId])
   @@index([organizationId, academicYearId, classId, sectionId, deletedAt])
@@ -3614,4 +3634,65 @@ model SchoolTeacherAttendance {
   @@unique([teacherId, attendanceDate])
   @@index([organizationId, attendanceDate, status])
   @@index([organizationId, teacherId, attendanceDate])
+}
+
+model SchoolTimetableEntry {
+  id                  String                       @id @default(uuid()) @db.Uuid
+  organizationId      String                       @db.Uuid
+  academicYearId      String                       @db.Uuid
+  classId             String                       @db.Uuid
+  sectionId           String                       @db.Uuid
+  subjectId           String                       @db.Uuid
+  teacherId           String                       @db.Uuid
+  teacherAssignmentId String                       @db.Uuid
+  dayOfWeek           Int
+  periodNumber        Int
+  startsAt            String
+  endsAt              String
+  room                String?
+  createdById         String                       @db.Uuid
+  updatedById         String                       @db.Uuid
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  deletedAt           DateTime?
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  academicYear        SchoolAcademicYear           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  schoolClass         SchoolClass                  @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section             SchoolSection                @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  subject             SchoolSubject                @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher             SchoolTeacher                @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  teacherAssignment   SchoolTeacherAssignment      @relation(fields: [teacherAssignmentId], references: [id], onDelete: Restrict)
+  createdBy           User                         @relation("SchoolTimetableCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User                         @relation("SchoolTimetableUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  substitutes         SchoolSubstituteAssignment[]
+
+  @@unique([sectionId, dayOfWeek, periodNumber])
+  @@unique([academicYearId, teacherId, dayOfWeek, periodNumber])
+  @@index([organizationId, academicYearId, dayOfWeek, deletedAt])
+  @@index([organizationId, teacherId, dayOfWeek, deletedAt])
+}
+
+model SchoolSubstituteAssignment {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  organizationId      String                 @db.Uuid
+  timetableEntryId    String                 @db.Uuid
+  attendanceDate      DateTime
+  absentTeacherId     String                 @db.Uuid
+  substituteTeacherId String                 @db.Uuid
+  status              SchoolSubstituteStatus @default(ASSIGNED)
+  notes               String?
+  createdById         String                 @db.Uuid
+  updatedById         String                 @db.Uuid
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  timetableEntry      SchoolTimetableEntry   @relation(fields: [timetableEntryId], references: [id], onDelete: Restrict)
+  absentTeacher       SchoolTeacher          @relation("AbsentSchoolTeacher", fields: [absentTeacherId], references: [id], onDelete: Restrict)
+  substituteTeacher   SchoolTeacher          @relation("SubstituteSchoolTeacher", fields: [substituteTeacherId], references: [id], onDelete: Restrict)
+  createdBy           User                   @relation("SchoolSubstituteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User                   @relation("SchoolSubstituteUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([timetableEntryId, attendanceDate])
+  @@index([organizationId, attendanceDate, status])
+  @@index([organizationId, substituteTeacherId, attendanceDate])
 }

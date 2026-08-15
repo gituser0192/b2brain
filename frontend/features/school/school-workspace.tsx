@@ -6,6 +6,7 @@ import { ApiError } from "@/services/api-client";
 import { StudentDirectory } from "./student-directory";
 import { TeacherDirectory } from "./teacher-directory";
 import { AttendanceWorkspace } from "./attendance-workspace";
+import { TimetableWorkspace } from "./timetable-workspace";
 
 type Section = {
   id: string;
@@ -205,6 +206,9 @@ export function SchoolWorkspace() {
       )}
       {!!data.academicYears.length && (
         <AttendanceWorkspace canManage={canManage} />
+      )}
+      {!!data.academicYears.length && (
+        <TimetableWorkspace canManage={canManage} />
       )}
       {!data.academicYears.length ? (
         <section className="project-empty">
