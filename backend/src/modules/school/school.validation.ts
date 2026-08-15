@@ -56,6 +56,9 @@ export const schoolStudentUpdateSchema = z.object({
 export const schoolSubjectSchema = z.object({ name:z.string().trim().min(2).max(100), code:z.string().trim().min(1).max(20).transform(value=>value.toUpperCase()), description:optionalText(500) }).strict();
 export const schoolTeacherSchema = z.object({ firstName:z.string().trim().min(2).max(100), lastName:optionalText(100), email:z.string().trim().email().max(254).optional().or(z.literal("")).transform(value=>value||null), phone:z.string().trim().regex(/^\+?[1-9]\d{6,14}$/).optional().or(z.literal("")).transform(value=>value||null), qualification:optionalText(200), joinedOn:date, maxPeriodsPerDay:z.number().int().min(1).max(12), maxPeriodsPerWeek:z.number().int().min(1).max(70) }).strict();
 export const schoolTeacherAssignmentSchema = z.object({ teacherId:z.string().uuid(), subjectId:z.string().uuid(), academicYearId:z.string().uuid(), classId:z.string().uuid(), sectionId:z.string().uuid(), isClassTeacher:z.boolean() }).strict();
+export const schoolAttendanceQuerySchema=z.object({date:z.string().date()}).strict();
+export const studentAttendanceSchema=z.object({date:z.string().date(),records:z.array(z.object({enrollmentId:z.string().uuid(),status:z.enum(["PRESENT","ABSENT","LATE","EXCUSED"]),remarks:optionalText(300)}).strict()).min(1).max(500)}).strict();
+export const teacherAttendanceSchema=z.object({date:z.string().date(),records:z.array(z.object({teacherId:z.string().uuid(),status:z.enum(["PRESENT","ABSENT","LATE","HALF_DAY","LEAVE"]),checkInAt:z.string().datetime().optional().nullable(),checkOutAt:z.string().datetime().optional().nullable(),remarks:optionalText(300)}).strict()).min(1).max(300)}).strict();
 
 export type AcademicYearInput = z.infer<typeof academicYearSchema>;
 export type SchoolClassInput = z.infer<typeof schoolClassSchema>;
@@ -65,3 +68,5 @@ export type SchoolStudentUpdateInput = z.infer<typeof schoolStudentUpdateSchema>
 export type SchoolSubjectInput = z.infer<typeof schoolSubjectSchema>;
 export type SchoolTeacherInput = z.infer<typeof schoolTeacherSchema>;
 export type SchoolTeacherAssignmentInput = z.infer<typeof schoolTeacherAssignmentSchema>;
+export type StudentAttendanceInput=z.infer<typeof studentAttendanceSchema>;
+export type TeacherAttendanceInput=z.infer<typeof teacherAttendanceSchema>;

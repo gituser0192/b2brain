@@ -5,6 +5,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { StudentDirectory } from "./student-directory";
 import { TeacherDirectory } from "./teacher-directory";
+import { AttendanceWorkspace } from "./attendance-workspace";
 
 type Section = {
   id: string;
@@ -201,6 +202,9 @@ export function SchoolWorkspace() {
           academicYears={data.academicYears}
           canManage={canManage}
         />
+      )}
+      {!!data.academicYears.length && (
+        <AttendanceWorkspace canManage={canManage} />
       )}
       {!data.academicYears.length ? (
         <section className="project-empty">
