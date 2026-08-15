@@ -38,7 +38,8 @@ export class SchoolService {
   }
 
   async createStudent(organizationId: string, userId: string, input: SchoolStudentInput) {
-    return prisma.$transaction(async (tx) => {
+    try {
+      return await prisma.$transaction(async (tx) => {
       const section = await tx.schoolSection.findFirst({ where: { id: input.sectionId, organizationId, deletedAt: null, schoolClass: { id: input.classId, organizationId, academicYearId: input.academicYearId, deletedAt: null, academicYear: { organizationId, deletedAt: null } } }, select: { id: true, capacity: true, _count: { select: { enrollments: { where: { organizationId, status: "ACTIVE", deletedAt: null } } } } } });
       if (!section) throw new AppError(404, "The selected academic placement was not found.", "SCHOOL_PLACEMENT_NOT_FOUND");
       if (section.capacity && section._count.enrollments >= section.capacity) throw new AppError(409, "The selected section has reached its capacity.", "SCHOOL_SECTION_FULL");
@@ -48,7 +49,13 @@ export class SchoolService {
       await tx.schoolStudentGuardian.create({ data: { organizationId, studentId: student.id, guardianId: guardian.id, isPrimary: true, canPickup: input.guardian.canPickup } });
       await tx.schoolEnrollment.create({ data: { organizationId, studentId: student.id, academicYearId: input.academicYearId, classId: input.classId, sectionId: input.sectionId, rollNumber: input.rollNumber, joinedOn: input.admissionDate, createdById: userId, updatedById: userId } });
       return student;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new AppError(409, "That roll number is already assigned in the selected section. Use a different roll number.", "SCHOOL_ROLL_NUMBER_EXISTS", { rollNumber: "Roll numbers must be unique within a section." });
+      }
+      throw error;
+    }
   }
 
   async updateStudent(organizationId: string, userId: string, id: string, input: SchoolStudentUpdateInput) {
