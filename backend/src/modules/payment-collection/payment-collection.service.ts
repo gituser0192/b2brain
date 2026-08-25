@@ -5,9 +5,12 @@ import type {
   IncomingPaymentInput,
   PaymentAccountInput,
   ReconcileInput,
+  IgnoreIncomingPaymentInput,
   RefundCompletionInput,
   RefundInput,
 } from "./payment-collection.validation.js";
+import { synchronizeInvoiceSettlement } from "./invoice-settlement.service.js";
+import { findExactPaymentMatch } from "./payment-match.engine.js";
 
 export class PaymentCollectionService {
   async overview(organizationId: string) {
@@ -139,7 +142,7 @@ export class PaymentCollectionService {
         "PAYMENT_ACCOUNT_NOT_FOUND",
       );
     try {
-      return await prisma.incomingPaymentTransaction.create({
+      const transaction = await prisma.incomingPaymentTransaction.create({
         data: {
           ...input,
           organizationId,
@@ -147,6 +150,13 @@ export class PaymentCollectionService {
           updatedById: actorUserId,
         },
       });
+      const invoices = await prisma.invoice.findMany({ where: { organizationId, deletedAt: null, currency: input.currency, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } }, include: { customer: { select: { email: true } }, payments: { where: { deletedAt: null }, select: { amount: true, refundedAmount: true } } }, take: 250 });
+      const match = findExactPaymentMatch({ externalReference: input.externalReference, payerContact: input.payerContact, amount: input.amount }, invoices.map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoiceNumber, total: Number(invoice.total), customerEmail: invoice.customer.email, payments: invoice.payments.map((payment) => ({ amount: Number(payment.amount), refundedAmount: Number(payment.refundedAmount) })) })));
+      if (match.matched) {
+        const payment = await this.reconcile(organizationId, actorUserId, transaction.id, { invoiceId: match.invoiceId });
+        return { transaction: { ...transaction, status: "MATCHED" as const }, autoMatched: true, invoiceId: match.invoiceId, payment };
+      }
+      return { transaction, autoMatched: false, matchReason: match.reason };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -275,10 +285,21 @@ export class PaymentCollectionService {
             },
           }),
         ]);
+        await synchronizeInvoiceSettlement(tx, { organizationId, actorUserId, invoiceId: invoice.id, customerId: invoice.customerId, invoiceNumber: invoice.invoiceNumber, currency: invoice.currency, remaining, paymentId: payment.id });
         return payment;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  async ignoreIncoming(organizationId: string, actorUserId: string, transactionId: string, input: IgnoreIncomingPaymentInput) {
+    return prisma.$transaction(async (tx) => {
+      const incoming = await tx.incomingPaymentTransaction.findFirst({ where: { id: transactionId, organizationId, deletedAt: null, status: "UNMATCHED" } });
+      if (!incoming) throw new AppError(404, "Unmatched incoming transaction not found.", "INCOMING_TRANSACTION_NOT_FOUND");
+      const updated = await tx.incomingPaymentTransaction.update({ where: { id: incoming.id, organizationId }, data: { status: "IGNORED", notes: [incoming.notes, `Ignored: ${input.reason}`].filter(Boolean).join("\n"), updatedById: actorUserId } });
+      await tx.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "FINANCE", actionCode: "INCOMING_PAYMENT_IGNORED", sourceType: "INCOMING_PAYMENT", sourceId: incoming.id, summary: `${incoming.currency} ${Number(incoming.amount).toFixed(2)} incoming transaction marked as ignored.`, metadata: { externalReference: incoming.externalReference, reason: input.reason } } });
+      return updated;
+    });
   }
 
   async requestRefund(

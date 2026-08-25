@@ -1,6 +1,12 @@
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
-import type { ContactInput, ConversionInput, FollowUpInput, InquiryInput, MergeMessageInput } from "./inquiry.validation.js";
+import type {
+  ContactInput,
+  ConversionInput,
+  FollowUpInput,
+  InquiryInput,
+  MergeMessageInput,
+} from "./inquiry.validation.js";
 import { LeadAssignmentService } from "./lead-assignment.service.js";
 const assignmentService = new LeadAssignmentService();
 const include = {
@@ -15,7 +21,11 @@ const include = {
     orderBy: { createdAt: "desc" as const },
     include: { createdBy: { select: { firstName: true, lastName: true } } },
   },
-  assignmentHistory: { orderBy: { createdAt: "desc" as const }, take: 20, include: { actorUser: { select: { firstName: true, lastName: true } } } },
+  assignmentHistory: {
+    orderBy: { createdAt: "desc" as const },
+    take: 20,
+    include: { actorUser: { select: { firstName: true, lastName: true } } },
+  },
 };
 export class InquiryService {
   private async duplicate(org: string, input: InquiryInput) {
@@ -26,18 +36,38 @@ export class InquiryService {
         status: { in: ["NEW", "REVIEWING", "QUALIFIED"] },
         createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
       },
-      select: { id: true, contactName: true, email: true, phone: true, subject: true },
+      select: {
+        id: true,
+        contactName: true,
+        email: true,
+        phone: true,
+        subject: true,
+      },
     });
     const digits = (value: string | null) => value?.replace(/\D/g, "") ?? "";
     const subject = input.subject.trim().replace(/\s+/g, " ").toLowerCase();
-    return recent.find((candidate) => {
-      const inputPhone = digits(input.phone);
-      const candidatePhone = digits(candidate.phone);
-      const sameContact =
-        Boolean(input.email && candidate.email && input.email.toLowerCase() === candidate.email.toLowerCase()) ||
-        Boolean(inputPhone.length >= 7 && candidatePhone.length >= 7 && inputPhone === candidatePhone);
-      return sameContact && candidate.subject.trim().replace(/\s+/g, " ").toLowerCase() === subject;
-    }) ?? null;
+    return (
+      recent.find((candidate) => {
+        const inputPhone = digits(input.phone);
+        const candidatePhone = digits(candidate.phone);
+        const sameContact =
+          Boolean(
+            input.email &&
+            candidate.email &&
+            input.email.toLowerCase() === candidate.email.toLowerCase(),
+          ) ||
+          Boolean(
+            inputPhone.length >= 7 &&
+            candidatePhone.length >= 7 &&
+            inputPhone === candidatePhone,
+          );
+        return (
+          sameContact &&
+          candidate.subject.trim().replace(/\s+/g, " ").toLowerCase() ===
+            subject
+        );
+      }) ?? null
+    );
   }
   private async refs(org: string, input: InquiryInput) {
     const [e, c] = await Promise.all([
@@ -129,7 +159,13 @@ export class InquiryService {
             !i.firstRespondedAt &&
             !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(i.status),
         ).length,
-        followUpsDue: inquiries.filter((i) => i.nextFollowUpAt && i.nextFollowUpAt < now && !i.followUpCompletedAt && !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(i.status)).length,
+        followUpsDue: inquiries.filter(
+          (i) =>
+            i.nextFollowUpAt &&
+            i.nextFollowUpAt < now &&
+            !i.followUpCompletedAt &&
+            !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(i.status),
+        ).length,
         converted,
         conversionRate: inquiries.length
           ? (converted / inquiries.length) * 100
@@ -137,15 +173,25 @@ export class InquiryService {
       },
     };
   }
-  async create(org: string, user: string, input: InquiryInput, allowDuplicate = false) {
+  async create(
+    org: string,
+    user: string,
+    input: InquiryInput,
+    allowDuplicate = false,
+  ) {
     await this.refs(org, input);
     const duplicate = await this.duplicate(org, input);
     if (duplicate && !allowDuplicate)
-      throw new AppError(409, "A matching open inquiry already exists.", "DUPLICATE_INQUIRY", {
-        inquiryId: duplicate.id,
-        contactName: duplicate.contactName,
-        subject: duplicate.subject,
-      });
+      throw new AppError(
+        409,
+        "A matching open inquiry already exists.",
+        "DUPLICATE_INQUIRY",
+        {
+          inquiryId: duplicate.id,
+          contactName: duplicate.contactName,
+          subject: duplicate.subject,
+        },
+      );
     const match = await this.match(org, input.email, input.phone);
     const created = await prisma.inquiry.create({
       data: {
@@ -168,13 +214,31 @@ export class InquiryService {
       include,
     });
     await assignmentService.assignNewInquiry(org, user, created);
-    return prisma.inquiry.findFirst({ where: { id: created.id, organizationId: org }, include });
-  }
-  async mergeMessage(org: string, user: string, id: string, input: MergeMessageInput) {
-    const inquiry = await prisma.inquiry.findFirst({
-      where: { id, organizationId: org, deletedAt: null, status: { in: ["NEW", "REVIEWING", "QUALIFIED"] } },
+    return prisma.inquiry.findFirst({
+      where: { id: created.id, organizationId: org },
+      include,
     });
-    if (!inquiry) throw new AppError(404, "Open inquiry was not found.", "INQUIRY_NOT_FOUND");
+  }
+  async mergeMessage(
+    org: string,
+    user: string,
+    id: string,
+    input: MergeMessageInput,
+  ) {
+    const inquiry = await prisma.inquiry.findFirst({
+      where: {
+        id,
+        organizationId: org,
+        deletedAt: null,
+        status: { in: ["NEW", "REVIEWING", "QUALIFIED"] },
+      },
+    });
+    if (!inquiry)
+      throw new AppError(
+        404,
+        "Open inquiry was not found.",
+        "INQUIRY_NOT_FOUND",
+      );
     return prisma.$transaction(async (tx) => {
       await tx.inquiry.update({ where: { id }, data: { updatedById: user } });
       return tx.inquiryTimeline.create({
@@ -261,26 +325,103 @@ export class InquiryService {
     });
   }
   async contact(org: string, user: string, id: string, input: ContactInput) {
-    const inquiry = await prisma.inquiry.findFirst({ where: { id, organizationId: org, deletedAt: null } });
-    if (!inquiry) throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
-    if (["CONVERTED", "DISQUALIFIED", "SPAM"].includes(inquiry.status)) throw new AppError(409, "Closed inquiries cannot receive new contact activity.", "INQUIRY_CLOSED");
+    const inquiry = await prisma.inquiry.findFirst({
+      where: { id, organizationId: org, deletedAt: null },
+    });
+    if (!inquiry)
+      throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
+    if (["CONVERTED", "DISQUALIFIED", "SPAM"].includes(inquiry.status))
+      throw new AppError(
+        409,
+        "Closed inquiries cannot receive new contact activity.",
+        "INQUIRY_CLOSED",
+      );
     return prisma.$transaction(async (tx) => {
-      const event = await tx.inquiryTimeline.create({ data: { organizationId: org, inquiryId: id, type: "CONTACT_LOGGED", summary: `${input.channel}: ${input.summary}`, details: input.details, createdById: user } });
-      await tx.inquiry.update({ where: { id }, data: { firstRespondedAt: inquiry.firstRespondedAt ?? new Date(), status: inquiry.status === "NEW" ? "REVIEWING" : inquiry.status, updatedById: user } });
+      const event = await tx.inquiryTimeline.create({
+        data: {
+          organizationId: org,
+          inquiryId: id,
+          type: "CONTACT_LOGGED",
+          summary: `${input.channel}: ${input.summary}`,
+          details: input.details,
+          createdById: user,
+        },
+      });
+      await tx.inquiry.update({
+        where: { id },
+        data: {
+          firstRespondedAt: inquiry.firstRespondedAt ?? new Date(),
+          status: inquiry.status === "NEW" ? "REVIEWING" : inquiry.status,
+          updatedById: user,
+        },
+      });
       return event;
     });
   }
-  async scheduleFollowUp(org: string, user: string, id: string, input: FollowUpInput) {
-    const inquiry = await prisma.inquiry.findFirst({ where: { id, organizationId: org, deletedAt: null } });
-    if (!inquiry) throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
-    if (["CONVERTED", "DISQUALIFIED", "SPAM"].includes(inquiry.status)) throw new AppError(409, "Closed inquiries cannot schedule follow-ups.", "INQUIRY_CLOSED");
-    return prisma.inquiry.update({ where: { id }, data: { nextFollowUpAt: input.dueAt, followUpNote: input.note, followUpCompletedAt: null, updatedById: user, timeline: { create: { organizationId: org, type: "FOLLOW_UP_SCHEDULED", summary: `Follow-up scheduled for ${input.dueAt.toISOString()}`, details: input.note, createdById: user } } }, include });
+  async scheduleFollowUp(
+    org: string,
+    user: string,
+    id: string,
+    input: FollowUpInput,
+  ) {
+    const inquiry = await prisma.inquiry.findFirst({
+      where: { id, organizationId: org, deletedAt: null },
+    });
+    if (!inquiry)
+      throw new AppError(404, "Inquiry was not found.", "INQUIRY_NOT_FOUND");
+    if (["CONVERTED", "DISQUALIFIED", "SPAM"].includes(inquiry.status))
+      throw new AppError(
+        409,
+        "Closed inquiries cannot schedule follow-ups.",
+        "INQUIRY_CLOSED",
+      );
+    return prisma.inquiry.update({
+      where: { id },
+      data: {
+        nextFollowUpAt: input.dueAt,
+        followUpNote: input.note,
+        followUpCompletedAt: null,
+        updatedById: user,
+        timeline: {
+          create: {
+            organizationId: org,
+            type: "FOLLOW_UP_SCHEDULED",
+            summary: `Follow-up scheduled for ${input.dueAt.toISOString()}`,
+            details: input.note,
+            createdById: user,
+          },
+        },
+      },
+      include,
+    });
   }
   async completeFollowUp(org: string, user: string, id: string) {
     return prisma.$transaction(async (tx) => {
-      const result = await tx.inquiry.updateMany({ where: { id, organizationId: org, deletedAt: null, nextFollowUpAt: { not: null }, followUpCompletedAt: null }, data: { followUpCompletedAt: new Date(), updatedById: user } });
-      if (result.count !== 1) throw new AppError(404, "Open inquiry follow-up was not found.", "FOLLOW_UP_NOT_FOUND");
-      return tx.inquiryTimeline.create({ data: { organizationId: org, inquiryId: id, type: "FOLLOW_UP_COMPLETED", summary: "Follow-up completed", createdById: user } });
+      const result = await tx.inquiry.updateMany({
+        where: {
+          id,
+          organizationId: org,
+          deletedAt: null,
+          nextFollowUpAt: { not: null },
+          followUpCompletedAt: null,
+        },
+        data: { followUpCompletedAt: new Date(), updatedById: user },
+      });
+      if (result.count !== 1)
+        throw new AppError(
+          404,
+          "Open inquiry follow-up was not found.",
+          "FOLLOW_UP_NOT_FOUND",
+        );
+      return tx.inquiryTimeline.create({
+        data: {
+          organizationId: org,
+          inquiryId: id,
+          type: "FOLLOW_UP_COMPLETED",
+          summary: "Follow-up completed",
+          createdById: user,
+        },
+      });
     });
   }
   private async service(org: string, code: string) {
@@ -310,28 +451,81 @@ export class InquiryService {
         "Only qualified inquiries can be converted.",
         "INQUIRY_NOT_QUALIFIED",
       );
+    if (input.target === "DEAL") await this.service(org, "SALES");
+    if (input.target === "SUPPORT") await this.service(org, "SUPPORT");
     return prisma.$transaction(async (tx) => {
-      let customerId = inquiry.customerId;
+      const current = await tx.inquiry.findFirst({
+        where: {
+          id,
+          organizationId: org,
+          deletedAt: null,
+          status: "QUALIFIED",
+        },
+        include: { assignedEmployee: { select: { linkedUserId: true } } },
+      });
+      if (!current)
+        throw new AppError(
+          409,
+          "This inquiry is no longer available for conversion.",
+          "INQUIRY_ALREADY_CONVERTED",
+        );
+      let customerId = current.customerId;
       if (!customerId) {
-        const customer = await tx.customer.create({
-          data: {
+        const match = await tx.customer.findFirst({
+          where: {
             organizationId: org,
-            type: inquiry.companyName ? "COMPANY" : "PERSON",
-            displayName: inquiry.companyName || inquiry.contactName,
-            companyName: inquiry.companyName,
-            email: inquiry.email,
-            phone: inquiry.phone,
-            status: "LEAD",
-            createdById: user,
-            updatedById: user,
+            deletedAt: null,
+            OR: [
+              ...(current.email
+                ? [
+                    {
+                      email: {
+                        equals: current.email,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ]
+                : []),
+              ...(current.phone ? [{ phone: current.phone }] : []),
+            ],
           },
+          orderBy: { createdAt: "asc" },
         });
+        const customer =
+          match ??
+          (await tx.customer.create({
+            data: {
+              organizationId: org,
+              type: current.companyName ? "COMPANY" : "PERSON",
+              displayName: current.companyName || current.contactName,
+              companyName: current.companyName,
+              email: current.email,
+              phone: current.phone,
+              status: "LEAD",
+              createdById: user,
+              updatedById: user,
+            },
+          }));
         customerId = customer.id;
       }
       let dealId = null,
         ticketId = null;
       if (input.target === "DEAL") {
-        await this.service(org, "SALES");
+        const existingDeal = await tx.deal.findFirst({
+          where: {
+            organizationId: org,
+            customerId,
+            name: { equals: input.name, mode: "insensitive" },
+            stage: { notIn: ["WON", "LOST"] },
+            deletedAt: null,
+          },
+        });
+        if (existingDeal)
+          throw new AppError(
+            409,
+            "An open deal with this name already exists for the customer.",
+            "DUPLICATE_DEAL",
+          );
         const deal = await tx.deal.create({
           data: {
             organizationId: org,
@@ -343,7 +537,7 @@ export class InquiryService {
             expectedCloseDate: input.expectedCloseDate
               ? new Date(input.expectedCloseDate)
               : null,
-            ownerId: user,
+            ownerId: current.assignedEmployee?.linkedUserId ?? user,
             createdById: user,
             updatedById: user,
           },
@@ -351,7 +545,6 @@ export class InquiryService {
         dealId = deal.id;
       }
       if (input.target === "SUPPORT") {
-        await this.service(org, "SUPPORT");
         const ticket = await tx.supportTicket.create({
           data: {
             organizationId: org,
@@ -368,13 +561,44 @@ export class InquiryService {
         });
         ticketId = ticket.id;
       }
-      return tx.inquiry.update({
+      const activeEnrollments = await tx.followUpEnrollment.findMany({
+        where: { organizationId: org, inquiryId: id, status: "ACTIVE" },
+        select: { id: true },
+      });
+      const enrollmentIds = activeEnrollments.map((item) => item.id);
+      if (enrollmentIds.length) {
+        await tx.followUpEnrollment.updateMany({
+          where: {
+            organizationId: org,
+            id: { in: enrollmentIds },
+            status: "ACTIVE",
+          },
+          data: {
+            status: "STOPPED",
+            stoppedAt: new Date(),
+            stopReason: "Inquiry converted.",
+            nextStepAt: null,
+            updatedById: user,
+          },
+        });
+        await tx.followUpExecution.updateMany({
+          where: {
+            organizationId: org,
+            enrollmentId: { in: enrollmentIds },
+            status: { in: ["SCHEDULED", "DUE", "AWAITING_APPROVAL"] },
+          },
+          data: { status: "CANCELED", outcome: "Inquiry converted." },
+        });
+      }
+      const converted = await tx.inquiry.update({
         where: { id },
         data: {
           customerId,
           convertedDealId: dealId,
           convertedTicketId: ticketId,
           status: "CONVERTED",
+          nextFollowUpAt: null,
+          followUpCompletedAt: new Date(),
           updatedById: user,
           timeline: {
             create: {
@@ -387,6 +611,38 @@ export class InquiryService {
         },
         include,
       });
+      await tx.customerActivity.create({
+        data: {
+          organizationId: org,
+          customerId,
+          type: "NOTE",
+          summary: `Inquiry converted to ${input.target.toLowerCase()}`,
+          details: current.subject,
+          createdById: user,
+          updatedById: user,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          organizationId: org,
+          actorType: "USER",
+          actorUserId: user,
+          serviceCode:
+            input.target === "DEAL"
+              ? "SALES"
+              : input.target === "SUPPORT"
+                ? "SUPPORT"
+                : "CRM",
+          actionCode: "INQUIRY_CONVERTED",
+          sourceType: "INQUIRY",
+          sourceId: id,
+          summary: `Converted inquiry ${current.subject} to ${input.target.toLowerCase()}.`,
+          beforeState: { status: "QUALIFIED", customerId: current.customerId },
+          afterState: { status: "CONVERTED", customerId, dealId, ticketId },
+          metadata: { stoppedFollowUpEnrollments: enrollmentIds.length },
+        },
+      });
+      return converted;
     });
   }
   async archive(org: string, user: string, id: string) {

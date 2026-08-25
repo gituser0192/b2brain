@@ -10,4 +10,5 @@ export class AgentRepository {
   update(organizationId: string, id: string, actorUserId: string, input: AgentInput) { return prisma.agentDefinition.updateMany({ where: { id, organizationId, deletedAt: null }, data: { ...input, allowedActions: input.allowedActions as Prisma.InputJsonValue, updatedById: actorUserId } }); }
   archive(organizationId: string, id: string, actorUserId: string) { return prisma.agentDefinition.updateMany({ where: { id, organizationId, deletedAt: null }, data: { status: "ARCHIVED", deletedAt: new Date(), updatedById: actorUserId } }); }
   runs(organizationId: string, agentId: string) { return prisma.agentRun.findMany({ where: { organizationId, agentId }, orderBy: { createdAt: "desc" }, take: 100 }); }
+  centreRuns(organizationId: string) { return prisma.agentRun.findMany({ where: { organizationId }, include: { agent: { select: { id: true, name: true, supportedService: true, status: true } }, initiatedBy: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { createdAt: "desc" }, take: 100 }); }
 }

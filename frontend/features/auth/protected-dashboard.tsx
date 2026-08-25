@@ -2,35 +2,38 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/services/api-client";
 import type { AuthOrganization } from "./auth.types";
 import { useAuth } from "./auth-context";
-import { TeamWorkspace } from "@/features/memberships/team-workspace";
-import { RolesWorkspace } from "@/features/roles/roles-workspace";
-import { CustomerWorkspace } from "@/features/customers/customer-workspace";
-import { AutomationWorkspace } from "@/features/automation/automation-workspace";
 import { NotificationCenter } from "@/features/notifications/notification-center";
-import { ProjectWorkspace } from "@/features/projects/project-workspace";
-import { EmployeeWorkspace } from "@/features/employees/employee-workspace";
-import { SalesWorkspace } from "@/features/sales/sales-workspace";
-import { FinanceWorkspace } from "@/features/finance/finance-workspace";
-import { CatalogueWorkspace } from "@/features/catalogue/catalogue-workspace";
-import { OrderWorkspace } from "@/features/orders/order-workspace";
-import { InventoryWorkspace } from "@/features/inventory/inventory-workspace";
-import { MarketingWorkspace } from "@/features/marketing/marketing-workspace";
 import { BusinessDashboard } from "@/features/dashboard/business-dashboard";
-import { AnalysisWorkspace } from "@/features/analysis/analysis-workspace";
-import { SupportWorkspace } from "@/features/support/support-workspace";
-import { ServiceRequestWorkspace } from "@/features/service-requests/service-request-workspace";
-import { WebsiteWorkspace } from "@/features/websites/website-workspace";
-import { ProcurementWorkspace } from "@/features/procurement/procurement-workspace";
-import { CalendarWorkspace } from "@/features/calendar/calendar-workspace";
-import { InquiryWorkspace } from "@/features/inquiries/inquiry-workspace";
-import { StayWorkspace } from "@/features/stay/stay-workspace";
-import { GovernanceWorkspace } from "@/features/governance/governance-workspace";
-import { ActionCentreWorkspace } from "@/features/action-centre/action-centre-workspace";
-import { SchoolWorkspace } from "@/features/school/school-workspace";
+
+const workspaceLoading = () => <div className="dashboard-data-loader"><span className="spinner dark" />Opening service…</div>;
+const TeamWorkspace = dynamic(() => import("@/features/memberships/team-workspace").then((module) => module.TeamWorkspace), { loading: workspaceLoading });
+const RolesWorkspace = dynamic(() => import("@/features/roles/roles-workspace").then((module) => module.RolesWorkspace), { loading: workspaceLoading });
+const CustomerWorkspace = dynamic(() => import("@/features/customers/customer-workspace").then((module) => module.CustomerWorkspace), { loading: workspaceLoading });
+const AutomationWorkspace = dynamic(() => import("@/features/automation/automation-workspace").then((module) => module.AutomationWorkspace), { loading: workspaceLoading });
+const ProjectWorkspace = dynamic(() => import("@/features/projects/project-workspace").then((module) => module.ProjectWorkspace), { loading: workspaceLoading });
+const EmployeeWorkspace = dynamic(() => import("@/features/employees/employee-workspace").then((module) => module.EmployeeWorkspace), { loading: workspaceLoading });
+const SalesWorkspace = dynamic(() => import("@/features/sales/sales-workspace").then((module) => module.SalesWorkspace), { loading: workspaceLoading });
+const FinanceWorkspace = dynamic(() => import("@/features/finance/finance-workspace").then((module) => module.FinanceWorkspace), { loading: workspaceLoading });
+const CatalogueWorkspace = dynamic(() => import("@/features/catalogue/catalogue-workspace").then((module) => module.CatalogueWorkspace), { loading: workspaceLoading });
+const OrderWorkspace = dynamic(() => import("@/features/orders/order-workspace").then((module) => module.OrderWorkspace), { loading: workspaceLoading });
+const InventoryWorkspace = dynamic(() => import("@/features/inventory/inventory-workspace").then((module) => module.InventoryWorkspace), { loading: workspaceLoading });
+const MarketingWorkspace = dynamic(() => import("@/features/marketing/marketing-workspace").then((module) => module.MarketingWorkspace), { loading: workspaceLoading });
+const AnalysisWorkspace = dynamic(() => import("@/features/analysis/analysis-workspace").then((module) => module.AnalysisWorkspace), { loading: workspaceLoading });
+const SupportWorkspace = dynamic(() => import("@/features/support/support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
+const ServiceRequestWorkspace = dynamic(() => import("@/features/service-requests/service-request-workspace").then((module) => module.ServiceRequestWorkspace), { loading: workspaceLoading });
+const WebsiteWorkspace = dynamic(() => import("@/features/websites/website-workspace").then((module) => module.WebsiteWorkspace), { loading: workspaceLoading });
+const ProcurementWorkspace = dynamic(() => import("@/features/procurement/procurement-workspace").then((module) => module.ProcurementWorkspace), { loading: workspaceLoading });
+const CalendarWorkspace = dynamic(() => import("@/features/calendar/calendar-workspace").then((module) => module.CalendarWorkspace), { loading: workspaceLoading });
+const InquiryWorkspace = dynamic(() => import("@/features/inquiries/inquiry-workspace").then((module) => module.InquiryWorkspace), { loading: workspaceLoading });
+const StayWorkspace = dynamic(() => import("@/features/stay/stay-workspace").then((module) => module.StayWorkspace), { loading: workspaceLoading });
+const GovernanceWorkspace = dynamic(() => import("@/features/governance/governance-workspace").then((module) => module.GovernanceWorkspace), { loading: workspaceLoading });
+const ActionCentreWorkspace = dynamic(() => import("@/features/action-centre/action-centre-workspace").then((module) => module.ActionCentreWorkspace), { loading: workspaceLoading });
+const SchoolWorkspace = dynamic(() => import("@/features/school/school-workspace").then((module) => module.SchoolWorkspace), { loading: workspaceLoading });
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: "D", permission: null },
@@ -46,6 +49,13 @@ const ownerNavItems = [
   },
   { key: "roles", label: "Roles", icon: "R", permission: "ROLE_VIEW" },
 ];
+
+const helpNavItem = {
+  key: "b2help",
+  label: "B² Brain Help",
+  icon: "?",
+  permission: null,
+};
 
 interface OrganizationResponse {
   success: true;
@@ -137,8 +147,8 @@ export function ProtectedDashboard() {
     isOrganizationOwner &&
     session.membership.permissions.includes("ORGANIZATION_UPDATE");
   const visibleNavItems = isOrganizationOwner
-    ? [...navItems, ...ownerNavItems]
-    : navItems;
+    ? [...navItems, ...ownerNavItems, helpNavItem]
+    : [...navItems, helpNavItem];
   function toggleOrganizationEditor(organization: AuthOrganization) {
     if (!editing)
       setForm({
@@ -291,12 +301,6 @@ export function ProtectedDashboard() {
                 <span className="nav-icon">M</span>Marketing
               </button>
             )}
-          <button
-            className={activeView === "b2help" ? "active" : ""}
-            onClick={() => setActiveView("b2help")}
-          >
-            <span className="nav-icon">?</span>B² Brain Help
-          </button>
           {enabledServices.includes("SUPPORT") &&
             session.membership.permissions.includes("SUPPORT_VIEW") && (
               <button

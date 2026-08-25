@@ -17,6 +17,7 @@ type Tx = {
   currency: string;
   receivedAt: string;
   status: string;
+  notes?: string | null;
   paymentAccount: { name: string };
   payment: { receiptNumber: string; invoice: { invoiceNumber: string } } | null;
 };
@@ -171,6 +172,19 @@ export function PaymentCollectionManager() {
         `Matched to ${invoice.invoiceNumber}; receipt created.`,
       );
   }
+  async function ignoreIncoming(tx: Tx) {
+    const reason = prompt("Why should this transaction be ignored?", "Duplicate of a payment already recorded manually");
+    if (reason) await run(() => authorizedRequest(`/payment-collection/incoming/${tx.id}/ignore`, { method: "POST", body: JSON.stringify({ reason }) }), "Incoming transaction marked as ignored; no invoice balance changed.");
+  }
+  async function captureIncoming() {
+    try {
+      const response = await authorizedRequest<{ success: true; data: { autoMatched: boolean; invoiceId?: string } }>("/payment-collection/incoming", { method: "POST", body: JSON.stringify({ ...incoming, receivedAt: new Date(incoming.receivedAt).toISOString() }) });
+      setMode(null);
+      setNotice(response.data.autoMatched ? "Payment matched automatically; receipt created and collection workflow updated." : "Payment captured in the unmatched queue for manual review.");
+      setError("");
+      await load();
+    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to capture incoming payment."); }
+  }
   async function requestRefund(
     p: F["data"]["invoices"][number]["payments"][number],
   ) {
@@ -279,9 +293,7 @@ export function PaymentCollectionManager() {
                 <strong>{money(Number(t.amount), t.currency)}</strong>
                 <i>{t.status}</i>
                 {canManage && t.status === "UNMATCHED" && (
-                  <button onClick={() => void reconcile(t)}>
-                    Match invoice
-                  </button>
+                  <div><button onClick={() => void reconcile(t)}>Match invoice</button><button onClick={() => void ignoreIncoming(t)}>Mark duplicate / Ignore</button></div>
                 )}
               </article>
             ))
@@ -390,8 +402,8 @@ export function PaymentCollectionManager() {
                     </select>
                   </label>
                   <label>
-                    <span>Identifier</span>
-                    <input
+                    <span>Account identifier (UPI ID / bank account)</span>
+                    <input placeholder="Example: harsh@upi or account ending 1234"
                       value={account.identifier}
                       onChange={(e) =>
                         setAccount({ ...account, identifier: e.target.value })
@@ -465,8 +477,9 @@ export function PaymentCollectionManager() {
                     </select>
                   </label>
                   <label>
-                    <span>Reference</span>
+                    <span>Bank UTR / transaction reference</span>
                     <input
+                      placeholder="Include invoice number when available"
                       value={incoming.externalReference}
                       onChange={(e) =>
                         setIncoming({
@@ -475,6 +488,10 @@ export function PaymentCollectionManager() {
                         })
                       }
                     />
+                  </label>
+                  <label>
+                    <span>Payer email or phone</span>
+                    <input placeholder="Customer contact used for matching" value={incoming.payerContact} onChange={(e) => setIncoming({ ...incoming, payerContact: e.target.value })} />
                   </label>
                   <label>
                     <span>Payer</span>
@@ -531,21 +548,7 @@ export function PaymentCollectionManager() {
                       !incoming.externalReference ||
                       incoming.amount <= 0
                     }
-                    onClick={() =>
-                      void run(
-                        () =>
-                          authorizedRequest("/payment-collection/incoming", {
-                            method: "POST",
-                            body: JSON.stringify({
-                              ...incoming,
-                              receivedAt: new Date(
-                                incoming.receivedAt,
-                              ).toISOString(),
-                            }),
-                          }),
-                        "Incoming payment captured.",
-                      )
-                    }
+                    onClick={() => void captureIncoming()}
                   >
                     Capture
                   </button>

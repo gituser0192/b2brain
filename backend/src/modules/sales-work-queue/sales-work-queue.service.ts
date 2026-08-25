@@ -1,11 +1,20 @@
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import type { SalesQueueQuery } from "./sales-work-queue.validation.js";
+import { ActionCentreService } from "../action-centre/action-centre.service.js";
+
+const actionCentre = new ActionCentreService();
 
 type QueueItem = {
   id: string;
   sourceId: string;
-  type: "INQUIRY" | "CRM_FOLLOW_UP" | "DEAL" | "APPOINTMENT";
+  type:
+    | "INQUIRY"
+    | "CRM_FOLLOW_UP"
+    | "AUTOMATED_FOLLOW_UP"
+    | "PIPELINE_ALERT"
+    | "DEAL"
+    | "APPOINTMENT";
   title: string;
   contact: string;
   detail: string | null;
@@ -15,7 +24,9 @@ type QueueItem = {
   customerId: string | null;
   value: number | null;
   currency: string | null;
-  view: "inquiries" | "crm" | "sales" | "calendar";
+  view: "inquiries" | "crm" | "automation" | "sales" | "calendar";
+  email: string | null;
+  phone: string | null;
   canComplete: boolean;
   score: number;
 };
@@ -56,7 +67,8 @@ export class SalesWorkQueueService {
         .filter((item) => assigned === null || assigned.has(item.serviceId))
         .map((item) => item.service.code),
     );
-    const canLeads = accessible.has("LEADS") && permissions.includes("INQUIRY_VIEW");
+    const canLeads =
+      accessible.has("LEADS") && permissions.includes("INQUIRY_VIEW");
     const canCrm = accessible.has("CRM") && permissions.includes("CRM_VIEW");
     const canCrmActivity =
       accessible.has("CRM") && permissions.includes("CRM_ACTIVITY_VIEW");
@@ -119,7 +131,13 @@ export class SalesWorkQueueService {
         },
         inquiries: {
           where: { organizationId, deletedAt: null },
-          select: { id: true, subject: true, source: true, status: true, createdAt: true },
+          select: {
+            id: true,
+            subject: true,
+            source: true,
+            status: true,
+            createdAt: true,
+          },
           orderBy: { createdAt: "desc" },
         },
         activities: {
@@ -130,7 +148,13 @@ export class SalesWorkQueueService {
         },
         followUps: {
           where: { organizationId, deletedAt: null },
-          select: { id: true, title: true, status: true, dueAt: true, completedAt: true },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            dueAt: true,
+            completedAt: true,
+          },
           orderBy: { dueAt: "desc" },
           take: 20,
         },
@@ -146,7 +170,13 @@ export class SalesWorkQueueService {
             sourceQuotation: { select: { id: true } },
             payments: {
               where: { organizationId, deletedAt: null },
-              select: { id: true, amount: true, currency: true, paidAt: true, method: true },
+              select: {
+                id: true,
+                amount: true,
+                currency: true,
+                paidAt: true,
+                method: true,
+              },
               orderBy: { paidAt: "desc" },
             },
           },
@@ -160,7 +190,14 @@ export class SalesWorkQueueService {
     const rows = customers.map((customer) => {
       type Event = {
         id: string;
-        kind: "INQUIRY" | "CRM" | "FOLLOW_UP" | "DEAL" | "QUOTATION" | "INVOICE" | "PAYMENT";
+        kind:
+          | "INQUIRY"
+          | "CRM"
+          | "FOLLOW_UP"
+          | "DEAL"
+          | "QUOTATION"
+          | "INVOICE"
+          | "PAYMENT";
         title: string;
         detail: string;
         occurredAt: Date;
@@ -220,7 +257,9 @@ export class SalesWorkQueueService {
           id: `quotation:${quotation.id}`,
           kind: "QUOTATION",
           title: quotation.quotationNumber,
-          detail: quotation.dealId ? "Linked sales quotation" : "Sales quotation",
+          detail: quotation.dealId
+            ? "Linked sales quotation"
+            : "Sales quotation",
           occurredAt:
             quotation.convertedAt ??
             quotation.acceptedAt ??
@@ -235,7 +274,9 @@ export class SalesWorkQueueService {
           id: `invoice:${invoice.id}`,
           kind: "INVOICE",
           title: invoice.invoiceNumber,
-          detail: invoice.sourceQuotation ? "Created from quotation" : "Finance invoice",
+          detail: invoice.sourceQuotation
+            ? "Created from quotation"
+            : "Finance invoice",
           occurredAt: invoice.issueDate,
           status: invoice.status,
           amount: Number(invoice.total),
@@ -263,7 +304,11 @@ export class SalesWorkQueueService {
       return {
         customer: { id: customer.id, displayName: customer.displayName },
         currentStage:
-          events.find((item) => ["PAYMENT", "INVOICE", "QUOTATION", "DEAL", "INQUIRY"].includes(item.kind))?.kind ?? "CRM",
+          events.find((item) =>
+            ["PAYMENT", "INVOICE", "QUOTATION", "DEAL", "INQUIRY"].includes(
+              item.kind,
+            ),
+          )?.kind ?? "CRM",
         lastActivityAt: events[0]?.occurredAt ?? customer.createdAt,
         metrics: {
           deals: customer.deals.length,
@@ -274,7 +319,9 @@ export class SalesWorkQueueService {
         events,
       };
     });
-    rows.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
+    rows.sort(
+      (a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime(),
+    );
     return {
       journeys: rows,
       visibility: {
@@ -289,6 +336,7 @@ export class SalesWorkQueueService {
   async list(
     organizationId: string,
     actorUserId: string,
+    roleCode: string,
     permissions: string[],
     query: SalesQueueQuery,
   ) {
@@ -312,9 +360,18 @@ export class SalesWorkQueueService {
     tomorrowStart.setDate(tomorrowStart.getDate() + 1);
     const horizon = new Date(now);
     horizon.setDate(horizon.getDate() + query.horizonDays);
-    const mine = query.scope === "MINE";
+    const canViewTeam = roleCode === "ORGANIZATION_OWNER";
+    const mine = query.scope === "MINE" || !canViewTeam;
+    await actionCentre.list(organizationId, permissions);
 
-    const [followUps, inquiries, deals, appointments] = await Promise.all([
+    const [
+      followUps,
+      inquiries,
+      automatedFollowUps,
+      deals,
+      appointments,
+      pipelineAlerts,
+    ] = await Promise.all([
       enabledCodes.has("CRM") && permissions.includes("CRM_ACTIVITY_VIEW")
         ? prisma.customerFollowUp.findMany({
             where: {
@@ -325,7 +382,14 @@ export class SalesWorkQueueService {
               ...(mine ? { assignedToId: actorUserId } : {}),
             },
             include: {
-              customer: { select: { id: true, displayName: true } },
+              customer: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  email: true,
+                  phone: true,
+                },
+              },
               assignedTo: { select: { firstName: true, lastName: true } },
             },
             take: 200,
@@ -339,14 +403,37 @@ export class SalesWorkQueueService {
               status: { notIn: ["CONVERTED", "DISQUALIFIED", "SPAM"] },
               OR: [
                 { responseDueAt: { lte: horizon }, firstRespondedAt: null },
-                { nextFollowUpAt: { lte: horizon }, followUpCompletedAt: null },
+                {
+                  nextFollowUpAt: { lte: horizon },
+                  followUpCompletedAt: null,
+                },
               ],
               ...(mine
                 ? { assignedEmployee: { linkedUserId: actorUserId } }
                 : {}),
             },
             include: {
-              assignedEmployee: { select: { firstName: true, lastName: true } },
+              assignedEmployee: {
+                select: { firstName: true, lastName: true },
+              },
+            },
+            take: 200,
+          })
+        : [],
+      enabledCodes.has("AUTOMATION") && permissions.includes("AUTOMATION_VIEW")
+        ? prisma.followUpExecution.findMany({
+            where: {
+              organizationId,
+              status: { in: ["DUE", "AWAITING_APPROVAL"] },
+              dueAt: { lte: horizon },
+              ...(mine ? { enrollment: { assignedUserId: actorUserId } } : {}),
+            },
+            include: {
+              enrollment: {
+                include: {
+                  sequence: { select: { name: true } },
+                },
+              },
             },
             take: 200,
           })
@@ -359,7 +446,9 @@ export class SalesWorkQueueService {
           ...(mine ? { ownerId: actorUserId } : {}),
         },
         include: {
-          customer: { select: { id: true, displayName: true } },
+          customer: {
+            select: { id: true, displayName: true, email: true, phone: true },
+          },
           owner: { select: { firstName: true, lastName: true } },
         },
         take: 200,
@@ -372,27 +461,91 @@ export class SalesWorkQueueService {
               status: "SCHEDULED",
               startAt: { gte: now, lte: horizon },
               AND: [
-                { OR: [{ dealId: { not: null } }, { customerId: { not: null } }] },
+                {
+                  OR: [
+                    { dealId: { not: null } },
+                    { customerId: { not: null } },
+                  ],
+                },
                 ...(mine
-                  ? [{ OR: [
-                      { createdById: actorUserId },
+                  ? [
                       {
-                        attendees: {
-                          some: { employee: { linkedUserId: actorUserId } },
-                        },
+                        OR: [
+                          { createdById: actorUserId },
+                          {
+                            attendees: {
+                              some: {
+                                employee: { linkedUserId: actorUserId },
+                              },
+                            },
+                          },
+                        ],
                       },
-                    ] }]
+                    ]
                   : []),
               ],
             },
             include: {
-              customer: { select: { id: true, displayName: true } },
+              customer: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  email: true,
+                  phone: true,
+                },
+              },
               deal: { select: { amount: true, currency: true } },
             },
             take: 200,
           })
         : [],
+      prisma.businessRecommendation.findMany({
+        where: {
+          organizationId,
+          serviceCode: "SALES",
+          status: "OPEN",
+          OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
+        },
+        orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+        take: 100,
+      }),
     ]);
+    const automatedInquiryIds = automatedFollowUps.flatMap((item) =>
+      item.enrollment.inquiryId ? [item.enrollment.inquiryId] : [],
+    );
+    const automatedCustomerIds = automatedFollowUps.flatMap((item) =>
+      item.enrollment.customerId ? [item.enrollment.customerId] : [],
+    );
+    const [automatedInquiries, automatedCustomers] = await Promise.all([
+      prisma.inquiry.findMany({
+        where: {
+          organizationId,
+          id: { in: automatedInquiryIds },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          contactName: true,
+          email: true,
+          phone: true,
+          customerId: true,
+        },
+      }),
+      prisma.customer.findMany({
+        where: {
+          organizationId,
+          id: { in: automatedCustomerIds },
+          deletedAt: null,
+        },
+        select: { id: true, displayName: true, email: true, phone: true },
+      }),
+    ]);
+    const automatedInquiryMap = new Map(
+      automatedInquiries.map((item) => [item.id, item]),
+    );
+    const automatedCustomerMap = new Map(
+      automatedCustomers.map((item) => [item.id, item]),
+    );
 
     const rank = (
       dueAt: Date | null,
@@ -424,6 +577,8 @@ export class SalesWorkQueueService {
         value: null,
         currency: null,
         view: "crm",
+        email: item.customer.email,
+        phone: item.customer.phone,
         canComplete: permissions.includes("CRM_FOLLOWUP_MANAGE"),
         score: rank(item.dueAt, item.dueAt < now ? "URGENT" : "MEDIUM"),
       });
@@ -455,10 +610,76 @@ export class SalesWorkQueueService {
         value: null,
         currency: null,
         view: "inquiries",
+        email: item.email,
+        phone: item.phone,
         canComplete: Boolean(
           followUpDue && permissions.includes("INQUIRY_MANAGE"),
         ),
         score: rank(dueAt, item.priority),
+      });
+    }
+    for (const item of automatedFollowUps) {
+      const target = item.enrollment.inquiryId
+        ? automatedInquiryMap.get(item.enrollment.inquiryId)
+        : undefined;
+      const customer = item.enrollment.customerId
+        ? automatedCustomerMap.get(item.enrollment.customerId)
+        : undefined;
+      items.push({
+        id: `AUTOMATED_FOLLOW_UP:${item.id}`,
+        sourceId: item.id,
+        type: "AUTOMATED_FOLLOW_UP",
+        title: item.renderedTitle,
+        contact:
+          target?.contactName ?? customer?.displayName ?? "Follow-up contact",
+        detail:
+          item.status === "AWAITING_APPROVAL"
+            ? `Approval required · ${item.enrollment.sequence.name}`
+            : item.renderedMessage,
+        dueAt: item.dueAt,
+        priority: item.dueAt < now ? "URGENT" : "HIGH",
+        owner: null,
+        customerId: target?.customerId ?? customer?.id ?? null,
+        value: null,
+        currency: null,
+        view: "automation",
+        email: target?.email ?? customer?.email ?? null,
+        phone: target?.phone ?? customer?.phone ?? null,
+        canComplete:
+          item.status === "DUE" && permissions.includes("AUTOMATION_MANAGE"),
+        score: rank(item.dueAt, item.dueAt < now ? "URGENT" : "HIGH"),
+      });
+    }
+    for (const item of pipelineAlerts) {
+      const evidence =
+        item.evidence &&
+        typeof item.evidence === "object" &&
+        !Array.isArray(item.evidence)
+          ? (item.evidence as Record<string, unknown>)
+          : {};
+      const amount =
+        typeof evidence.amount === "number" ? evidence.amount : null;
+      const currency =
+        typeof evidence.currency === "string" ? evidence.currency : null;
+      const priority = item.priority === "CRITICAL" ? "URGENT" : item.priority;
+      items.push({
+        id: `PIPELINE_ALERT:${item.id}`,
+        sourceId: item.id,
+        type: "PIPELINE_ALERT",
+        title: item.title,
+        contact: item.sourceType.replaceAll("_", " "),
+        detail: `${item.explanation} Next: ${item.recommendedAction}`,
+        dueAt: null,
+        priority,
+        owner: null,
+        customerId: null,
+        value: amount,
+        currency,
+        view: "sales",
+        email: null,
+        phone: null,
+        canComplete: false,
+        score: rank(null, priority, amount ?? 0) + 500,
       });
     }
     for (const item of deals) {
@@ -484,6 +705,8 @@ export class SalesWorkQueueService {
         value,
         currency: item.currency,
         view: "sales",
+        email: item.customer.email,
+        phone: item.customer.phone,
         canComplete: false,
         score: rank(dueAt, priority, value),
       });
@@ -507,6 +730,8 @@ export class SalesWorkQueueService {
         value,
         currency: item.deal?.currency ?? null,
         view: "calendar",
+        email: item.customer?.email ?? null,
+        phone: item.customer?.phone ?? null,
         canComplete: false,
         score: rank(
           item.startAt,
@@ -549,6 +774,14 @@ export class SalesWorkQueueService {
         deals: true,
         appointments:
           enabledCodes.has("CALENDAR") && permissions.includes("CALENDAR_VIEW"),
+        automatedFollowUps:
+          enabledCodes.has("AUTOMATION") &&
+          permissions.includes("AUTOMATION_VIEW"),
+      },
+      scope: {
+        requested: query.scope,
+        effective: mine ? "MINE" : "TEAM",
+        canViewTeam,
       },
     };
   }
@@ -584,6 +817,64 @@ export class SalesWorkQueueService {
         "Pending CRM follow-up was not found.",
         "FOLLOW_UP_NOT_FOUND",
       );
+  }
+
+  async completeAutomatedFollowUp(
+    organizationId: string,
+    actorUserId: string,
+    id: string,
+  ) {
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.followUpExecution.updateMany({
+        where: {
+          id,
+          organizationId,
+          status: "DUE",
+          enrollment: { assignedUserId: actorUserId },
+        },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          completedById: actorUserId,
+          outcome: "Completed from the sales work queue.",
+        },
+      });
+      if (result.count !== 1)
+        throw new AppError(
+          404,
+          "Assigned due follow-up was not found.",
+          "FOLLOW_UP_EXECUTION_NOT_FOUND",
+        );
+      const execution = await tx.followUpExecution.findFirst({
+        where: { id, organizationId },
+        include: { enrollment: { include: { executions: true } } },
+      });
+      if (
+        execution &&
+        execution.enrollment.executions.every(
+          (item) =>
+            item.id === id ||
+            ["COMPLETED", "SKIPPED", "CANCELED"].includes(item.status),
+        )
+      ) {
+        await tx.followUpEnrollment.update({
+          where: { id: execution.enrollmentId },
+          data: {
+            status: "COMPLETED",
+            nextStepAt: null,
+            updatedById: actorUserId,
+          },
+        });
+      }
+      await tx.notification.updateMany({
+        where: {
+          organizationId,
+          sourceType: "FOLLOW_UP_EXECUTION",
+          sourceId: id,
+        },
+        data: { deletedAt: new Date(), updatedById: actorUserId },
+      });
+    });
   }
 
   async completeInquiryFollowUp(

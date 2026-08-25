@@ -55,7 +55,13 @@ const defaults: Record<Stage, number> = {
   WON: 100,
   LOST: 0,
 };
-export function SalesWorkspace({ onNavigate }: { onNavigate: (view: "inquiries" | "crm" | "sales" | "calendar") => void }) {
+export function SalesWorkspace({
+  onNavigate,
+}: {
+  onNavigate: (
+    view: "inquiries" | "crm" | "automation" | "sales" | "calendar",
+  ) => void;
+}) {
   const { session, authorizedRequest } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [customers, setCustomers] = useState<

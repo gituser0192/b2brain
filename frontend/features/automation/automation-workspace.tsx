@@ -1,7 +1,11 @@
 "use client";
 import { AgentManager } from "./agent-manager";
+import { AgentRunCentre } from "./agent-run-centre";
 import { BridgeManager } from "./bridge-manager";
 import { FollowUpAutomationManager } from "./follow-up-automation-manager";
+import { PolicyManager } from "./policy-manager";
+import { EmailDeliveryManager } from "./email-delivery-manager";
+import { CollectionScheduleManager } from "./collection-schedule-manager";
 
 const foundations = [
   {
@@ -67,6 +71,10 @@ export function AutomationWorkspace() {
       </div>
 
       <AgentManager />
+      <CollectionScheduleManager />
+      <AgentRunCentre />
+      <EmailDeliveryManager />
+      <PolicyManager />
       <FollowUpAutomationManager />
       <BridgeManager />
 

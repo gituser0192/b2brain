@@ -50,6 +50,7 @@ export const incomingPaymentSchema = z
 export const reconcileSchema = z
   .object({ invoiceId: z.string().uuid() })
   .strict();
+export const ignoreIncomingPaymentSchema = z.object({ reason: z.string().trim().min(3).max(500) }).strict();
 export const refundSchema = z
   .object({
     amount: z.number().positive(),
@@ -63,5 +64,6 @@ export const refundCompletionSchema = z
 export type PaymentAccountInput = z.infer<typeof paymentAccountSchema>;
 export type IncomingPaymentInput = z.infer<typeof incomingPaymentSchema>;
 export type ReconcileInput = z.infer<typeof reconcileSchema>;
+export type IgnoreIncomingPaymentInput = z.infer<typeof ignoreIncomingPaymentSchema>;
 export type RefundInput = z.infer<typeof refundSchema>;
 export type RefundCompletionInput = z.infer<typeof refundCompletionSchema>;

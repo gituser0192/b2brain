@@ -640,6 +640,7 @@ export class SchoolImportService {
               "SCHOOL_IMPORT_STALE",
             );
           for (const item of payload.students) {
+            const { canPickup, ...guardianData } = item.guardian;
             const student = await tx.schoolStudent.create({
                 data: {
                   organizationId,
@@ -660,7 +661,7 @@ export class SchoolImportService {
               guardian = await tx.schoolGuardian.create({
                 data: {
                   organizationId,
-                  ...item.guardian,
+                  ...guardianData,
                   createdById: userId,
                   updatedById: userId,
                 },
@@ -671,7 +672,7 @@ export class SchoolImportService {
                 studentId: student.id,
                 guardianId: guardian.id,
                 isPrimary: true,
-                canPickup: item.guardian.canPickup,
+                canPickup,
               },
             });
             await tx.schoolEnrollment.create({
@@ -719,7 +720,11 @@ export class SchoolImportService {
             batchId: batch.id,
           };
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 10_000,
+          timeout: 60_000,
+        },
       );
     } catch (error) {
       if (
@@ -730,6 +735,15 @@ export class SchoolImportService {
           409,
           "A duplicate was created after preview. No rows were imported; preview the file again.",
           "SCHOOL_IMPORT_DUPLICATE",
+        );
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2028"
+      )
+        throw new AppError(
+          503,
+          "The school import took too long to complete. No rows were imported; please try again.",
+          "SCHOOL_IMPORT_TIMEOUT",
         );
       throw error;
     }

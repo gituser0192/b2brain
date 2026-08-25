@@ -16,8 +16,14 @@ import {
   type ConnectorInput,
   type EventDecisionInput,
   type IntakeInput,
+  collectionEmailDeliverySchema,
+  type CollectionEmailDeliveryInput,
+  emailDeliveryPolicySchema,
+  type EmailDeliveryPolicyInput,
 } from "./bridge.validation.js";
+import { EmailDeliveryService } from "./email-delivery.service.js";
 const service = new BridgeService(),
+  emailDelivery = new EmailDeliveryService(),
   auth = (r: Parameters<RequestHandler>[0]) => {
     if (!r.auth)
       throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
@@ -45,6 +51,14 @@ bridgeRouter.use(
 bridgeRouter.get("/", requirePermission("AUTOMATION_VIEW"), async (r, s) =>
   s.json(success(await service.list(auth(r).organizationId))),
 );
+bridgeRouter.get("/email-deliveries", requirePermission("AUTOMATION_VIEW"), async (r, s) => {
+  s.json(success(await emailDelivery.workspace(auth(r).organizationId)));
+});
+bridgeRouter.post("/email-deliveries/send", requirePermission("AUTOMATION_MANAGE"), validateBody(collectionEmailDeliverySchema), async (r, s) => {
+  const c = auth(r);
+  s.json(success(await emailDelivery.deliver(c.organizationId, c.userId, r.body as CollectionEmailDeliveryInput), "Approved reminder sent."));
+});
+bridgeRouter.put("/connectors/:id/email-policy", requirePermission("AUTOMATION_MANAGE"), validateBody(emailDeliveryPolicySchema), async (r, s) => { const c = auth(r); s.json(success(await emailDelivery.savePolicy(c.organizationId, c.userId, String(r.params.id), r.body as EmailDeliveryPolicyInput), "Email delivery policy saved.")); });
 bridgeRouter.post(
   "/connectors",
   requirePermission("AUTOMATION_MANAGE"),

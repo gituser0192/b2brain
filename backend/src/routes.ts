@@ -39,6 +39,8 @@ import { paymentCollectionRouter } from "./modules/payment-collection/payment-co
 import { managedServiceDeskRouter } from "./modules/managed-services/managed-service.routes.js";
 import { serviceRequestRouter } from "./modules/service-requests/service-request.routes.js";
 import { schoolRouter } from "./modules/school/school.routes.js";
+import { automationPolicyRouter } from "./modules/automation-policies/automation-policy.routes.js";
+import { schoolFeeRouter } from "./modules/school-fees/school-fee.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -74,6 +76,7 @@ apiRouter.use("/procurement", procurementRouter);
 apiRouter.use("/calendar", calendarRouter);
 apiRouter.use("/inquiries", inquiryRouter);
 apiRouter.use("/automation-bridge", bridgeRouter);
+apiRouter.use("/automation-policies", automationPolicyRouter);
 apiRouter.use("/automation-bridge", whatsappAdminRouter);
 apiRouter.use("/automation-bridge", websiteFormAdminRouter);
 apiRouter.use("/webhooks/intake", bridgeWebhookRouter);
@@ -91,3 +94,4 @@ apiRouter.use("/payment-collection", paymentCollectionRouter);
 apiRouter.use("/managed-services", managedServiceDeskRouter);
 apiRouter.use("/service-requests", serviceRequestRouter);
 apiRouter.use("/school", schoolRouter);
+apiRouter.use("/school-fees", schoolFeeRouter);

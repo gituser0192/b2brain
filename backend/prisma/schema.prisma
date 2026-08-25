@@ -653,6 +653,27 @@ enum AutomationMode {
   POLICY_LIMITED
 }
 
+enum AutomationPolicyStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum AutomationPolicyExecutionMode {
+  ASSISTED
+  APPROVAL_REQUIRED
+  AUTOMATIC
+}
+
+enum AutomationPolicyExecutionStatus {
+  MATCHED
+  AWAITING_APPROVAL
+  COMPLETED
+  SKIPPED
+  FAILED
+}
+
 enum IntegrationEventStatus {
   RECEIVED
   VERIFIED
@@ -797,6 +818,34 @@ enum SchoolSubstituteStatus {
   CANCELLED
 }
 
+enum SchoolGuardianAlertChannel {
+  WHATSAPP
+  EMAIL
+}
+
+enum SchoolGuardianAlertStatus {
+  PENDING_APPROVAL
+  APPROVED_READY
+  SENT
+  FAILED
+  CANCELED
+}
+
+enum SchoolFeeFrequency {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  ONE_TIME
+}
+
+enum SchoolFeeChargeStatus {
+  DUE
+  PARTIALLY_PAID
+  PAID
+  WAIVED
+  CANCELED
+}
+
 enum SchoolImportStatus {
   PREVIEWED
   COMPLETED
@@ -804,159 +853,175 @@ enum SchoolImportStatus {
 }
 
 model User {
-  id                          String                        @id @default(uuid()) @db.Uuid
-  firstName                   String
-  lastName                    String?
-  email                       String                        @unique
-  passwordHash                String
-  status                      UserStatus                    @default(ACTIVE)
-  emailVerifiedAt             DateTime?
-  lastLoginAt                 DateTime?
-  createdAt                   DateTime                      @default(now())
-  updatedAt                   DateTime                      @updatedAt
-  deletedAt                   DateTime?
-  isPlatformAdmin             Boolean                       @default(false)
-  memberships                 OrganizationMembership[]
-  refreshSessions             RefreshSession[]
-  passwordResetTokens         PasswordResetToken[]
-  invitationsSent             MembershipInvitation[]        @relation("InvitationSender")
-  organizationServicesCreated OrganizationService[]         @relation("OrganizationServiceCreatedBy")
-  organizationServicesUpdated OrganizationService[]         @relation("OrganizationServiceUpdatedBy")
-  memberServiceAccessCreated  MembershipServiceAccess[]     @relation("MemberServiceAccessCreatedBy")
-  memberServiceAccessUpdated  MembershipServiceAccess[]     @relation("MemberServiceAccessUpdatedBy")
-  servicePlansCreated         ServicePlan[]                 @relation("ServicePlanCreatedBy")
-  servicePlansUpdated         ServicePlan[]                 @relation("ServicePlanUpdatedBy")
-  organizationPlansAssigned   OrganizationPlan[]            @relation("OrganizationPlanAssignedBy")
-  organizationPlansUpdated    OrganizationPlan[]            @relation("OrganizationPlanUpdatedBy")
-  subscriptionPaymentsCreated SubscriptionPayment[]         @relation("SubscriptionPaymentCreatedBy")
-  serviceOverridesCreated     OrganizationServiceOverride[] @relation("ServiceOverrideCreatedBy")
-  entitlementsCreated         Entitlement[]                 @relation("EntitlementCreatedBy")
-  entitlementsUpdated         Entitlement[]                 @relation("EntitlementUpdatedBy")
-  platformInvitationsSent     PlatformInvitation[]          @relation("PlatformInvitationSender")
-  customersCreated            Customer[]                    @relation("CustomerCreatedBy")
-  customersUpdated            Customer[]                    @relation("CustomerUpdatedBy")
-  customerActivitiesCreated   CustomerActivity[]            @relation("CustomerActivityCreatedBy")
-  customerActivitiesUpdated   CustomerActivity[]            @relation("CustomerActivityUpdatedBy")
-  followUpsAssigned           CustomerFollowUp[]            @relation("FollowUpAssignedTo")
-  followUpsCreated            CustomerFollowUp[]            @relation("FollowUpCreatedBy")
-  followUpsUpdated            CustomerFollowUp[]            @relation("FollowUpUpdatedBy")
-  notifications               Notification[]                @relation("NotificationRecipient")
-  notificationsCreated        Notification[]                @relation("NotificationCreatedBy")
-  notificationsUpdated        Notification[]                @relation("NotificationUpdatedBy")
-  agentsCreated               AgentDefinition[]             @relation("AgentCreatedBy")
-  agentsUpdated               AgentDefinition[]             @relation("AgentUpdatedBy")
-  agentRunsInitiated          AgentRun[]                    @relation("AgentRunInitiatedBy")
-  voiceCallsCreated           VoiceCallJob[]                @relation("VoiceCallCreatedBy")
-  voiceCallsUpdated           VoiceCallJob[]                @relation("VoiceCallUpdatedBy")
-  voiceCallsApproved          VoiceCallJob[]                @relation("VoiceCallApprovedBy")
-  approvalsRequested          ApprovalRequest[]             @relation("ApprovalRequestedBy")
-  approvalsDecided            ApprovalRequest[]             @relation("ApprovalDecidedBy")
-  auditEvents                 AuditEvent[]                  @relation("AuditActorUser")
-  recommendationsDecided      BusinessRecommendation[]      @relation("RecommendationDecidedBy")
-  projectsOwned               Project[]                     @relation("ProjectOwner")
-  projectsCreated             Project[]                     @relation("ProjectCreatedBy")
-  projectsUpdated             Project[]                     @relation("ProjectUpdatedBy")
-  tasksAssigned               ProjectTask[]                 @relation("TaskAssignedTo")
-  tasksCreated                ProjectTask[]                 @relation("TaskCreatedBy")
-  tasksUpdated                ProjectTask[]                 @relation("TaskUpdatedBy")
-  projectMembersCreated       ProjectMember[]               @relation("ProjectMemberCreatedBy")
-  projectMembersUpdated       ProjectMember[]               @relation("ProjectMemberUpdatedBy")
-  employeeProfiles            Employee[]                    @relation("EmployeeLinkedUser")
-  employeesCreated            Employee[]                    @relation("EmployeeCreatedBy")
-  employeesUpdated            Employee[]                    @relation("EmployeeUpdatedBy")
-  dealsOwned                  Deal[]                        @relation("DealOwner")
-  dealsCreated                Deal[]                        @relation("DealCreatedBy")
-  dealsUpdated                Deal[]                        @relation("DealUpdatedBy")
-  invoicesCreated             Invoice[]                     @relation("InvoiceCreatedBy")
-  invoicesUpdated             Invoice[]                     @relation("InvoiceUpdatedBy")
-  quotationsCreated           Quotation[]                   @relation("QuotationCreatedBy")
-  quotationsUpdated           Quotation[]                   @relation("QuotationUpdatedBy")
-  paymentsCreated             Payment[]                     @relation("PaymentCreatedBy")
-  paymentAccountsCreated      PaymentAccount[]              @relation("PaymentAccountCreatedBy")
-  paymentAccountsUpdated      PaymentAccount[]              @relation("PaymentAccountUpdatedBy")
-  incomingPaymentsCreated     IncomingPaymentTransaction[]  @relation("IncomingPaymentCreatedBy")
-  incomingPaymentsUpdated     IncomingPaymentTransaction[]  @relation("IncomingPaymentUpdatedBy")
-  paymentRefundsRequested     PaymentRefund[]               @relation("PaymentRefundRequestedBy")
-  paymentRefundsUpdated       PaymentRefund[]               @relation("PaymentRefundUpdatedBy")
-  expensesCreated             Expense[]                     @relation("ExpenseCreatedBy")
-  expensesUpdated             Expense[]                     @relation("ExpenseUpdatedBy")
-  catalogueItemsCreated       CatalogueItem[]               @relation("CatalogueItemCreatedBy")
-  catalogueItemsUpdated       CatalogueItem[]               @relation("CatalogueItemUpdatedBy")
-  ordersCreated               Order[]                       @relation("OrderCreatedBy")
-  ordersUpdated               Order[]                       @relation("OrderUpdatedBy")
-  warehousesCreated           Warehouse[]                   @relation("WarehouseCreatedBy")
-  warehousesUpdated           Warehouse[]                   @relation("WarehouseUpdatedBy")
-  stockMovementsCreated       StockMovement[]               @relation("StockMovementCreatedBy")
-  campaignsCreated            MarketingCampaign[]           @relation("CampaignCreatedBy")
-  campaignsUpdated            MarketingCampaign[]           @relation("CampaignUpdatedBy")
-  campaignLeadsCreated        CampaignLead[]                @relation("CampaignLeadCreatedBy")
-  ticketsCreated              SupportTicket[]               @relation("TicketCreatedBy")
-  ticketsUpdated              SupportTicket[]               @relation("TicketUpdatedBy")
-  ticketMessagesCreated       TicketMessage[]               @relation("TicketMessageCreatedBy")
-  ticketAttachmentsCreated    TicketAttachment[]            @relation("TicketAttachmentCreatedBy")
-  websitesCreated             ManagedWebsite[]              @relation("WebsiteCreatedBy")
-  websitesUpdated             ManagedWebsite[]              @relation("WebsiteUpdatedBy")
-  websiteRequestsCreated      WebsiteChangeRequest[]        @relation("WebsiteRequestCreatedBy")
-  websiteRequestsUpdated      WebsiteChangeRequest[]        @relation("WebsiteRequestUpdatedBy")
-  websiteRequestsApproved     WebsiteChangeRequest[]        @relation("WebsiteRequestApprovedBy")
-  providerRequestsCreated     ProviderServiceRequest[]      @relation("ProviderRequestCreatedBy")
-  providerRequestsUpdated     ProviderServiceRequest[]      @relation("ProviderRequestUpdatedBy")
-  providerMessagesCreated     ProviderServiceMessage[]      @relation("ProviderMessageCreatedBy")
-  deploymentsCreated          WebsiteDeployment[]           @relation("DeploymentCreatedBy")
-  vendorsCreated              Vendor[]                      @relation("VendorCreatedBy")
-  vendorsUpdated              Vendor[]                      @relation("VendorUpdatedBy")
-  purchaseOrdersCreated       PurchaseOrder[]               @relation("PurchaseOrderCreatedBy")
-  purchaseOrdersUpdated       PurchaseOrder[]               @relation("PurchaseOrderUpdatedBy")
-  purchaseOrdersApproved      PurchaseOrder[]               @relation("PurchaseOrderApprovedBy")
-  goodsReceiptsCreated        GoodsReceipt[]                @relation("GoodsReceiptCreatedBy")
-  calendarEventsCreated       CalendarEvent[]               @relation("CalendarEventCreatedBy")
-  calendarEventsUpdated       CalendarEvent[]               @relation("CalendarEventUpdatedBy")
-  inquiriesCreated            Inquiry[]                     @relation("InquiryCreatedBy")
-  inquiriesUpdated            Inquiry[]                     @relation("InquiryUpdatedBy")
-  inquiryTimelineCreated      InquiryTimeline[]             @relation("InquiryTimelineCreatedBy")
-  leadAssignmentsCreated      LeadAssignmentHistory[]       @relation("LeadAssignmentActor")
-  connectorsCreated           IntegrationConnector[]        @relation("ConnectorCreatedBy")
-  connectorsUpdated           IntegrationConnector[]        @relation("ConnectorUpdatedBy")
-  integrationEventsCreated    IntegrationEvent[]            @relation("IntegrationEventCreatedBy")
-  integrationEventsUpdated    IntegrationEvent[]            @relation("IntegrationEventUpdatedBy")
-  automationAttemptsCreated   AutomationAttempt[]           @relation("AutomationAttemptCreatedBy")
-  messageDraftsCreated        AutomationMessageDraft[]      @relation("MessageDraftCreatedBy")
-  messageDraftsUpdated        AutomationMessageDraft[]      @relation("MessageDraftUpdatedBy")
-  messageDraftsApproved       AutomationMessageDraft[]      @relation("MessageDraftApprovedBy")
-  stayRecordsCreated          StayProperty[]                @relation("StayPropertyCreatedBy")
-  stayRecordsUpdated          StayProperty[]                @relation("StayPropertyUpdatedBy")
-  stayResidentsCreated        StayResident[]                @relation("StayResidentCreatedBy")
-  stayResidentsUpdated        StayResident[]                @relation("StayResidentUpdatedBy")
-  stayOccupanciesCreated      StayOccupancy[]               @relation("StayOccupancyCreatedBy")
-  stayRentChargesCreated      StayRentCharge[]              @relation("StayRentChargeCreatedBy")
-  stayPaymentsCreated         StayRentPayment[]             @relation("StayRentPaymentCreatedBy")
-  schoolAcademicYearsCreated  SchoolAcademicYear[]          @relation("SchoolAcademicYearCreatedBy")
-  schoolAcademicYearsUpdated  SchoolAcademicYear[]          @relation("SchoolAcademicYearUpdatedBy")
-  schoolClassesCreated        SchoolClass[]                 @relation("SchoolClassCreatedBy")
-  schoolClassesUpdated        SchoolClass[]                 @relation("SchoolClassUpdatedBy")
-  schoolSectionsCreated       SchoolSection[]               @relation("SchoolSectionCreatedBy")
-  schoolSectionsUpdated       SchoolSection[]               @relation("SchoolSectionUpdatedBy")
-  schoolStudentsCreated       SchoolStudent[]               @relation("SchoolStudentCreatedBy")
-  schoolStudentsUpdated       SchoolStudent[]               @relation("SchoolStudentUpdatedBy")
-  schoolGuardiansCreated      SchoolGuardian[]              @relation("SchoolGuardianCreatedBy")
-  schoolGuardiansUpdated      SchoolGuardian[]              @relation("SchoolGuardianUpdatedBy")
-  schoolEnrollmentsCreated    SchoolEnrollment[]            @relation("SchoolEnrollmentCreatedBy")
-  schoolEnrollmentsUpdated    SchoolEnrollment[]            @relation("SchoolEnrollmentUpdatedBy")
-  schoolSubjectsCreated       SchoolSubject[]               @relation("SchoolSubjectCreatedBy")
-  schoolSubjectsUpdated       SchoolSubject[]               @relation("SchoolSubjectUpdatedBy")
-  schoolTeachersCreated       SchoolTeacher[]               @relation("SchoolTeacherCreatedBy")
-  schoolTeachersUpdated       SchoolTeacher[]               @relation("SchoolTeacherUpdatedBy")
-  schoolAssignmentsCreated    SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentCreatedBy")
-  schoolAssignmentsUpdated    SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentUpdatedBy")
-  studentAttendanceMarked     SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceMarkedBy")
-  studentAttendanceUpdated    SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceUpdatedBy")
-  teacherAttendanceMarked     SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceMarkedBy")
-  teacherAttendanceUpdated    SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceUpdatedBy")
-  schoolTimetableCreated      SchoolTimetableEntry[]        @relation("SchoolTimetableCreatedBy")
-  schoolTimetableUpdated      SchoolTimetableEntry[]        @relation("SchoolTimetableUpdatedBy")
-  schoolSubstitutesCreated    SchoolSubstituteAssignment[]  @relation("SchoolSubstituteCreatedBy")
-  schoolSubstitutesUpdated    SchoolSubstituteAssignment[]  @relation("SchoolSubstituteUpdatedBy")
-  schoolImportsCreated        SchoolImportBatch[]           @relation("SchoolImportCreatedBy")
+  id                           String                        @id @default(uuid()) @db.Uuid
+  firstName                    String
+  lastName                     String?
+  email                        String                        @unique
+  passwordHash                 String
+  status                       UserStatus                    @default(ACTIVE)
+  emailVerifiedAt              DateTime?
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  deletedAt                    DateTime?
+  isPlatformAdmin              Boolean                       @default(false)
+  memberships                  OrganizationMembership[]
+  refreshSessions              RefreshSession[]
+  passwordResetTokens          PasswordResetToken[]
+  invitationsSent              MembershipInvitation[]        @relation("InvitationSender")
+  organizationServicesCreated  OrganizationService[]         @relation("OrganizationServiceCreatedBy")
+  organizationServicesUpdated  OrganizationService[]         @relation("OrganizationServiceUpdatedBy")
+  memberServiceAccessCreated   MembershipServiceAccess[]     @relation("MemberServiceAccessCreatedBy")
+  memberServiceAccessUpdated   MembershipServiceAccess[]     @relation("MemberServiceAccessUpdatedBy")
+  servicePlansCreated          ServicePlan[]                 @relation("ServicePlanCreatedBy")
+  servicePlansUpdated          ServicePlan[]                 @relation("ServicePlanUpdatedBy")
+  organizationPlansAssigned    OrganizationPlan[]            @relation("OrganizationPlanAssignedBy")
+  organizationPlansUpdated     OrganizationPlan[]            @relation("OrganizationPlanUpdatedBy")
+  subscriptionPaymentsCreated  SubscriptionPayment[]         @relation("SubscriptionPaymentCreatedBy")
+  serviceOverridesCreated      OrganizationServiceOverride[] @relation("ServiceOverrideCreatedBy")
+  entitlementsCreated          Entitlement[]                 @relation("EntitlementCreatedBy")
+  entitlementsUpdated          Entitlement[]                 @relation("EntitlementUpdatedBy")
+  platformInvitationsSent      PlatformInvitation[]          @relation("PlatformInvitationSender")
+  customersCreated             Customer[]                    @relation("CustomerCreatedBy")
+  customersUpdated             Customer[]                    @relation("CustomerUpdatedBy")
+  customerActivitiesCreated    CustomerActivity[]            @relation("CustomerActivityCreatedBy")
+  customerActivitiesUpdated    CustomerActivity[]            @relation("CustomerActivityUpdatedBy")
+  followUpsAssigned            CustomerFollowUp[]            @relation("FollowUpAssignedTo")
+  followUpsCreated             CustomerFollowUp[]            @relation("FollowUpCreatedBy")
+  followUpsUpdated             CustomerFollowUp[]            @relation("FollowUpUpdatedBy")
+  notifications                Notification[]                @relation("NotificationRecipient")
+  notificationsCreated         Notification[]                @relation("NotificationCreatedBy")
+  notificationsUpdated         Notification[]                @relation("NotificationUpdatedBy")
+  agentsCreated                AgentDefinition[]             @relation("AgentCreatedBy")
+  agentsUpdated                AgentDefinition[]             @relation("AgentUpdatedBy")
+  agentRunsInitiated           AgentRun[]                    @relation("AgentRunInitiatedBy")
+  voiceCallsCreated            VoiceCallJob[]                @relation("VoiceCallCreatedBy")
+  voiceCallsUpdated            VoiceCallJob[]                @relation("VoiceCallUpdatedBy")
+  voiceCallsApproved           VoiceCallJob[]                @relation("VoiceCallApprovedBy")
+  approvalsRequested           ApprovalRequest[]             @relation("ApprovalRequestedBy")
+  approvalsDecided             ApprovalRequest[]             @relation("ApprovalDecidedBy")
+  auditEvents                  AuditEvent[]                  @relation("AuditActorUser")
+  recommendationsDecided       BusinessRecommendation[]      @relation("RecommendationDecidedBy")
+  projectsOwned                Project[]                     @relation("ProjectOwner")
+  projectsCreated              Project[]                     @relation("ProjectCreatedBy")
+  projectsUpdated              Project[]                     @relation("ProjectUpdatedBy")
+  tasksAssigned                ProjectTask[]                 @relation("TaskAssignedTo")
+  tasksCreated                 ProjectTask[]                 @relation("TaskCreatedBy")
+  tasksUpdated                 ProjectTask[]                 @relation("TaskUpdatedBy")
+  projectMembersCreated        ProjectMember[]               @relation("ProjectMemberCreatedBy")
+  projectMembersUpdated        ProjectMember[]               @relation("ProjectMemberUpdatedBy")
+  employeeProfiles             Employee[]                    @relation("EmployeeLinkedUser")
+  employeesCreated             Employee[]                    @relation("EmployeeCreatedBy")
+  employeesUpdated             Employee[]                    @relation("EmployeeUpdatedBy")
+  dealsOwned                   Deal[]                        @relation("DealOwner")
+  dealsCreated                 Deal[]                        @relation("DealCreatedBy")
+  dealsUpdated                 Deal[]                        @relation("DealUpdatedBy")
+  invoicesCreated              Invoice[]                     @relation("InvoiceCreatedBy")
+  invoicesUpdated              Invoice[]                     @relation("InvoiceUpdatedBy")
+  quotationsCreated            Quotation[]                   @relation("QuotationCreatedBy")
+  quotationsUpdated            Quotation[]                   @relation("QuotationUpdatedBy")
+  paymentsCreated              Payment[]                     @relation("PaymentCreatedBy")
+  paymentAccountsCreated       PaymentAccount[]              @relation("PaymentAccountCreatedBy")
+  paymentAccountsUpdated       PaymentAccount[]              @relation("PaymentAccountUpdatedBy")
+  incomingPaymentsCreated      IncomingPaymentTransaction[]  @relation("IncomingPaymentCreatedBy")
+  incomingPaymentsUpdated      IncomingPaymentTransaction[]  @relation("IncomingPaymentUpdatedBy")
+  paymentRefundsRequested      PaymentRefund[]               @relation("PaymentRefundRequestedBy")
+  paymentRefundsUpdated        PaymentRefund[]               @relation("PaymentRefundUpdatedBy")
+  expensesCreated              Expense[]                     @relation("ExpenseCreatedBy")
+  expensesUpdated              Expense[]                     @relation("ExpenseUpdatedBy")
+  catalogueItemsCreated        CatalogueItem[]               @relation("CatalogueItemCreatedBy")
+  catalogueItemsUpdated        CatalogueItem[]               @relation("CatalogueItemUpdatedBy")
+  ordersCreated                Order[]                       @relation("OrderCreatedBy")
+  ordersUpdated                Order[]                       @relation("OrderUpdatedBy")
+  warehousesCreated            Warehouse[]                   @relation("WarehouseCreatedBy")
+  warehousesUpdated            Warehouse[]                   @relation("WarehouseUpdatedBy")
+  stockMovementsCreated        StockMovement[]               @relation("StockMovementCreatedBy")
+  campaignsCreated             MarketingCampaign[]           @relation("CampaignCreatedBy")
+  campaignsUpdated             MarketingCampaign[]           @relation("CampaignUpdatedBy")
+  campaignLeadsCreated         CampaignLead[]                @relation("CampaignLeadCreatedBy")
+  ticketsCreated               SupportTicket[]               @relation("TicketCreatedBy")
+  ticketsUpdated               SupportTicket[]               @relation("TicketUpdatedBy")
+  ticketMessagesCreated        TicketMessage[]               @relation("TicketMessageCreatedBy")
+  ticketAttachmentsCreated     TicketAttachment[]            @relation("TicketAttachmentCreatedBy")
+  websitesCreated              ManagedWebsite[]              @relation("WebsiteCreatedBy")
+  websitesUpdated              ManagedWebsite[]              @relation("WebsiteUpdatedBy")
+  websiteRequestsCreated       WebsiteChangeRequest[]        @relation("WebsiteRequestCreatedBy")
+  websiteRequestsUpdated       WebsiteChangeRequest[]        @relation("WebsiteRequestUpdatedBy")
+  websiteRequestsApproved      WebsiteChangeRequest[]        @relation("WebsiteRequestApprovedBy")
+  providerRequestsCreated      ProviderServiceRequest[]      @relation("ProviderRequestCreatedBy")
+  providerRequestsUpdated      ProviderServiceRequest[]      @relation("ProviderRequestUpdatedBy")
+  providerMessagesCreated      ProviderServiceMessage[]      @relation("ProviderMessageCreatedBy")
+  deploymentsCreated           WebsiteDeployment[]           @relation("DeploymentCreatedBy")
+  vendorsCreated               Vendor[]                      @relation("VendorCreatedBy")
+  vendorsUpdated               Vendor[]                      @relation("VendorUpdatedBy")
+  purchaseOrdersCreated        PurchaseOrder[]               @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersUpdated        PurchaseOrder[]               @relation("PurchaseOrderUpdatedBy")
+  purchaseOrdersApproved       PurchaseOrder[]               @relation("PurchaseOrderApprovedBy")
+  goodsReceiptsCreated         GoodsReceipt[]                @relation("GoodsReceiptCreatedBy")
+  calendarEventsCreated        CalendarEvent[]               @relation("CalendarEventCreatedBy")
+  calendarEventsUpdated        CalendarEvent[]               @relation("CalendarEventUpdatedBy")
+  inquiriesCreated             Inquiry[]                     @relation("InquiryCreatedBy")
+  inquiriesUpdated             Inquiry[]                     @relation("InquiryUpdatedBy")
+  inquiryTimelineCreated       InquiryTimeline[]             @relation("InquiryTimelineCreatedBy")
+  leadAssignmentsCreated       LeadAssignmentHistory[]       @relation("LeadAssignmentActor")
+  connectorsCreated            IntegrationConnector[]        @relation("ConnectorCreatedBy")
+  connectorsUpdated            IntegrationConnector[]        @relation("ConnectorUpdatedBy")
+  integrationEventsCreated     IntegrationEvent[]            @relation("IntegrationEventCreatedBy")
+  integrationEventsUpdated     IntegrationEvent[]            @relation("IntegrationEventUpdatedBy")
+  automationAttemptsCreated    AutomationAttempt[]           @relation("AutomationAttemptCreatedBy")
+  automationPoliciesCreated    AutomationPolicy[]            @relation("AutomationPolicyCreatedBy")
+  automationPoliciesUpdated    AutomationPolicy[]            @relation("AutomationPolicyUpdatedBy")
+  policyExecutionsCreated      AutomationPolicyExecution[]   @relation("AutomationPolicyExecutionCreatedBy")
+  messageDraftsCreated         AutomationMessageDraft[]      @relation("MessageDraftCreatedBy")
+  messageDraftsUpdated         AutomationMessageDraft[]      @relation("MessageDraftUpdatedBy")
+  messageDraftsApproved        AutomationMessageDraft[]      @relation("MessageDraftApprovedBy")
+  agentSchedulesCreated        AgentSchedule[]               @relation("AgentScheduleCreatedBy")
+  agentSchedulesUpdated        AgentSchedule[]               @relation("AgentScheduleUpdatedBy")
+  stayRecordsCreated           StayProperty[]                @relation("StayPropertyCreatedBy")
+  stayRecordsUpdated           StayProperty[]                @relation("StayPropertyUpdatedBy")
+  stayResidentsCreated         StayResident[]                @relation("StayResidentCreatedBy")
+  stayResidentsUpdated         StayResident[]                @relation("StayResidentUpdatedBy")
+  stayOccupanciesCreated       StayOccupancy[]               @relation("StayOccupancyCreatedBy")
+  stayRentChargesCreated       StayRentCharge[]              @relation("StayRentChargeCreatedBy")
+  stayPaymentsCreated          StayRentPayment[]             @relation("StayRentPaymentCreatedBy")
+  schoolAcademicYearsCreated   SchoolAcademicYear[]          @relation("SchoolAcademicYearCreatedBy")
+  schoolAcademicYearsUpdated   SchoolAcademicYear[]          @relation("SchoolAcademicYearUpdatedBy")
+  schoolClassesCreated         SchoolClass[]                 @relation("SchoolClassCreatedBy")
+  schoolClassesUpdated         SchoolClass[]                 @relation("SchoolClassUpdatedBy")
+  schoolSectionsCreated        SchoolSection[]               @relation("SchoolSectionCreatedBy")
+  schoolSectionsUpdated        SchoolSection[]               @relation("SchoolSectionUpdatedBy")
+  schoolStudentsCreated        SchoolStudent[]               @relation("SchoolStudentCreatedBy")
+  schoolStudentsUpdated        SchoolStudent[]               @relation("SchoolStudentUpdatedBy")
+  schoolGuardiansCreated       SchoolGuardian[]              @relation("SchoolGuardianCreatedBy")
+  schoolGuardiansUpdated       SchoolGuardian[]              @relation("SchoolGuardianUpdatedBy")
+  schoolEnrollmentsCreated     SchoolEnrollment[]            @relation("SchoolEnrollmentCreatedBy")
+  schoolEnrollmentsUpdated     SchoolEnrollment[]            @relation("SchoolEnrollmentUpdatedBy")
+  schoolSubjectsCreated        SchoolSubject[]               @relation("SchoolSubjectCreatedBy")
+  schoolSubjectsUpdated        SchoolSubject[]               @relation("SchoolSubjectUpdatedBy")
+  schoolTeachersCreated        SchoolTeacher[]               @relation("SchoolTeacherCreatedBy")
+  schoolTeachersUpdated        SchoolTeacher[]               @relation("SchoolTeacherUpdatedBy")
+  schoolAssignmentsCreated     SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentCreatedBy")
+  schoolAssignmentsUpdated     SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentUpdatedBy")
+  studentAttendanceMarked      SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceMarkedBy")
+  studentAttendanceUpdated     SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceUpdatedBy")
+  teacherAttendanceMarked      SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceMarkedBy")
+  teacherAttendanceUpdated     SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceUpdatedBy")
+  schoolTimetableCreated       SchoolTimetableEntry[]        @relation("SchoolTimetableCreatedBy")
+  schoolTimetableUpdated       SchoolTimetableEntry[]        @relation("SchoolTimetableUpdatedBy")
+  schoolSubstitutesCreated     SchoolSubstituteAssignment[]  @relation("SchoolSubstituteCreatedBy")
+  schoolSubstitutesUpdated     SchoolSubstituteAssignment[]  @relation("SchoolSubstituteUpdatedBy")
+  schoolGuardianAlertsCreated  SchoolGuardianAlert[]         @relation("SchoolGuardianAlertCreatedBy")
+  schoolGuardianAlertsUpdated  SchoolGuardianAlert[]         @relation("SchoolGuardianAlertUpdatedBy")
+  schoolGuardianAlertsApproved SchoolGuardianAlert[]         @relation("SchoolGuardianAlertApprovedBy")
+  schoolFeeStructuresCreated   SchoolFeeStructure[]          @relation("SchoolFeeStructureCreatedBy")
+  schoolFeeStructuresUpdated   SchoolFeeStructure[]          @relation("SchoolFeeStructureUpdatedBy")
+  schoolFeeChargesCreated      SchoolFeeCharge[]             @relation("SchoolFeeChargeCreatedBy")
+  schoolFeeChargesUpdated      SchoolFeeCharge[]             @relation("SchoolFeeChargeUpdatedBy")
+  schoolFeePaymentsCreated     SchoolFeePayment[]            @relation("SchoolFeePaymentCreatedBy")
+  schoolFeeRemindersCreated    SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderCreatedBy")
+  schoolFeeRemindersUpdated    SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderUpdatedBy")
+  schoolFeeRemindersApproved   SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderApprovedBy")
+  schoolImportsCreated         SchoolImportBatch[]           @relation("SchoolImportCreatedBy")
 
   @@index([status, deletedAt])
 }
@@ -1036,7 +1101,10 @@ model Organization {
   integrationConnectors    IntegrationConnector[]
   integrationEvents        IntegrationEvent[]
   automationAttempts       AutomationAttempt[]
+  automationPolicies       AutomationPolicy[]
+  policyExecutions         AutomationPolicyExecution[]
   automationMessageDrafts  AutomationMessageDraft[]
+  agentSchedules           AgentSchedule[]
   stayProperties           StayProperty[]
   stayRooms                StayRoom[]
   stayBeds                 StayBed[]
@@ -1058,6 +1126,11 @@ model Organization {
   schoolTeacherAttendance  SchoolTeacherAttendance[]
   schoolTimetableEntries   SchoolTimetableEntry[]
   schoolSubstitutes        SchoolSubstituteAssignment[]
+  schoolGuardianAlerts     SchoolGuardianAlert[]
+  schoolFeeStructures      SchoolFeeStructure[]
+  schoolFeeCharges         SchoolFeeCharge[]
+  schoolFeePayments        SchoolFeePayment[]
+  schoolFeeReminders       SchoolFeeReminderDraft[]
   schoolImportBatches      SchoolImportBatch[]
 
   @@index([status, deletedAt])
@@ -1492,6 +1565,7 @@ model CustomerFollowUp {
   id             String         @id @default(uuid()) @db.Uuid
   organizationId String         @db.Uuid
   customerId     String         @db.Uuid
+  invoiceId      String?        @db.Uuid
   title          String
   description    String?
   dueAt          DateTime
@@ -1505,12 +1579,14 @@ model CustomerFollowUp {
   deletedAt      DateTime?
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoice        Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   assignedTo     User           @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id], onDelete: Restrict)
   createdBy      User           @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy      User           @relation("FollowUpUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   voiceCallJobs  VoiceCallJob[]
 
   @@index([organizationId, customerId, status, deletedAt, dueAt])
+  @@index([organizationId, invoiceId, status, deletedAt])
   @@index([organizationId, assignedToId, status, dueAt])
   @@index([createdById])
   @@index([updatedById])
@@ -1546,26 +1622,27 @@ model Notification {
 }
 
 model AgentDefinition {
-  id                String         @id @default(uuid()) @db.Uuid
-  organizationId    String         @db.Uuid
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @db.Uuid
   name              String
   purpose           String
   instructions      String?
   supportedService  String
-  status            AgentStatus    @default(DRAFT)
-  requiresApproval  Boolean        @default(true)
+  status            AgentStatus     @default(DRAFT)
+  requiresApproval  Boolean         @default(true)
   allowedActions    Json
-  dailyRunLimit     Int            @default(10)
-  dailyContactLimit Int            @default(0)
-  createdById       String         @db.Uuid
-  updatedById       String         @db.Uuid
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  dailyRunLimit     Int             @default(10)
+  dailyContactLimit Int             @default(0)
+  createdById       String          @db.Uuid
+  updatedById       String          @db.Uuid
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   deletedAt         DateTime?
-  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         User           @relation("AgentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy         User           @relation("AgentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User            @relation("AgentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User            @relation("AgentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   runs              AgentRun[]
+  schedules         AgentSchedule[]
   voiceCallJobs     VoiceCallJob[]
 
   @@index([organizationId, status, deletedAt])
@@ -1593,6 +1670,33 @@ model AgentRun {
   @@index([organizationId, agentId, createdAt])
   @@index([organizationId, status, createdAt])
   @@index([initiatedById])
+}
+
+model AgentSchedule {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @db.Uuid
+  agentId           String          @db.Uuid
+  enabled           Boolean         @default(true)
+  timezone          String
+  localTime         String
+  maxInvoicesPerRun Int             @default(5)
+  nextRunAt         DateTime
+  lastRunAt         DateTime?
+  lastStatus        String?
+  lastError         String?
+  lockedAt          DateTime?
+  createdById       String          @db.Uuid
+  updatedById       String          @db.Uuid
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent             AgentDefinition @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  createdBy         User            @relation("AgentScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User            @relation("AgentScheduleUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, agentId])
+  @@index([enabled, nextRunAt, lockedAt])
+  @@index([organizationId, enabled])
 }
 
 model VoiceCallJob {
@@ -1712,6 +1816,7 @@ model BusinessRecommendation {
   decidedAt         DateTime?
   executedAt        DateTime?
   resolvedAt        DateTime?
+  snoozedUntil      DateTime?
   lastDetectedAt    DateTime                     @default(now())
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime                     @updatedAt
@@ -1721,6 +1826,7 @@ model BusinessRecommendation {
   @@unique([organizationId, fingerprint])
   @@index([organizationId, status, priority, createdAt])
   @@index([organizationId, serviceCode, status])
+  @@index([organizationId, status, snoozedUntil])
   @@index([decidedById])
 }
 
@@ -1893,33 +1999,34 @@ model Deal {
 }
 
 model Invoice {
-  id              String            @id @default(uuid()) @db.Uuid
-  organizationId  String            @db.Uuid
-  customerId      String            @db.Uuid
-  projectId       String?           @db.Uuid
-  invoiceNumber   String
-  status          InvoiceStatus     @default(DRAFT)
-  issueDate       DateTime
-  dueDate         DateTime
-  currency        String
-  subtotal        Decimal           @db.Decimal(18, 2)
-  discount        Decimal           @default(0) @db.Decimal(18, 2)
-  tax             Decimal           @default(0) @db.Decimal(18, 2)
-  total           Decimal           @db.Decimal(18, 2)
-  notes           String?
-  createdById     String            @db.Uuid
-  updatedById     String            @db.Uuid
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  deletedAt       DateTime?
-  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer        Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  project         Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdBy       User              @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy       User              @relation("InvoiceUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
-  items           InvoiceLineItem[]
-  payments        Payment[]
-  sourceQuotation Quotation?
+  id                  String             @id @default(uuid()) @db.Uuid
+  organizationId      String             @db.Uuid
+  customerId          String             @db.Uuid
+  projectId           String?            @db.Uuid
+  invoiceNumber       String
+  status              InvoiceStatus      @default(DRAFT)
+  issueDate           DateTime
+  dueDate             DateTime
+  currency            String
+  subtotal            Decimal            @db.Decimal(18, 2)
+  discount            Decimal            @default(0) @db.Decimal(18, 2)
+  tax                 Decimal            @default(0) @db.Decimal(18, 2)
+  total               Decimal            @db.Decimal(18, 2)
+  notes               String?
+  createdById         String             @db.Uuid
+  updatedById         String             @db.Uuid
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  deletedAt           DateTime?
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer            Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  project             Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy           User               @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy           User               @relation("InvoiceUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  items               InvoiceLineItem[]
+  payments            Payment[]
+  sourceQuotation     Quotation?
+  collectionFollowUps CustomerFollowUp[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status, deletedAt, dueDate])
@@ -2910,6 +3017,7 @@ model LeadAssignmentRule {
   responseTimeMinutes    Int
   escalationAfterMinutes Int?
   escalationEmployeeId   String?                @db.Uuid
+  followUpSequenceId     String?                @db.Uuid
   lastAssignedEmployeeId String?                @db.Uuid
   createdById            String                 @db.Uuid
   updatedById            String                 @db.Uuid
@@ -2917,9 +3025,11 @@ model LeadAssignmentRule {
   updatedAt              DateTime               @updatedAt
   archivedAt             DateTime?
   organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  followUpSequence       FollowUpSequence?       @relation(fields: [followUpSequenceId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, isActive, sortOrder, archivedAt])
   @@index([organizationId, campaignId])
+  @@index([organizationId, followUpSequenceId])
 }
 
 model LeadAssignmentHistory {
@@ -2960,6 +3070,7 @@ model FollowUpSequence {
   organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   steps          FollowUpSequenceStep[]
   enrollments    FollowUpEnrollment[]
+  assignmentRules LeadAssignmentRule[]
 
   @@index([organizationId, isActive, archivedAt])
 }
@@ -3140,16 +3251,77 @@ model AutomationAttempt {
   @@index([organizationId, status, createdAt])
 }
 
+model AutomationPolicy {
+  id              String                        @id @default(uuid()) @db.Uuid
+  organizationId  String                        @db.Uuid
+  name            String
+  description     String?
+  serviceCode     String
+  eventCode       String
+  actionCode      String
+  status          AutomationPolicyStatus        @default(DRAFT)
+  executionMode   AutomationPolicyExecutionMode @default(APPROVAL_REQUIRED)
+  conditions      Json
+  actionConfig    Json
+  priority        Int                           @default(100)
+  cooldownMinutes Int                           @default(0)
+  lastTriggeredAt DateTime?
+  createdById     String                        @db.Uuid
+  updatedById     String                        @db.Uuid
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  archivedAt      DateTime?
+  organization    Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User                          @relation("AutomationPolicyCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User                          @relation("AutomationPolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  executions      AutomationPolicyExecution[]
+
+  @@index([organizationId, status, eventCode, priority])
+  @@index([organizationId, serviceCode, archivedAt])
+}
+
+model AutomationPolicyExecution {
+  id                   String                          @id @default(uuid()) @db.Uuid
+  organizationId       String                          @db.Uuid
+  policyId             String                          @db.Uuid
+  eventCode            String
+  sourceType           String
+  sourceId             String?
+  dedupeKey            String?
+  status               AutomationPolicyExecutionStatus
+  input                Json
+  output               Json?
+  failureMessage       String?
+  createdById          String                          @db.Uuid
+  createdAt            DateTime                        @default(now())
+  completedAt          DateTime?
+  organization         Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policy               AutomationPolicy                @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  createdBy            User                            @relation("AutomationPolicyExecutionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  schoolGuardianAlerts SchoolGuardianAlert[]
+  schoolFeeReminders   SchoolFeeReminderDraft[]
+
+  @@unique([organizationId, policyId, dedupeKey])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, sourceType, sourceId])
+}
+
 model AutomationMessageDraft {
   id                String               @id @default(uuid()) @db.Uuid
   organizationId    String               @db.Uuid
   connectorId       String               @db.Uuid
   eventId           String?              @db.Uuid
   recipient         String
+  subject           String?
   body              String
+  sourceType        String?
+  sourceId          String?              @db.Uuid
   status            MessageDraftStatus   @default(PENDING_APPROVAL)
   externalMessageId String?
   failureMessage    String?
+  attemptCount      Int                  @default(0)
+  nextRetryAt       DateTime?
+  providerStatus    String?
   approvedById      String?              @db.Uuid
   approvedAt        DateTime?
   sentAt            DateTime?
@@ -3167,6 +3339,8 @@ model AutomationMessageDraft {
   @@index([organizationId, status, createdAt])
   @@index([organizationId, connectorId, recipient])
   @@index([organizationId, eventId])
+  @@index([organizationId, sourceType, sourceId])
+  @@index([organizationId, status, nextRetryAt])
 }
 
 model StayProperty {
@@ -3366,6 +3540,7 @@ model SchoolAcademicYear {
   enrollments        SchoolEnrollment[]
   teacherAssignments SchoolTeacherAssignment[]
   timetableEntries   SchoolTimetableEntry[]
+  feeStructures      SchoolFeeStructure[]
 
   @@unique([organizationId, name])
   @@index([organizationId, isCurrent, deletedAt])
@@ -3391,6 +3566,7 @@ model SchoolClass {
   enrollments        SchoolEnrollment[]
   teacherAssignments SchoolTeacherAssignment[]
   timetableEntries   SchoolTimetableEntry[]
+  feeStructures      SchoolFeeStructure[]
 
   @@unique([academicYearId, code])
   @@index([organizationId, academicYearId, deletedAt])
@@ -3441,29 +3617,35 @@ model SchoolStudent {
   guardians      SchoolStudentGuardian[]
   enrollments    SchoolEnrollment[]
   attendance     SchoolStudentAttendance[]
+  guardianAlerts SchoolGuardianAlert[]
+  feeCharges     SchoolFeeCharge[]
+  feePayments    SchoolFeePayment[]
+  feeReminders   SchoolFeeReminderDraft[]
 
   @@unique([organizationId, studentNumber])
   @@index([organizationId, status, deletedAt])
 }
 
 model SchoolGuardian {
-  id             String                  @id @default(uuid()) @db.Uuid
-  organizationId String                  @db.Uuid
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
   firstName      String
   lastName       String?
   relationship   String
   phone          String
   email          String?
   address        String?
-  createdById    String                  @db.Uuid
-  updatedById    String                  @db.Uuid
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  createdById    String                   @db.Uuid
+  updatedById    String                   @db.Uuid
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
   deletedAt      DateTime?
-  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User                    @relation("SchoolGuardianCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy      User                    @relation("SchoolGuardianUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                     @relation("SchoolGuardianCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                     @relation("SchoolGuardianUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   students       SchoolStudentGuardian[]
+  alerts         SchoolGuardianAlert[]
+  feeReminders   SchoolFeeReminderDraft[]
 
   @@index([organizationId, phone, deletedAt])
   @@index([organizationId, email, deletedAt])
@@ -3509,6 +3691,7 @@ model SchoolEnrollment {
   createdBy      User                      @relation("SchoolEnrollmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy      User                      @relation("SchoolEnrollmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   attendance     SchoolStudentAttendance[]
+  feeCharges     SchoolFeeCharge[]
 
   @@unique([studentId, academicYearId])
   @@unique([sectionId, rollNumber])
@@ -3642,6 +3825,167 @@ model SchoolTeacherAttendance {
   @@unique([teacherId, attendanceDate])
   @@index([organizationId, attendanceDate, status])
   @@index([organizationId, teacherId, attendanceDate])
+}
+
+model SchoolGuardianAlert {
+  id                String                     @id @default(uuid()) @db.Uuid
+  organizationId    String                     @db.Uuid
+  studentId         String                     @db.Uuid
+  guardianId        String                     @db.Uuid
+  attendanceDate    DateTime
+  channel           SchoolGuardianAlertChannel
+  recipient         String
+  subject           String?
+  body              String
+  status            SchoolGuardianAlertStatus  @default(PENDING_APPROVAL)
+  policyExecutionId String?                    @db.Uuid
+  approvedById      String?                    @db.Uuid
+  approvedAt        DateTime?
+  sentAt            DateTime?
+  providerMessageId String?
+  failureMessage    String?
+  createdById       String                     @db.Uuid
+  updatedById       String                     @db.Uuid
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student           SchoolStudent              @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  guardian          SchoolGuardian             @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+  policyExecution   AutomationPolicyExecution? @relation(fields: [policyExecutionId], references: [id], onDelete: SetNull)
+  approvedBy        User?                      @relation("SchoolGuardianAlertApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  createdBy         User                       @relation("SchoolGuardianAlertCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User                       @relation("SchoolGuardianAlertUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, studentId, guardianId, attendanceDate, channel])
+  @@index([organizationId, attendanceDate, status])
+  @@index([organizationId, policyExecutionId])
+}
+
+model SchoolFeeStructure {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  academicYearId String             @db.Uuid
+  classId        String?            @db.Uuid
+  name           String
+  frequency      SchoolFeeFrequency
+  amount         Decimal            @db.Decimal(12, 2)
+  dueDay         Int
+  startsOn       DateTime
+  endsOn         DateTime
+  isActive       Boolean            @default(true)
+  createdById    String             @db.Uuid
+  updatedById    String             @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  archivedAt     DateTime?
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  academicYear   SchoolAcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  schoolClass    SchoolClass?       @relation(fields: [classId], references: [id], onDelete: Restrict)
+  createdBy      User               @relation("SchoolFeeStructureCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User               @relation("SchoolFeeStructureUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  charges        SchoolFeeCharge[]
+
+  @@index([organizationId, academicYearId, classId, isActive, archivedAt])
+}
+
+model SchoolFeeCharge {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @db.Uuid
+  studentId      String                       @db.Uuid
+  enrollmentId   String                       @db.Uuid
+  feeStructureId String                       @db.Uuid
+  billingPeriod  String
+  dueDate        DateTime
+  amount         Decimal                      @db.Decimal(12, 2)
+  discountAmount Decimal                      @default(0) @db.Decimal(12, 2)
+  paidAmount     Decimal                      @default(0) @db.Decimal(12, 2)
+  status         SchoolFeeChargeStatus        @default(DUE)
+  notes          String?
+  createdById    String                       @db.Uuid
+  updatedById    String                       @db.Uuid
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        SchoolStudent                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment     SchoolEnrollment             @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  feeStructure   SchoolFeeStructure           @relation(fields: [feeStructureId], references: [id], onDelete: Restrict)
+  createdBy      User                         @relation("SchoolFeeChargeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                         @relation("SchoolFeeChargeUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  allocations    SchoolFeePaymentAllocation[]
+  reminders      SchoolFeeReminderDraft[]
+
+  @@unique([organizationId, enrollmentId, feeStructureId, billingPeriod])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, studentId, dueDate])
+}
+
+model SchoolFeePayment {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @db.Uuid
+  studentId      String                       @db.Uuid
+  receiptNumber  String
+  amount         Decimal                      @db.Decimal(12, 2)
+  method         PaymentMethod
+  paidAt         DateTime
+  reference      String?
+  notes          String?
+  createdById    String                       @db.Uuid
+  createdAt      DateTime                     @default(now())
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student        SchoolStudent                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  createdBy      User                         @relation("SchoolFeePaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  allocations    SchoolFeePaymentAllocation[]
+
+  @@unique([organizationId, receiptNumber])
+  @@index([organizationId, studentId, paidAt])
+  @@index([organizationId, reference])
+}
+
+model SchoolFeePaymentAllocation {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  paymentId      String           @db.Uuid
+  chargeId       String           @db.Uuid
+  amount         Decimal          @db.Decimal(12, 2)
+  createdAt      DateTime         @default(now())
+  payment        SchoolFeePayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  charge         SchoolFeeCharge  @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, chargeId])
+  @@index([organizationId, chargeId])
+}
+
+model SchoolFeeReminderDraft {
+  id                String                     @id @default(uuid()) @db.Uuid
+  organizationId    String                     @db.Uuid
+  chargeId          String                     @db.Uuid
+  studentId         String                     @db.Uuid
+  guardianId        String                     @db.Uuid
+  channel           SchoolGuardianAlertChannel
+  recipient         String
+  body              String
+  status            SchoolGuardianAlertStatus  @default(PENDING_APPROVAL)
+  policyExecutionId String?                    @db.Uuid
+  approvedById      String?                    @db.Uuid
+  approvedAt        DateTime?
+  sentAt            DateTime?
+  failureMessage    String?
+  createdById       String                     @db.Uuid
+  updatedById       String                     @db.Uuid
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  charge            SchoolFeeCharge            @relation(fields: [chargeId], references: [id], onDelete: Restrict)
+  student           SchoolStudent              @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  guardian          SchoolGuardian             @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+  policyExecution   AutomationPolicyExecution? @relation(fields: [policyExecutionId], references: [id], onDelete: SetNull)
+  approvedBy        User?                      @relation("SchoolFeeReminderApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  createdBy         User                       @relation("SchoolFeeReminderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy         User                       @relation("SchoolFeeReminderUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, chargeId, createdAt])
+  @@index([organizationId, policyExecutionId])
 }
 
 model SchoolTimetableEntry {

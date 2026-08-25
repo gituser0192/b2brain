@@ -1,5 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 type Section = { id: string; name: string };
@@ -39,7 +45,9 @@ export function StudentDirectory({
     [students, setStudents] = useState<Student[]>([]),
     [open, setOpen] = useState(false),
     [error, setError] = useState(""),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [query, setQuery] = useState(""),
+    [visibleCount, setVisibleCount] = useState(5);
   const y0 =
       academicYears.find((y) => y.classes.some((c) => c.sections.length)) ??
       academicYears[0],
@@ -82,6 +90,28 @@ export function StudentDirectory({
     const task = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(task);
   }, [load]);
+  const filteredStudents = useMemo(() => {
+      const term = query.trim().toLowerCase();
+      if (!term) return students;
+      return students.filter((student) => {
+        const placement = student.enrollments[0],
+          guardian = student.guardians[0]?.guardian;
+        return [
+          student.firstName,
+          student.lastName,
+          student.studentNumber,
+          placement?.rollNumber,
+          placement?.academicYear.name,
+          placement?.schoolClass.name,
+          placement?.section.name,
+          guardian?.firstName,
+          guardian?.lastName,
+          guardian?.relationship,
+          guardian?.phone,
+        ].some((value) => value?.toLowerCase().includes(term));
+      });
+    }, [query, students]),
+    visibleStudents = filteredStudents.slice(0, visibleCount);
   function yearChange(id: string) {
     const y = academicYears.find((x) => x.id === id),
       c = y?.classes.find((x) => x.sections.length) ?? y?.classes[0];
@@ -147,8 +177,30 @@ export function StudentDirectory({
           No students admitted. This school begins completely empty.
         </div>
       ) : (
-        <div className="student-table">
-          {students.map((s) => {
+        <>
+          <div className="student-directory-toolbar">
+            <label>
+              <span>Search students</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setVisibleCount(5);
+                }}
+                placeholder="Name, student ID, roll, class, guardian or phone"
+              />
+            </label>
+            <strong>
+              {filteredStudents.length} {filteredStudents.length === 1 ? "student" : "students"}
+            </strong>
+          </div>
+          {!filteredStudents.length ? (
+            <div className="school-inline-empty">
+              No students match “{query}”.
+            </div>
+          ) : <div className="student-table">
+          {visibleStudents.map((s) => {
             const p = s.enrollments[0],
               g = s.guardians[0]?.guardian;
             return (
@@ -180,7 +232,24 @@ export function StudentDirectory({
               </article>
             );
           })}
-        </div>
+          </div>}
+          {filteredStudents.length > 5 && (
+            <div className="student-directory-more">
+              {visibleCount < filteredStudents.length ? (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((count) => count + 5)}
+                >
+                  See more ({filteredStudents.length - visibleCount} remaining)
+                </button>
+              ) : (
+                <button type="button" onClick={() => setVisibleCount(5)}>
+                  Show less
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
       {open && (
         <div className="agent-modal">

@@ -6,6 +6,7 @@ import type {
   InvoiceInput,
   PaymentInput,
 } from "./finance.validation.js";
+import { synchronizeInvoiceSettlement } from "../payment-collection/invoice-settlement.service.js";
 
 export class FinanceService {
   private async context(
@@ -50,6 +51,12 @@ export class FinanceService {
             where: { deletedAt: null },
             include: { refunds: true },
             orderBy: { paidAt: "desc" },
+          },
+          collectionFollowUps: {
+            where: { organizationId, status: "PENDING", deletedAt: null },
+            select: { id: true, title: true, description: true, dueAt: true, status: true, assignedTo: { select: { id: true, firstName: true, lastName: true } } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
           },
         },
         orderBy: { issueDate: "desc" },
@@ -243,6 +250,7 @@ export class FinanceService {
             where: { id, organizationId },
             data: { status, updatedById: actorUserId },
           });
+          await synchronizeInvoiceSettlement(transaction, { organizationId, actorUserId, invoiceId: invoice.id, customerId: invoice.customerId, invoiceNumber: invoice.invoiceNumber, currency: invoice.currency, remaining, paymentId: payment.id });
           return payment;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -299,22 +307,19 @@ export class FinanceService {
         "INVOICE_ALREADY_PAID",
       );
     const title = `Payment follow-up: ${invoice.invoiceNumber}`;
-    if (
-      await prisma.customerFollowUp.findFirst({
+    const existing = await prisma.customerFollowUp.findFirst({
         where: {
           organizationId,
           customerId: invoice.customerId,
-          title,
+          OR: [{ invoiceId: invoice.id }, { invoiceId: null, title: { in: [title, `Collect ${invoice.invoiceNumber}`] } }],
           status: "PENDING",
           deletedAt: null,
         },
-      })
-    )
-      throw new AppError(
-        409,
-        "A pending collection follow-up already exists for this invoice.",
-        "FOLLOW_UP_EXISTS",
-      );
+      });
+    if (existing) {
+      if (!existing.invoiceId) await prisma.customerFollowUp.updateMany({ where: { id: existing.id, organizationId, invoiceId: null }, data: { invoiceId: invoice.id, updatedById: actorUserId } });
+      return { ...existing, invoiceId: invoice.id, reused: true };
+    }
     const dueAt = new Date();
     dueAt.setHours(dueAt.getHours() + 1);
     return prisma.$transaction(async (transaction) => {
@@ -322,6 +327,7 @@ export class FinanceService {
         data: {
           organizationId,
           customerId: invoice.customerId,
+          invoiceId: invoice.id,
           title,
           description: `${invoice.customer.displayName} has ${invoice.currency} ${outstanding.toFixed(2)} outstanding. Invoice due date: ${invoice.dueDate.toISOString().slice(0, 10)}.`,
           dueAt,

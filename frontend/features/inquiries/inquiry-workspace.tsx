@@ -2,7 +2,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
-import { LeadAssignmentControl, LeadAssignmentManager, type AssignmentEmployee } from "./lead-assignment-manager";
+import {
+  LeadAssignmentControl,
+  LeadAssignmentManager,
+  type AssignmentEmployee,
+} from "./lead-assignment-manager";
 type Item = {
   id: string;
   source: string;
@@ -69,7 +73,11 @@ const blank = () => ({
   responseDueAt: "",
   disqualifiedReason: "",
 });
-export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "sales" | "support") => void }) {
+export function InquiryWorkspace({
+  onNavigate,
+}: {
+  onNavigate: (view: "crm" | "sales" | "support") => void;
+}) {
   const { session, authorizedRequest } = useAuth(),
     [items, setItems] = useState<Item[]>([]),
     [employees, setEmployees] = useState<Ref[]>([]),
@@ -79,6 +87,14 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
     [form, setForm] = useState(blank()),
     [open, setOpen] = useState(false),
     [showRules, setShowRules] = useState(false),
+    [dealConversionOpen, setDealConversionOpen] = useState(false),
+    [dealConversion, setDealConversion] = useState({
+      name: "",
+      amount: 0,
+      currency: "INR",
+      probability: 50,
+      expectedCloseDate: "",
+    }),
     [duplicate, setDuplicate] = useState<Duplicate | null>(null),
     [error, setError] = useState("");
   const manage =
@@ -140,14 +156,18 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
       companyName: form.companyName || null,
       campaignId: form.campaignId || null,
       assignedEmployeeId: form.assignedEmployeeId || null,
-      responseDueAt: form.responseDueAt ? new Date(form.responseDueAt).toISOString() : null,
+      responseDueAt: form.responseDueAt
+        ? new Date(form.responseDueAt).toISOString()
+        : null,
       disqualifiedReason: form.disqualifiedReason || null,
     });
   }
   async function save(allowDuplicate = false) {
     try {
       await authorizedRequest(
-        chosen ? `/inquiries/${chosen.id}` : `/inquiries${allowDuplicate ? "?allowDuplicate=true" : ""}`,
+        chosen
+          ? `/inquiries/${chosen.id}`
+          : `/inquiries${allowDuplicate ? "?allowDuplicate=true" : ""}`,
         {
           method: chosen ? "PUT" : "POST",
           body: requestBody(),
@@ -157,8 +177,16 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
       setOpen(false);
       await load();
     } catch (e) {
-      if (e instanceof ApiError && e.code === "DUPLICATE_INQUIRY" && e.errors?.inquiryId) {
-        setDuplicate({ inquiryId: e.errors.inquiryId, contactName: e.errors.contactName ?? "Existing contact", subject: e.errors.subject ?? form.subject });
+      if (
+        e instanceof ApiError &&
+        e.code === "DUPLICATE_INQUIRY" &&
+        e.errors?.inquiryId
+      ) {
+        setDuplicate({
+          inquiryId: e.errors.inquiryId,
+          contactName: e.errors.contactName ?? "Existing contact",
+          subject: e.errors.subject ?? form.subject,
+        });
         return;
       }
       setError(e instanceof ApiError ? e.message : "Unable to save inquiry.");
@@ -183,7 +211,11 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
       setChosen(items.find((item) => item.id === existingId) ?? null);
       await load();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Unable to attach the message.");
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to attach the message.",
+      );
     }
   }
   async function note() {
@@ -199,36 +231,85 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
   }
   async function logContact() {
     if (!chosen) return;
-    const channel = prompt("Contact channel: CALL, WHATSAPP, EMAIL, MEETING or NOTE", "CALL")?.trim().toUpperCase();
-    if (!channel || !["CALL", "WHATSAPP", "EMAIL", "MEETING", "NOTE"].includes(channel)) return;
-    const summary = prompt("What happened?"); if (!summary?.trim()) return;
+    const channel = prompt(
+      "Contact channel: CALL, WHATSAPP, EMAIL, MEETING or NOTE",
+      "CALL",
+    )
+      ?.trim()
+      .toUpperCase();
+    if (
+      !channel ||
+      !["CALL", "WHATSAPP", "EMAIL", "MEETING", "NOTE"].includes(channel)
+    )
+      return;
+    const summary = prompt("What happened?");
+    if (!summary?.trim()) return;
     const details = prompt("Optional details") ?? "";
-    try { await authorizedRequest(`/inquiries/${chosen.id}/contact`, { method: "POST", body: JSON.stringify({ channel, summary, details }) }); await load(); }
-    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to log contact activity."); }
+    try {
+      await authorizedRequest(`/inquiries/${chosen.id}/contact`, {
+        method: "POST",
+        body: JSON.stringify({ channel, summary, details }),
+      });
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to log contact activity.",
+      );
+    }
   }
   async function scheduleFollowUp() {
     if (!chosen) return;
-    const dueAt = prompt("Follow-up date and time (example: 2026-08-12T10:30)", new Date(Date.now() + 86_400_000).toISOString().slice(0, 16));
-    if (!dueAt) return; const note = prompt("What should happen in this follow-up?"); if (!note?.trim()) return;
-    try { await authorizedRequest(`/inquiries/${chosen.id}/follow-up`, { method: "POST", body: JSON.stringify({ dueAt: new Date(dueAt).toISOString(), note }) }); await load(); }
-    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to schedule follow-up."); }
+    const dueAt = prompt(
+      "Follow-up date and time (example: 2026-08-12T10:30)",
+      new Date(Date.now() + 86_400_000).toISOString().slice(0, 16),
+    );
+    if (!dueAt) return;
+    const note = prompt("What should happen in this follow-up?");
+    if (!note?.trim()) return;
+    try {
+      await authorizedRequest(`/inquiries/${chosen.id}/follow-up`, {
+        method: "POST",
+        body: JSON.stringify({ dueAt: new Date(dueAt).toISOString(), note }),
+      });
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to schedule follow-up.",
+      );
+    }
   }
-  async function completeFollowUp() { if (!chosen) return; try { await authorizedRequest(`/inquiries/${chosen.id}/follow-up/complete`, { method: "POST" }); await load(); } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to complete follow-up."); } }
+  async function completeFollowUp() {
+    if (!chosen) return;
+    try {
+      await authorizedRequest(`/inquiries/${chosen.id}/follow-up/complete`, {
+        method: "POST",
+      });
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to complete follow-up.",
+      );
+    }
+  }
   async function convert(target: "CUSTOMER" | "DEAL" | "SUPPORT") {
     if (!chosen) return;
     let body: Record<string, unknown> = { target };
     if (target === "DEAL") {
-      const name = prompt("Deal name", chosen.subject),
-        amount = Number(prompt("Expected amount", "0"));
-      if (!name || Number.isNaN(amount)) return;
-      body = {
-        target,
-        name,
-        amount,
+      setDealConversion({
+        name: chosen.subject,
+        amount: 0,
         currency: "INR",
         probability: 50,
-        expectedCloseDate: null,
-      };
+        expectedCloseDate: "",
+      });
+      setDealConversionOpen(true);
+      return;
     }
     if (target === "SUPPORT")
       body = {
@@ -243,9 +324,29 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
         body: JSON.stringify(body),
       });
       await load();
-      onNavigate(target === "CUSTOMER" ? "crm" : target === "DEAL" ? "sales" : "support");
+      onNavigate(target === "CUSTOMER" ? "crm" : "support");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Conversion failed.");
+    }
+  }
+  async function convertToDeal() {
+    if (!chosen) return;
+    try {
+      await authorizedRequest(`/inquiries/${chosen.id}/convert`, {
+        method: "POST",
+        body: JSON.stringify({
+          target: "DEAL",
+          ...dealConversion,
+          expectedCloseDate: dealConversion.expectedCloseDate || null,
+        }),
+      });
+      setDealConversionOpen(false);
+      await load();
+      onNavigate("sales");
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError ? reason.message : "Deal conversion failed.",
+      );
     }
   }
   return (
@@ -256,7 +357,14 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
           <h2>Lead & inquiry inbox</h2>
           <span>Capture, classify and explicitly convert real inquiries.</span>
         </div>
-        {manage && <div className="inquiry-header-actions"><button onClick={() => setShowRules((value) => !value)}>{showRules ? "Close rules" : "Assignment rules"}</button><button onClick={() => show()}>+ Capture inquiry</button></div>}
+        {manage && (
+          <div className="inquiry-header-actions">
+            <button onClick={() => setShowRules((value) => !value)}>
+              {showRules ? "Close rules" : "Assignment rules"}
+            </button>
+            <button onClick={() => show()}>+ Capture inquiry</button>
+          </div>
+        )}
       </header>
       {error && <div className="dashboard-notice error">{error}</div>}
       {showRules && <LeadAssignmentManager onChanged={load} />}
@@ -323,9 +431,58 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
               <div className="ticket-description">
                 <p>{chosen.message}</p>
               </div>
-              {manage && !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(chosen.status) && <LeadAssignmentControl key={`${chosen.id}:${chosen.assignedEmployeeId ?? "unassigned"}`} inquiryId={chosen.id} assignedEmployeeId={chosen.assignedEmployeeId} employees={employees as AssignmentEmployee[]} onChanged={load} />}
-              {manage && !["CONVERTED","DISQUALIFIED","SPAM"].includes(chosen.status) && <div className="lead-action-bar"><button onClick={() => void logContact()}>Log contact</button><button onClick={() => void scheduleFollowUp()}>{chosen.nextFollowUpAt && !chosen.followUpCompletedAt ? "Reschedule follow-up" : "Schedule follow-up"}</button></div>}
-              {chosen.nextFollowUpAt && <div className={`lead-follow-up ${!chosen.followUpCompletedAt && new Date(chosen.nextFollowUpAt) < new Date() ? "overdue" : ""}`}><div><strong>{chosen.followUpCompletedAt ? "Follow-up completed" : "Next follow-up"}</strong><p>{chosen.followUpNote}</p><small>{new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(chosen.nextFollowUpAt))}</small></div>{manage && !chosen.followUpCompletedAt && <button onClick={() => void completeFollowUp()}>Complete</button>}</div>}
+              {manage &&
+                !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(
+                  chosen.status,
+                ) && (
+                  <LeadAssignmentControl
+                    key={`${chosen.id}:${chosen.assignedEmployeeId ?? "unassigned"}`}
+                    inquiryId={chosen.id}
+                    assignedEmployeeId={chosen.assignedEmployeeId}
+                    employees={employees as AssignmentEmployee[]}
+                    onChanged={load}
+                  />
+                )}
+              {manage &&
+                !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(
+                  chosen.status,
+                ) && (
+                  <div className="lead-action-bar">
+                    <button onClick={() => void logContact()}>
+                      Log contact
+                    </button>
+                    <button onClick={() => void scheduleFollowUp()}>
+                      {chosen.nextFollowUpAt && !chosen.followUpCompletedAt
+                        ? "Reschedule follow-up"
+                        : "Schedule follow-up"}
+                    </button>
+                  </div>
+                )}
+              {chosen.nextFollowUpAt && (
+                <div
+                  className={`lead-follow-up ${!chosen.followUpCompletedAt && new Date(chosen.nextFollowUpAt) < new Date() ? "overdue" : ""}`}
+                >
+                  <div>
+                    <strong>
+                      {chosen.followUpCompletedAt
+                        ? "Follow-up completed"
+                        : "Next follow-up"}
+                    </strong>
+                    <p>{chosen.followUpNote}</p>
+                    <small>
+                      {new Intl.DateTimeFormat("en", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(new Date(chosen.nextFollowUpAt))}
+                    </small>
+                  </div>
+                  {manage && !chosen.followUpCompletedAt && (
+                    <button onClick={() => void completeFollowUp()}>
+                      Complete
+                    </button>
+                  )}
+                </div>
+              )}
               {canConvert && chosen.status === "QUALIFIED" && (
                 <div className="inquiry-convert">
                   <strong>Explicit conversion</strong>
@@ -505,11 +662,18 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
             {duplicate && (
               <section className="inquiry-duplicate-warning">
                 <strong>Possible duplicate inquiry</strong>
-                <p>{duplicate.contactName} already has an open “{duplicate.subject}” inquiry.</p>
+                <p>
+                  {duplicate.contactName} already has an open “
+                  {duplicate.subject}” inquiry.
+                </p>
                 <div>
                   <button onClick={openDuplicate}>Open existing</button>
-                  <button onClick={() => void mergeDuplicate()}>Attach this message</button>
-                  <button onClick={() => void save(true)}>Create separately</button>
+                  <button onClick={() => void mergeDuplicate()}>
+                    Attach this message
+                  </button>
+                  <button onClick={() => void save(true)}>
+                    Create separately
+                  </button>
                 </div>
               </section>
             )}
@@ -525,6 +689,107 @@ export function InquiryWorkspace({ onNavigate }: { onNavigate: (view: "crm" | "s
                 onClick={() => void save()}
               >
                 Save
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+      {dealConversionOpen && chosen && (
+        <div className="agent-modal">
+          <div className="agent-dialog">
+            <header>
+              <div>
+                <p>Qualified inquiry</p>
+                <h3>Convert to sales deal</h3>
+              </div>
+              <button onClick={() => setDealConversionOpen(false)}>×</button>
+            </header>
+            <div className="dashboard-notice">
+              The CRM customer will be linked or created automatically. Existing
+              inquiry follow-ups will stop after conversion.
+            </div>
+            <label>
+              <span>Deal name</span>
+              <input
+                value={dealConversion.name}
+                onChange={(event) =>
+                  setDealConversion({
+                    ...dealConversion,
+                    name: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <div className="agent-form-grid">
+              <label>
+                <span>Expected value</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={dealConversion.amount}
+                  onChange={(event) =>
+                    setDealConversion({
+                      ...dealConversion,
+                      amount: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <span>Currency</span>
+                <input
+                  maxLength={3}
+                  value={dealConversion.currency}
+                  onChange={(event) =>
+                    setDealConversion({
+                      ...dealConversion,
+                      currency: event.target.value.toUpperCase(),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <span>Probability %</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={dealConversion.probability}
+                  onChange={(event) =>
+                    setDealConversion({
+                      ...dealConversion,
+                      probability: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <span>Expected closing date</span>
+                <input
+                  type="date"
+                  value={dealConversion.expectedCloseDate}
+                  onChange={(event) =>
+                    setDealConversion({
+                      ...dealConversion,
+                      expectedCloseDate: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <footer>
+              <button onClick={() => setDealConversionOpen(false)}>
+                Cancel
+              </button>
+              <button
+                disabled={
+                  dealConversion.name.trim().length < 2 ||
+                  dealConversion.amount < 0 ||
+                  dealConversion.currency.length !== 3
+                }
+                onClick={() => void convertToDeal()}
+              >
+                Convert inquiry
               </button>
             </footer>
           </div>

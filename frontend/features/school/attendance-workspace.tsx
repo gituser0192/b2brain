@@ -27,6 +27,7 @@ type Data = {
   teacherRecords: { teacherId: string; status: TS }[];
   monthlyStudentSummary: unknown[];
 };
+type GuardianAlert = { id:string;channel:string;recipient:string;subject:string|null;body:string;status:string;createdAt:string;student:{studentNumber:string;firstName:string;lastName:string|null};guardian:{firstName:string;lastName:string|null;relationship:string} };
 export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
   const { authorizedRequest } = useAuth(),
     [date, setDate] = useState(new Date().toISOString().slice(0, 10)),
@@ -41,14 +42,17 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
     [sm, setSm] = useState<Record<string, SS>>({}),
     [tm, setTm] = useState<Record<string, TS>>({}),
     [filter, setFilter] = useState(""),
+    [visibleStudents, setVisibleStudents] = useState(5),
+    [visibleTeachers, setVisibleTeachers] = useState(5),
+    [guardianAlerts, setGuardianAlerts] = useState<GuardianAlert[]>([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [saving, setSaving] = useState(false);
   const load = useCallback(async () => {
     try {
-      const r = await authorizedRequest<{ data: Data }>(
+      const [r, alerts] = await Promise.all([authorizedRequest<{ data: Data }>(
         `/school/attendance?date=${date}`,
-      );
+      ), authorizedRequest<{data:GuardianAlert[]}>(`/school/guardian-alerts?date=${date}`)]);
       setData(r.data);
       setSm(
         Object.fromEntries(
@@ -60,6 +64,7 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
           r.data.teacherRecords.map((x) => [x.teacherId, x.status]),
         ),
       );
+      setGuardianAlerts(alerts.data);
       setError("");
     } catch (e) {
       setError(
@@ -97,10 +102,13 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
           setError("No students are available.");
           return;
         }
-        await authorizedRequest("/school/attendance/students", {
+        const response = await authorizedRequest<{data:{automation:{matched:boolean;duplicate?:boolean;approvalRequired?:boolean;draftCount?:number;reason?:string}|null}}>("/school/attendance/students", {
           method: "PUT",
           body: JSON.stringify({ date, records }),
         });
+        if(response.data.automation?.approvalRequired)setNotice(`Attendance saved. B² Brain prepared ${response.data.automation.draftCount??0} guardian alerts for approval.`);
+        else if(response.data.automation?.duplicate)setNotice("Attendance saved. Guardian alerts for this date are already in the approval workflow.");
+        else setNotice("Attendance saved.");
       } else {
         const records = data.teachers.map((x) => ({
           teacherId: x.id,
@@ -113,12 +121,16 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
           setError("No teachers are available.");
           return;
         }
-        await authorizedRequest("/school/attendance/teachers", {
+        const response = await authorizedRequest<{ data: { automation: { matched: boolean; duplicate?: boolean; approvalRequired?: boolean; proposedAssignments?: number; reason?: string } | null } }>("/school/attendance/teachers", {
           method: "PUT",
           body: JSON.stringify({ date, records }),
         });
+        if (response.data.automation?.approvalRequired)
+          setNotice(`Attendance saved. B² Brain prepared ${response.data.automation.proposedAssignments ?? 0} substitute assignments for approval.`);
+        else if (response.data.automation?.duplicate)
+          setNotice("Attendance saved. A substitute plan for this date is already awaiting review.");
+        else setNotice("Attendance saved.");
       }
-      setNotice("Attendance saved.");
       await load();
     } catch (e) {
       setError(
@@ -152,13 +164,19 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
       <div className="attendance-tabs">
         <button
           className={mode === "students" ? "active" : ""}
-          onClick={() => setMode("students")}
+          onClick={() => {
+            setMode("students");
+            setVisibleStudents(5);
+          }}
         >
           Students
         </button>
         <button
           className={mode === "teachers" ? "active" : ""}
-          onClick={() => setMode("teachers")}
+          onClick={() => {
+            setMode("teachers");
+            setVisibleTeachers(5);
+          }}
         >
           Teachers
         </button>
@@ -166,7 +184,13 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
       {mode === "students" ? (
         <>
           <div className="attendance-toolbar">
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <select
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setVisibleStudents(5);
+              }}
+            >
               <option value="">All classes</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -190,7 +214,7 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
             )}
           </div>
           <div className="attendance-list">
-            {students.map((x) => (
+            {students.slice(0, visibleStudents).map((x) => (
               <article key={x.id}>
                 <div>
                   <strong>
@@ -219,10 +243,29 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
               <div className="school-inline-empty">No active students.</div>
             )}
           </div>
+          {students.length > 5 && (
+            <div className="attendance-more">
+              {visibleStudents < students.length ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleStudents((count) => count + 5)
+                  }
+                >
+                  Show more ({students.length - visibleStudents} remaining)
+                </button>
+              ) : (
+                <button type="button" onClick={() => setVisibleStudents(5)}>
+                  Show less
+                </button>
+              )}
+            </div>
+          )}
         </>
       ) : (
+        <>
         <div className="attendance-list">
-          {data.teachers.map((x) => (
+          {data.teachers.slice(0, visibleTeachers).map((x) => (
             <article key={x.id}>
               <div>
                 <strong>
@@ -247,6 +290,23 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
             <div className="school-inline-empty">No active teachers.</div>
           )}
         </div>
+        {data.teachers.length > 5 && (
+          <div className="attendance-more">
+            {visibleTeachers < data.teachers.length ? (
+              <button
+                type="button"
+                onClick={() => setVisibleTeachers((count) => count + 5)}
+              >
+                Show more ({data.teachers.length - visibleTeachers} remaining)
+              </button>
+            ) : (
+              <button type="button" onClick={() => setVisibleTeachers(5)}>
+                Show less
+              </button>
+            )}
+          </div>
+        )}
+        </>
       )}
       {canManage && (
         <button
@@ -257,6 +317,7 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
           {saving ? "Saving…" : "Save attendance"}
         </button>
       )}
+      {mode==="students"&&guardianAlerts.length>0&&<section className="guardian-alert-history"><header><div><p>Guardian communication</p><h4>Absence alert history</h4></div><span>{guardianAlerts.length} drafts</span></header>{guardianAlerts.slice(0,5).map(item=><article key={item.id}><div><strong>{item.student.firstName} {item.student.lastName}</strong><small>{item.guardian.firstName} · {item.channel} · {item.recipient}</small><p>{item.body}</p></div><i className={item.status.toLowerCase()}>{item.status.replaceAll("_"," ")}</i></article>)}</section>}
     </section>
   );
 }

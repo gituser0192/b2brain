@@ -112,3 +112,19 @@ export const whatsappTemplateDraftSchema=z.object({connectorId:z.string().uuid()
 export const whatsappEscalationSchema=z.object({inquiryId:z.string().uuid(),reason:z.string().trim().min(3).max(1000)}).strict();
 export type WhatsappTemplateDraftInput=z.infer<typeof whatsappTemplateDraftSchema>;
 export type WhatsappEscalationInput=z.infer<typeof whatsappEscalationSchema>;
+export const collectionEmailDeliverySchema = z.object({
+  connectorId: z.string().uuid(),
+  approvalId: z.string().uuid(),
+}).strict();
+export type CollectionEmailDeliveryInput = z.infer<typeof collectionEmailDeliverySchema>;
+export const emailDeliveryPolicySchema = z.object({
+  mode: z.enum(["MANUAL", "SEND_AFTER_APPROVAL"]),
+  dailyContactLimit: z.number().int().min(1).max(1000),
+  quietHoursEnabled: z.boolean(),
+  quietHoursStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  quietHoursEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  timezone: z.string().trim().min(3).max(100),
+  maxAttempts: z.number().int().min(1).max(5),
+  emergencyPaused: z.boolean(),
+}).strict();
+export type EmailDeliveryPolicyInput = z.infer<typeof emailDeliveryPolicySchema>;

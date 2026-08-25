@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectorSchema, intakeSchema, whatsappEscalationSchema, whatsappTemplateDraftSchema } from "../src/modules/automation-bridge/bridge.validation.js";
+import { collectionEmailDeliverySchema, connectorSchema, emailDeliveryPolicySchema, intakeSchema, whatsappEscalationSchema, whatsappTemplateDraftSchema } from "../src/modules/automation-bridge/bridge.validation.js";
 
 describe("automation bridge validation", () => {
   it("rejects trusted tenant identifiers", () => expect(() => connectorSchema.parse({ name: "WhatsApp store", type: "WHATSAPP", provider: "Meta", externalAccountRef: "", status: "ACTIVE", mode: "MANUAL_APPROVAL", organizationId: crypto.randomUUID() })).toThrow());
@@ -11,4 +11,10 @@ describe("automation bridge validation", () => {
     expect(whatsappTemplateDraftSchema.parse({ connectorId, inquiryId, template: "FOLLOW_UP", customMessage: null })).toMatchObject({ template: "FOLLOW_UP" });
     expect(whatsappEscalationSchema.parse({ inquiryId, reason: "Customer requested a person" })).toMatchObject({ inquiryId });
   });
+  it("accepts only connector and approval identifiers for email delivery", () => {
+    const input = { connectorId: crypto.randomUUID(), approvalId: crypto.randomUUID() };
+    expect(collectionEmailDeliverySchema.parse(input)).toEqual(input);
+    expect(() => collectionEmailDeliverySchema.parse({ ...input, organizationId: crypto.randomUUID() })).toThrow();
+  });
+  it("validates approval-gated email policy limits", () => { expect(emailDeliveryPolicySchema.parse({ mode: "SEND_AFTER_APPROVAL", dailyContactLimit: 25, quietHoursEnabled: true, quietHoursStart: "20:00", quietHoursEnd: "08:00", timezone: "Asia/Kolkata", maxAttempts: 3, emergencyPaused: false }).mode).toBe("SEND_AFTER_APPROVAL"); });
 });

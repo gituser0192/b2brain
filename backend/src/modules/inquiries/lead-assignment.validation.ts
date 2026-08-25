@@ -14,6 +14,7 @@ export const leadAssignmentRuleSchema = z.object({
   responseTimeMinutes: z.number().int().min(5).max(43200),
   escalationAfterMinutes: z.number().int().min(5).max(43200).optional().nullable().default(null),
   escalationEmployeeId: optionalUuid,
+  followUpSequenceId: optionalUuid,
 }).strict().superRefine((value, context) => {
   if (value.strategy === "FIXED" && value.eligibleEmployeeIds.length !== 1) context.addIssue({ code: "custom", path: ["eligibleEmployeeIds"], message: "Fixed assignment requires exactly one employee." });
   if (value.escalationAfterMinutes && !value.escalationEmployeeId) context.addIssue({ code: "custom", path: ["escalationEmployeeId"], message: "Choose an escalation employee." });

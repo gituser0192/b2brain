@@ -4,15 +4,15 @@ import { env } from "../../config/env.js";
 interface Message { to: string; subject: string; text: string; html: string; }
 
 export class EmailService {
-  private configured() { return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD); }
+  configured() { return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD); }
   async send(message: Message) {
-    if (!this.configured()) return { delivered: false, preview: env.NODE_ENV === "development" };
+    if (!this.configured()) return { delivered: false, preview: env.NODE_ENV === "development", messageId: null, error: "SMTP is not configured." };
     const transport = nodemailer.createTransport({ host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_SECURE, auth: { user: env.SMTP_USER!, pass: env.SMTP_PASSWORD! } });
     try {
-      await transport.sendMail({ from: env.EMAIL_FROM, ...message });
-      return { delivered: true, preview: false };
-    } catch {
-      return { delivered: false, preview: false };
+      const result = await transport.sendMail({ from: env.EMAIL_FROM, ...message });
+      return { delivered: true, preview: false, messageId: result.messageId || null, error: null };
+    } catch (error) {
+      return { delivered: false, preview: false, messageId: null, error: error instanceof Error ? error.message : "Email delivery failed." };
     }
   }
   invitation(to: string, organizationName: string, path: string) {

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/services/api-client";
+import { queryKeys } from "@/services/query-keys";
 import { useAuth } from "@/features/auth/auth-context";
 import { CustomerEngagement } from "./customer-engagement";
 
@@ -20,12 +22,10 @@ const emptyForm = { type: "PERSON" as CustomerType, firstName: "", lastName: "",
 
 export function CustomerWorkspace() {
   const { session, authorizedRequest } = useAuth();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [total, setTotal] = useState(0);
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [archived, setArchived] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -33,8 +33,6 @@ export function CustomerWorkspace() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<"customers" | "followups">("customers");
-  const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
-  const [followUpMetrics, setFollowUpMetrics] = useState({ pending: 0, overdue: 0, dueToday: 0, completed: 0 });
   const [myFollowUps, setMyFollowUps] = useState(false);
   const canCreate = session?.membership.permissions.includes("CRM_CREATE") ?? false;
   const canUpdate = session?.membership.permissions.includes("CRM_UPDATE") ?? false;
@@ -42,30 +40,40 @@ export function CustomerWorkspace() {
   const canDelete = session?.membership.permissions.includes("CRM_DELETE") ?? false;
   const canViewEngagement = session?.membership.permissions.includes("CRM_ACTIVITY_VIEW") ?? false;
   const canManageFollowUps = session?.membership.permissions.includes("CRM_FOLLOWUP_MANAGE") ?? false;
+  const organizationId = session?.organization.id ?? "signed-out";
 
-  const loadFollowUps = useCallback(async () => {
-    if (!canViewEngagement) return;
-    setLoading(true); setError("");
-    try {
-      const response = await authorizedRequest<FollowUpResponse>(`/crm/follow-ups?assignedToMe=${myFollowUps}&limit=100`);
-      setFollowUps(response.data.items); setFollowUpMetrics(response.data.metrics);
-    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to load follow-ups."); }
-    finally { setLoading(false); }
-  }, [authorizedRequest, canViewEngagement, myFollowUps]);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
-    try {
+  const customerQuery = useQuery({
+    queryKey: queryKeys.customers(organizationId, { archived, query: query.trim(), status }),
+    queryFn: async () => {
       const params = new URLSearchParams({ archived: String(archived), pageSize: "50" });
       if (query.trim()) params.set("q", query.trim());
       if (status) params.set("status", status);
-      const response = await authorizedRequest<ListResponse>(`/customers?${params}`);
-      setCustomers(response.data.customers); setTotal(response.data.pagination.total);
-    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to load customers."); }
-    finally { setLoading(false); }
-  }, [authorizedRequest, archived, query, status]);
-  useEffect(() => { const task = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(task); }, [load]);
-  useEffect(() => { if (view !== "followups") return; const task = window.setTimeout(() => void loadFollowUps(), 0); return () => window.clearTimeout(task); }, [view, loadFollowUps]);
+      return (await authorizedRequest<ListResponse>(`/customers?${params}`)).data;
+    },
+    enabled: Boolean(session) && view === "customers",
+    placeholderData: keepPreviousData,
+  });
+  const followUpQuery = useQuery({
+    queryKey: queryKeys.followUps(organizationId, myFollowUps),
+    queryFn: async () =>
+      (await authorizedRequest<FollowUpResponse>(`/crm/follow-ups?assignedToMe=${myFollowUps}&limit=100`)).data,
+    enabled: Boolean(session) && canViewEngagement && view === "followups",
+  });
+  const customers = customerQuery.data?.customers ?? [];
+  const total = customerQuery.data?.pagination.total ?? 0;
+  const followUps = followUpQuery.data?.items ?? [];
+  const followUpMetrics = followUpQuery.data?.metrics ?? { pending: 0, overdue: 0, dueToday: 0, completed: 0 };
+  const loading = view === "customers" ? customerQuery.isLoading : followUpQuery.isLoading;
+  const queryError = customerQuery.error ?? followUpQuery.error;
+  const visibleError = error || (queryError instanceof ApiError ? queryError.message : queryError ? "Unable to load CRM data." : "");
+  async function refreshCrm() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.crm(organizationId) }),
+      queryClient.invalidateQueries({
+        queryKey: [...queryKeys.organization(organizationId), "dashboard"],
+      }),
+    ]);
+  }
 
   function openCreate() { setEditing(null); setForm(emptyForm); setEditorOpen(true); setError(""); }
   function openEdit(customer: Customer) {
@@ -77,7 +85,7 @@ export function CustomerWorkspace() {
     event.preventDefault(); setSaving(true); setError(""); setNotice("");
     try {
       await authorizedRequest(editing ? `/customers/${editing.id}` : "/customers", { method: editing ? "PUT" : "POST", body: JSON.stringify(form) });
-      setEditorOpen(false); setNotice(editing ? "Customer updated." : "Customer created."); await load();
+      setEditorOpen(false); setNotice(editing ? "Customer updated." : "Customer created."); await refreshCrm();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to save customer."); }
     finally { setSaving(false); }
   }
@@ -85,24 +93,24 @@ export function CustomerWorkspace() {
     setError(""); setNotice("");
     try {
       await authorizedRequest(customer.deletedAt ? `/customers/${customer.id}/restore` : `/customers/${customer.id}`, { method: customer.deletedAt ? "POST" : "DELETE" });
-      setEditorOpen(false); setNotice(customer.deletedAt ? "Customer restored." : "Customer archived."); await load();
+      setEditorOpen(false); setNotice(customer.deletedAt ? "Customer restored." : "Customer archived."); await refreshCrm();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update customer."); }
   }
   async function permanentlyDelete(customer: Customer) {
     if (!customer.deletedAt || !window.confirm(`Permanently delete ${customer.displayName}? This cannot be undone.`)) return;
     setError(""); setNotice("");
-    try { await authorizedRequest(`/customers/${customer.id}/permanent`, { method: "DELETE" }); setEditorOpen(false); setNotice("Customer permanently deleted."); await load(); }
+    try { await authorizedRequest(`/customers/${customer.id}/permanent`, { method: "DELETE" }); setEditorOpen(false); setNotice("Customer permanently deleted."); await refreshCrm(); }
     catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to permanently delete customer."); }
   }
   async function completeFollowUp(item: FollowUpItem) {
     setError(""); setNotice("");
-    try { await authorizedRequest(`/customers/${item.customer.id}/engagement/follow-ups/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: "COMPLETED" }) }); setNotice("Follow-up completed."); await loadFollowUps(); }
+    try { await authorizedRequest(`/customers/${item.customer.id}/engagement/follow-ups/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: "COMPLETED" }) }); setNotice("Follow-up completed."); await refreshCrm(); }
     catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to complete follow-up."); }
   }
 
   return <div className="crm-workspace">
     <div className="crm-heading"><div><p>CRM service</p><h2>{view === "customers" ? "Customers" : "Follow-up center"}</h2><span>{view === "customers" ? "Keep every customer relationship organized within this workspace." : "See what needs attention and keep every customer promise on track."}</span></div>{view === "customers" && canCreate && !archived && <button onClick={openCreate}>+ Add customer</button>}</div>
-    {notice && <div className="dashboard-notice success">{notice}</div>}{error && !editorOpen && <div className="dashboard-notice error">{error}</div>}
+    {notice && <div className="dashboard-notice success">{notice}</div>}{visibleError && !editorOpen && <div className="dashboard-notice error">{visibleError}</div>}
     <div className="crm-view-tabs"><button className={view === "customers" ? "active" : ""} onClick={() => setView("customers")}>Customers</button>{canViewEngagement && <button className={view === "followups" ? "active" : ""} onClick={() => setView("followups")}>Follow-ups</button>}</div>
     {view === "followups" && <>
       <section className="crm-followup-metrics"><article><span>Open</span><strong>{followUpMetrics.pending}</strong></article><article className="danger"><span>Overdue</span><strong>{followUpMetrics.overdue}</strong></article><article className="attention"><span>Due today</span><strong>{followUpMetrics.dueToday}</strong></article><article className="success"><span>Completed</span><strong>{followUpMetrics.completed}</strong></article></section>

@@ -44,7 +44,9 @@ export function TeacherDirectory({
     }),
     [mode, setMode] = useState<"subject" | "teacher" | "assign" | null>(null),
     [error, setError] = useState(""),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [visibleTeachers, setVisibleTeachers] = useState(5),
+    [visibleAssignments, setVisibleAssignments] = useState(5);
   const year0 =
       academicYears.find((y) => y.classes.some((c) => c.sections.length)) ??
       academicYears[0],
@@ -173,7 +175,7 @@ export function TeacherDirectory({
         <div className="teaching-grid">
           <div>
             <h4>Teachers</h4>
-            {data.teachers.map((t) => (
+            {data.teachers.slice(0, visibleTeachers).map((t) => (
               <article key={t.id}>
                 <strong>
                   {t.firstName} {t.lastName}
@@ -187,13 +189,29 @@ export function TeacherDirectory({
                 </span>
               </article>
             ))}
+            {data.teachers.length > 5 && (
+              <div className="teaching-more">
+                {visibleTeachers < data.teachers.length ? (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleTeachers((count) => count + 5)}
+                  >
+                    Show more ({data.teachers.length - visibleTeachers} remaining)
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => setVisibleTeachers(5)}>
+                    Show less
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <h4>Assignments</h4>
             {!data.teacherAssignments.length ? (
               <p>No teaching assignments.</p>
             ) : (
-              data.teacherAssignments.map((a) => (
+              data.teacherAssignments.slice(0, visibleAssignments).map((a) => (
                 <article key={a.id}>
                   <strong>
                     {a.teacher.firstName} {a.teacher.lastName}
@@ -206,6 +224,27 @@ export function TeacherDirectory({
                   </span>
                 </article>
               ))
+            )}
+            {data.teacherAssignments.length > 5 && (
+              <div className="teaching-more">
+                {visibleAssignments < data.teacherAssignments.length ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleAssignments((count) => count + 5)
+                    }
+                  >
+                    Show more ({data.teacherAssignments.length - visibleAssignments} remaining)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleAssignments(5)}
+                  >
+                    Show less
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -14,6 +14,7 @@ interface Invoice {
   daysOverdue: number;
   customer: { id: string; displayName: string };
   payments: { amount: string }[];
+  collectionFollowUps: { id: string; title: string; description: string | null; dueAt: string; status: string; assignedTo: { id: string; firstName: string; lastName: string | null } }[];
 }
 interface Expense {
   id: string;
@@ -100,6 +101,7 @@ export function FinanceWorkspace() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [expandedFollowUpId, setExpandedFollowUpId] = useState<string | null>(null);
   const canManage =
     session?.membership.permissions.includes("FINANCE_MANAGE") ?? false;
   const load = useCallback(async () => {
@@ -147,6 +149,16 @@ export function FinanceWorkspace() {
       paidAt: new Date().toISOString().slice(0, 10),
     });
     setMode("payment");
+  }
+  async function ensureCollectionFollowUp(item: Invoice) {
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const response = await authorizedRequest<{ success: true; data: { id: string; reused?: boolean } }>(`/finance/invoices/${item.id}/collection-follow-up`, { method: "POST" });
+      setExpandedFollowUpId(response.data.id);
+      setNotice(response.data.reused ? "Existing collection follow-up opened." : "Collection follow-up created in CRM.");
+      await load();
+    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to prepare the collection follow-up."); }
+    finally { setSaving(false); }
   }
   return (
     <div className="finance-workspace">
@@ -235,22 +247,10 @@ export function FinanceWorkspace() {
                       <button onClick={() => openPayment(item)}>
                         Record payment
                       </button>
-                      <button
-                        onClick={() =>
-                          void action(
-                            () =>
-                              authorizedRequest(
-                                `/finance/invoices/${item.id}/collection-follow-up`,
-                                { method: "POST" },
-                              ).then(() => undefined),
-                            "Collection follow-up created in CRM.",
-                          )
-                        }
-                      >
-                        Create follow-up
-                      </button>
+                      {item.collectionFollowUps[0] ? <button onClick={() => setExpandedFollowUpId(expandedFollowUpId === item.collectionFollowUps[0]!.id ? null : item.collectionFollowUps[0]!.id)}>View existing follow-up</button> : <button disabled={saving} onClick={() => void ensureCollectionFollowUp(item)}>Create follow-up</button>}
                     </div>
                   )}
+                {item.collectionFollowUps[0] && expandedFollowUpId === item.collectionFollowUps[0].id && <div className="invoice-follow-up-detail"><strong>{item.collectionFollowUps[0].title}</strong><span>{item.collectionFollowUps[0].status} · Due {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.collectionFollowUps[0].dueAt))}</span><span>Assigned to {item.collectionFollowUps[0].assignedTo.firstName} {item.collectionFollowUps[0].assignedTo.lastName ?? ""}</span>{item.collectionFollowUps[0].description && <p>{item.collectionFollowUps[0].description}</p>}</div>}
               </article>
             ))
           )}

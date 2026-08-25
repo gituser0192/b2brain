@@ -13,11 +13,13 @@ import {
   incomingPaymentSchema,
   paymentAccountSchema,
   reconcileSchema,
+  ignoreIncomingPaymentSchema,
   refundCompletionSchema,
   refundSchema,
   type IncomingPaymentInput,
   type PaymentAccountInput,
   type ReconcileInput,
+  type IgnoreIncomingPaymentInput,
   type RefundCompletionInput,
   type RefundInput,
 } from "./payment-collection.validation.js";
@@ -118,6 +120,10 @@ paymentCollectionRouter.post(
       );
   },
 );
+paymentCollectionRouter.post("/incoming/:id/ignore", requirePermission("FINANCE_MANAGE"), validateBody(ignoreIncomingPaymentSchema), async (request, response) => {
+  const context = auth(request);
+  response.json(success(await service.ignoreIncoming(context.organizationId, context.userId, String(request.params.id), request.body as IgnoreIncomingPaymentInput), "Incoming transaction ignored."));
+});
 paymentCollectionRouter.post(
   "/payments/:id/refunds",
   requirePermission("FINANCE_MANAGE"),

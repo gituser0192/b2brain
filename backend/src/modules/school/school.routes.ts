@@ -292,6 +292,29 @@ schoolRouter.put(
   },
 );
 schoolRouter.get(
+  "/guardian-alerts",
+  requirePermission("SCHOOL_VIEW"),
+  async (request, response) => {
+    const context = auth(request),
+      date = typeof request.query.date === "string" ? request.query.date : undefined;
+    if (date) schoolAttendanceQuerySchema.parse({ date });
+    response.json(success(await service.guardianAlerts(context.organizationId, date)));
+  },
+);
+schoolRouter.get(
+  "/timetable/daily",
+  requirePermission("SCHOOL_VIEW"),
+  async (request, response) => {
+    const context = auth(request),
+      query = schoolAttendanceQuerySchema.parse(request.query);
+    response.json(
+      success(
+        await service.dailyTimetable(context.organizationId, query.date),
+      ),
+    );
+  },
+);
+schoolRouter.get(
   "/timetable",
   requirePermission("SCHOOL_VIEW"),
   async (request, response) => {

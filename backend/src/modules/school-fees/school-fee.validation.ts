@@ -1,0 +1,7 @@
+import { z } from "zod";
+const nullable = (max:number)=>z.string().trim().max(max).optional().nullable().or(z.literal("")).transform(value=>value||null);
+export const feeStructureSchema=z.object({academicYearId:z.string().uuid(),classId:z.string().uuid().optional().nullable(),name:z.string().trim().min(2).max(120),frequency:z.enum(["MONTHLY","QUARTERLY","ANNUAL","ONE_TIME"]),amount:z.number().positive().max(10000000),dueDay:z.number().int().min(1).max(28),startsOn:z.string().date(),endsOn:z.string().date(),isActive:z.boolean()}).strict().refine(value=>value.endsOn>=value.startsOn,{path:["endsOn"],message:"End date must be on or after start date."});
+export const generateChargesSchema=z.object({feeStructureId:z.string().uuid(),billingPeriod:z.string().trim().regex(/^\d{4}-(0[1-9]|1[0-2])$/),dueDate:z.string().date(),discountAmount:z.number().min(0).max(10000000).default(0)}).strict();
+export const feePaymentSchema=z.object({studentId:z.string().uuid(),chargeId:z.string().uuid(),amount:z.number().positive().max(10000000),method:z.enum(["CASH","BANK_TRANSFER","CARD","UPI","CHEQUE","OTHER"]),paidAt:z.string().datetime(),reference:nullable(160),notes:nullable(500)}).strict();
+export const reminderBatchSchema=z.object({channel:z.enum(["WHATSAPP","EMAIL"]).default("WHATSAPP")}).strict();
+export type FeeStructureInput=z.infer<typeof feeStructureSchema>;export type GenerateChargesInput=z.infer<typeof generateChargesSchema>;export type FeePaymentInput=z.infer<typeof feePaymentSchema>;export type ReminderBatchInput=z.infer<typeof reminderBatchSchema>;

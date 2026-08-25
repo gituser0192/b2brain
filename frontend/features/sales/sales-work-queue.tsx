@@ -4,11 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 
-type WorkView = "inquiries" | "crm" | "sales" | "calendar";
+type WorkView = "inquiries" | "crm" | "automation" | "sales" | "calendar";
 interface WorkItem {
   id: string;
   sourceId: string;
-  type: "INQUIRY" | "CRM_FOLLOW_UP" | "DEAL" | "APPOINTMENT";
+  type:
+    | "INQUIRY"
+    | "CRM_FOLLOW_UP"
+    | "AUTOMATED_FOLLOW_UP"
+    | "PIPELINE_ALERT"
+    | "DEAL"
+    | "APPOINTMENT";
   title: string;
   contact: string;
   detail: string | null;
@@ -19,6 +25,8 @@ interface WorkItem {
   currency: string | null;
   view: WorkView;
   canComplete: boolean;
+  email: string | null;
+  phone: string | null;
 }
 interface QueueResponse {
   success: true;
@@ -31,6 +39,11 @@ interface QueueResponse {
       unassigned: number;
       forecastAtRisk: number;
     };
+    scope: {
+      requested: "MINE" | "TEAM";
+      effective: "MINE" | "TEAM";
+      canViewTeam: boolean;
+    };
   };
 }
 
@@ -39,8 +52,13 @@ export function SalesWorkQueue({
 }: {
   onNavigate: (view: WorkView) => void;
 }) {
-  const { authorizedRequest } = useAuth();
-  const [scope, setScope] = useState<"MINE" | "TEAM">("TEAM");
+  const { session, authorizedRequest } = useAuth();
+  const canViewTeam = session?.membership.role.code === "ORGANIZATION_OWNER";
+  const canManageDeals =
+    session?.membership.permissions.includes("DEAL_MANAGE") ?? false;
+  const [scope, setScope] = useState<"MINE" | "TEAM">(
+    canViewTeam ? "TEAM" : "MINE",
+  );
   const [type, setType] = useState<"ALL" | WorkItem["type"]>("ALL");
   const [items, setItems] = useState<WorkItem[]>([]);
   const [metrics, setMetrics] = useState({
@@ -84,7 +102,9 @@ export function SalesWorkQueue({
       const path =
         item.type === "CRM_FOLLOW_UP"
           ? `/sales-work-queue/crm-follow-ups/${item.sourceId}/complete`
-          : `/sales-work-queue/inquiries/${item.sourceId}/follow-up/complete`;
+          : item.type === "AUTOMATED_FOLLOW_UP"
+            ? `/sales-work-queue/automated-follow-ups/${item.sourceId}/complete`
+            : `/sales-work-queue/inquiries/${item.sourceId}/follow-up/complete`;
       await authorizedRequest(path, { method: "PATCH" });
       await load();
     } catch (reason) {
@@ -92,6 +112,34 @@ export function SalesWorkQueue({
         reason instanceof ApiError
           ? reason.message
           : "Unable to complete this work item.",
+      );
+    }
+  }
+  async function decideAlert(
+    item: WorkItem,
+    decision: "EXECUTE" | "DISMISS" | "SNOOZE",
+  ) {
+    try {
+      const body =
+        decision === "SNOOZE"
+          ? {
+              decision,
+              note: "Snoozed from sales work queue.",
+              snoozedUntil: new Date(Date.now() + 86_400_000).toISOString(),
+            }
+          : decision === "DISMISS"
+            ? { decision, note: "Resolved from sales work queue." }
+            : { decision, note: "Next action created from sales work queue." };
+      await authorizedRequest(
+        `/sales-work-queue/pipeline-alerts/${item.sourceId}/decision`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to update the pipeline alert.",
       );
     }
   }
@@ -131,12 +179,14 @@ export function SalesWorkQueue({
           >
             My work
           </button>
-          <button
-            className={scope === "TEAM" ? "active" : ""}
-            onClick={() => setScope("TEAM")}
-          >
-            Team
-          </button>
+          {canViewTeam && (
+            <button
+              className={scope === "TEAM" ? "active" : ""}
+              onClick={() => setScope("TEAM")}
+            >
+              Team
+            </button>
+          )}
         </div>
       </header>
       {error && <div className="dashboard-notice error">{error}</div>}
@@ -164,7 +214,15 @@ export function SalesWorkQueue({
       </div>
       <div className="sales-queue-filters">
         {(
-          ["ALL", "INQUIRY", "CRM_FOLLOW_UP", "DEAL", "APPOINTMENT"] as const
+          [
+            "ALL",
+            "PIPELINE_ALERT",
+            "INQUIRY",
+            "CRM_FOLLOW_UP",
+            "AUTOMATED_FOLLOW_UP",
+            "DEAL",
+            "APPOINTMENT",
+          ] as const
         ).map((filter) => (
           <button
             key={filter}
@@ -223,7 +281,31 @@ export function SalesWorkQueue({
                   )}
                 </div>
                 <div className="queue-actions">
+                  {item.phone && <a href={`tel:${item.phone}`}>Call</a>}
+                  {item.email && <a href={`mailto:${item.email}`}>Email</a>}
+                  {item.phone && (
+                    <a
+                      href={`https://wa.me/${item.phone.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WhatsApp
+                    </a>
+                  )}
                   <button onClick={() => onNavigate(item.view)}>Open</button>
+                  {item.type === "PIPELINE_ALERT" && canManageDeals && (
+                    <>
+                      <button onClick={() => void decideAlert(item, "EXECUTE")}>
+                        Create next action
+                      </button>
+                      <button onClick={() => void decideAlert(item, "SNOOZE")}>
+                        Snooze 1 day
+                      </button>
+                      <button onClick={() => void decideAlert(item, "DISMISS")}>
+                        Resolve
+                      </button>
+                    </>
+                  )}
                   {item.canComplete && (
                     <button
                       className="complete"

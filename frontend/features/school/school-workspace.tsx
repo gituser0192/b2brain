@@ -8,6 +8,7 @@ import { TeacherDirectory } from "./teacher-directory";
 import { AttendanceWorkspace } from "./attendance-workspace";
 import { TimetableWorkspace } from "./timetable-workspace";
 import { SchoolImportCentre } from "./school-import-centre";
+import { FeeWorkspace } from "./fee-workspace";
 
 type Section = {
   id: string;
@@ -211,6 +212,9 @@ export function SchoolWorkspace() {
       )}
       {!!data.academicYears.length && (
         <TimetableWorkspace canManage={canManage} />
+      )}
+      {!!data.academicYears.length && (
+        <FeeWorkspace academicYears={data.academicYears} canManage={canManage} />
       )}
       {!data.academicYears.length ? (
         <section className="project-empty">

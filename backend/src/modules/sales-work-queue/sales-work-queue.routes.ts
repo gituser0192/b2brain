@@ -7,10 +7,17 @@ import {
 } from "../../middleware/auth.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { success } from "../../shared/responses/api-response.js";
+import { validateBody } from "../../middleware/validate.js";
+import {
+  recommendationDecisionSchema,
+  type RecommendationDecisionInput,
+} from "../action-centre/action-centre.validation.js";
+import { ActionCentreService } from "../action-centre/action-centre.service.js";
 import { SalesWorkQueueService } from "./sales-work-queue.service.js";
 import { salesQueueQuerySchema } from "./sales-work-queue.validation.js";
 
 const service = new SalesWorkQueueService();
+const actionCentre = new ActionCentreService();
 const id = (value: string | string[] | undefined) => {
   if (typeof value !== "string")
     throw new AppError(
@@ -26,6 +33,27 @@ salesWorkQueueRouter.use(
   requireActiveContext,
   requireEnabledService("SALES"),
 );
+salesWorkQueueRouter.post(
+  "/pipeline-alerts/:id/decision",
+  requirePermission("DEAL_MANAGE"),
+  validateBody(recommendationDecisionSchema),
+  async (request, response) => {
+    if (!request.auth)
+      throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
+    response.json(
+      success(
+        await actionCentre.decide(
+          request.auth.organizationId,
+          request.auth.userId,
+          request.auth.permissions,
+          id(request.params.id),
+          request.body as RecommendationDecisionInput,
+        ),
+        "Pipeline alert updated.",
+      ),
+    );
+  },
+);
 salesWorkQueueRouter.get(
   "/",
   requirePermission("DEAL_VIEW"),
@@ -37,11 +65,27 @@ salesWorkQueueRouter.get(
         await service.list(
           request.auth.organizationId,
           request.auth.userId,
+          request.auth.roleCode,
           request.auth.permissions,
           salesQueueQuerySchema.parse(request.query),
         ),
       ),
     );
+  },
+);
+salesWorkQueueRouter.patch(
+  "/automated-follow-ups/:id/complete",
+  requireEnabledService("AUTOMATION"),
+  requirePermission("AUTOMATION_MANAGE"),
+  async (request, response) => {
+    if (!request.auth)
+      throw new AppError(401, "Authentication is required.", "UNAUTHENTICATED");
+    await service.completeAutomatedFollowUp(
+      request.auth.organizationId,
+      request.auth.userId,
+      id(request.params.id),
+    );
+    response.json(success({}, "Automated follow-up completed."));
   },
 );
 salesWorkQueueRouter.get(
