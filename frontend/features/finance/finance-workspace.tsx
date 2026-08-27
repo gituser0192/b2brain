@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { PaymentCollectionManager } from "./payment-collection-manager";
+import { FinanceLedger } from "./finance-ledger";
 interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -22,6 +23,9 @@ interface Expense {
   category: string;
   amount: string;
   expenseDate: string;
+  vendor: string | null;
+  notes: string | null;
+  status: "RECORDED" | "VOIDED";
 }
 interface FinanceResponse {
   success: true;
@@ -92,6 +96,7 @@ export function FinanceWorkspace() {
   const [selected, setSelected] = useState<Invoice | null>(null);
   const [invoice, setInvoice] = useState(blankInvoice);
   const [expense, setExpense] = useState(blankExpense);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [payment, setPayment] = useState({
     amount: 0,
     method: "BANK_TRANSFER",
@@ -184,6 +189,7 @@ export function FinanceWorkspace() {
             <button
               onClick={() => {
                 setExpense(blankExpense);
+                setEditingExpenseId(null);
                 setMode("expense");
               }}
             >
@@ -205,6 +211,7 @@ export function FinanceWorkspace() {
           </article>
         ))}
       </section>
+      <FinanceLedger />
       <PaymentCollectionManager />
       <div className="finance-columns">
         <section>
@@ -270,6 +277,7 @@ export function FinanceWorkspace() {
                   <small>{item.category}</small>
                 </div>
                 <strong>{money(Number(item.amount))}</strong>
+                {canManage && <div className="invoice-actions"><button onClick={() => { setEditingExpenseId(item.id); setExpense({ title: item.title, category: item.category, vendor: item.vendor ?? "", amount: Number(item.amount), expenseDate: item.expenseDate.slice(0,10), notes: item.notes ?? "" }); setMode("expense"); }}>Edit</button><button onClick={() => void action(() => authorizedRequest(`/finance/expenses/${item.id}`, { method: "DELETE" }).then(() => undefined), "Expense archived.")}>Archive</button></div>}
               </article>
             ))
           )}
@@ -495,8 +503,8 @@ export function FinanceWorkspace() {
                     onClick={() =>
                       void action(
                         () =>
-                          authorizedRequest("/finance/expenses", {
-                            method: "POST",
+                          authorizedRequest(editingExpenseId ? `/finance/expenses/${editingExpenseId}` : "/finance/expenses", {
+                            method: editingExpenseId ? "PUT" : "POST",
                             body: JSON.stringify({
                               ...expense,
                               projectId: null,
@@ -507,11 +515,11 @@ export function FinanceWorkspace() {
                               ).toISOString(),
                             }),
                           }).then(() => undefined),
-                        "Expense recorded.",
+                        editingExpenseId ? "Expense updated." : "Expense recorded.",
                       )
                     }
                   >
-                    {saving ? "Saving..." : "Record expense"}
+                    {saving ? "Saving..." : editingExpenseId ? "Update expense" : "Record expense"}
                   </button>
                 </footer>
               </>

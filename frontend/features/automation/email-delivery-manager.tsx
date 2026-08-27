@@ -22,6 +22,8 @@ export function EmailDeliveryManager() {
     setData(response.data);
     setConnectorId((current) => current || response.data.connectors.find((item) => item.status === "ACTIVE")?.id || "");
   }, [authorizedRequest]);
+  // Keep the editable policy synchronized when the selected connector changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { const connector = data.connectors.find((item) => item.id === connectorId); if (connector) setPolicy(connector.policy); }, [connectorId, data.connectors]);
   useEffect(() => { const timer = setTimeout(() => void load().catch(() => setError("Unable to load email delivery.")), 0); return () => clearTimeout(timer); }, [load]);
   async function send(approvalId: string) {

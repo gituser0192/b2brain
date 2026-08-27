@@ -39,7 +39,7 @@ type Draft = {
   status: string;
   failureMessage: string | null;
   createdAt: string;
-  connector: { name: string };
+  connector: { name: string; provider: string };
 };
 type Payload = {
   success: true;
@@ -77,7 +77,7 @@ export function BridgeManager() {
     [connector, setConnector] = useState(connectorBlank),
     [event, setEvent] = useState(eventBlank),
     [selected, setSelected] = useState(""),
-    [open, setOpen] = useState<"connector" | "event" | "credentials" | "website-form" | null>(
+    [open, setOpen] = useState<"connector" | "event" | "credentials" | "website-form" | "whatsapp-simulator" | null>(
       null,
     ),
     [error, setError] = useState(""),
@@ -96,7 +96,9 @@ export function BridgeManager() {
       accentColor: "#087ce3",
       askService: true,
       serviceLabel: "Service required",
-    });
+    }),
+    [simulatorMessage, setSimulatorMessage] = useState({ externalMessageId: "", from: "", contactName: "", message: "" }),
+    [simulatorResult, setSimulatorResult] = useState("");
   const load = useCallback(async () => {
     const [r, d] = await Promise.all([
       authorizedRequest<Payload>("/automation-bridge"),
@@ -194,6 +196,20 @@ export function BridgeManager() {
       setError(e instanceof ApiError ? e.message : "Unable to configure website form.");
     }
   }
+  async function simulateWhatsapp() {
+    try {
+      setError("");
+      const response = await authorizedRequest<{ success: true; data: { duplicate: boolean; classification?: string; customerCreated?: boolean; humanTakeover?: boolean } }>("/automation-bridge/whatsapp-simulator/messages", {
+        method: "POST",
+        body: JSON.stringify({ ...simulatorMessage, connectorId: selected }),
+      });
+      setSimulatorResult(response.data.duplicate ? "Duplicate safely ignored." : `${response.data.classification?.replaceAll("_", " ")} processed. ${response.data.customerCreated ? "A CRM lead was created." : "The existing CRM customer was updated."}`);
+      setSimulatorMessage({ externalMessageId: crypto.randomUUID(), from: simulatorMessage.from, contactName: simulatorMessage.contactName, message: "" });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Unable to simulate WhatsApp intake.");
+    }
+  }
   async function createReply(item: Event) {
     const connector = connectors.find((c) => c.name === item.connector.name),
       body = prompt("Reply text");
@@ -279,6 +295,19 @@ export function BridgeManager() {
             }}
           >
             Receive test event
+          </button>
+          <button
+            disabled={!connectors.some((c) => c.type === "WHATSAPP" && c.status === "ACTIVE" && c.provider.toUpperCase() === "B2BRAIN_SIMULATOR")}
+            onClick={() => {
+              const first = connectors.find((c) => c.type === "WHATSAPP" && c.status === "ACTIVE" && c.provider.toUpperCase() === "B2BRAIN_SIMULATOR");
+              if (first) setSelected(first.id);
+              setError("");
+              setSimulatorMessage({ externalMessageId: crypto.randomUUID(), from: "", contactName: "", message: "" });
+              setSimulatorResult("");
+              setOpen("whatsapp-simulator");
+            }}
+          >
+            Simulate WhatsApp
           </button>
         </div>
       </header>
@@ -408,9 +437,9 @@ export function BridgeManager() {
               <p>{d.body}</p>
               {d.failureMessage && <small>{d.failureMessage}</small>}
               {d.status === "PENDING_APPROVAL" && (
-                <button onClick={() => void sendDraft(d.id)}>
-                  Approve & send
-                </button>
+                d.connector.provider.toUpperCase() === "B2BRAIN_SIMULATOR"
+                  ? <small>Simulator preview only — external sending is disabled.</small>
+                  : <button onClick={() => void sendDraft(d.id)}>Approve & send</button>
               )}
             </article>
           ))
@@ -424,6 +453,8 @@ export function BridgeManager() {
               <h3>
                 {open === "credentials"
                   ? "Configure WhatsApp"
+                  : open === "whatsapp-simulator"
+                    ? "WhatsApp CRM Intake Simulator"
                   : open === "website-form"
                     ? "Configure website lead form"
                   : open === "connector"
@@ -432,7 +463,20 @@ export function BridgeManager() {
               </h3>
               <button onClick={() => setOpen(null)}>×</button>
             </header>
-            {open === "website-form" ? (
+            {open === "whatsapp-simulator" ? (
+              <>
+                <div className="inventory-control-note">This simulator creates real organization-scoped CRM records and approval drafts, but it never contacts Meta or sends a message.</div>
+                {simulatorResult && <div className="bridge-secret"><strong>{simulatorResult}</strong></div>}
+                <div className="agent-form-grid">
+                  <label><span>Simulator connector</span><select value={selected} onChange={(e) => setSelected(e.target.value)}>{connectors.filter((c) => c.type === "WHATSAPP" && c.provider.toUpperCase() === "B2BRAIN_SIMULATOR").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+                  <label><span>External WhatsApp message ID</span><input value={simulatorMessage.externalMessageId} onChange={(e) => setSimulatorMessage({ ...simulatorMessage, externalMessageId: e.target.value })} /></label>
+                  <label><span>Customer name</span><input value={simulatorMessage.contactName} onChange={(e) => setSimulatorMessage({ ...simulatorMessage, contactName: e.target.value })} /></label>
+                  <label><span>WhatsApp phone</span><input placeholder="919876543210" value={simulatorMessage.from} onChange={(e) => setSimulatorMessage({ ...simulatorMessage, from: e.target.value })} /></label>
+                </div>
+                <label><span>Incoming customer message</span><textarea rows={4} maxLength={4096} value={simulatorMessage.message} onChange={(e) => setSimulatorMessage({ ...simulatorMessage, message: e.target.value })} /></label>
+                <footer><button onClick={() => setOpen(null)}>Close</button><button onClick={() => void simulateWhatsapp()}>Process message</button></footer>
+              </>
+            ) : open === "website-form" ? (
               <>
                 <div className="agent-form-grid">
                   <label><span>Form title</span><input value={websiteForm.title} onChange={(e) => setWebsiteForm({ ...websiteForm, title: e.target.value })} /></label>

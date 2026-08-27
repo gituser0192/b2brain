@@ -22,7 +22,7 @@ export class AutomationPolicyService {
   }
 
   async save(organizationId: string, actorUserId: string, id: string | null, input: AutomationPolicyInput) {
-    if (input.executionMode === "AUTOMATIC" && !["ROUTE_INQUIRY", "GENERATE_SCHOOL_COVERAGE_PLAN", "PREPARE_GUARDIAN_ABSENCE_ALERTS", "PREPARE_FEE_REMINDERS", "CREATE_INTERNAL_TASK"].includes(input.actionCode))
+    if (input.executionMode === "AUTOMATIC" && !["ROUTE_INQUIRY", "GENERATE_SCHOOL_COVERAGE_PLAN", "PREPARE_GUARDIAN_ABSENCE_ALERTS", "PREPARE_FEE_REMINDERS", "CREATE_INTERNAL_TASK", "CREATE_LEAD_TO_CASH_PIPELINE"].includes(input.actionCode))
       throw new AppError(400, "This action cannot run automatically. Use assisted or approval-required mode.", "UNSAFE_AUTOMATIC_ACTION");
     const data = { ...input, conditions: input.conditions as Prisma.InputJsonValue, actionConfig: input.actionConfig as Prisma.InputJsonValue, updatedById: actorUserId };
     if (!id) return prisma.automationPolicy.create({ data: { ...data, organizationId, createdById: actorUserId }, include: policyInclude });

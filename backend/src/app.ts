@@ -23,8 +23,12 @@ function safeRequestLog(value: unknown) {
 export const app = express();
 
 app.disable("x-powered-by");
+if (env.TRUST_PROXY) app.set("trust proxy", 1);
 app.use(helmet());
-app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+app.use(cors({
+  origin(origin, callback) { callback(null, !origin || origin === env.FRONTEND_URL); },
+  credentials: true,
+}));
 app.use(pinoHttp({
   logger,
   serializers: {

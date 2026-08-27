@@ -41,13 +41,18 @@ import { serviceRequestRouter } from "./modules/service-requests/service-request
 import { schoolRouter } from "./modules/school/school.routes.js";
 import { automationPolicyRouter } from "./modules/automation-policies/automation-policy.routes.js";
 import { schoolFeeRouter } from "./modules/school-fees/school-fee.routes.js";
+import { salesIntelligenceRouter } from "./modules/sales-intelligence/sales-intelligence.routes.js";
+import { settingsRouter } from "./modules/settings/settings.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
 
-apiRouter.get("/health", async (_request, response) => {
+apiRouter.get("/health", (_request, response) => {
+  response.status(200).json(success({ status: "healthy" }));
+});
+apiRouter.get("/ready", async (_request, response) => {
   await prisma.$queryRaw`SELECT 1`;
-  response.status(200).json(success({ server: "healthy", database: "connected" }));
+  response.status(200).json(success({ status: "ready" }));
 });
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/organizations", organizationRouter);
@@ -95,3 +100,5 @@ apiRouter.use("/managed-services", managedServiceDeskRouter);
 apiRouter.use("/service-requests", serviceRequestRouter);
 apiRouter.use("/school", schoolRouter);
 apiRouter.use("/school-fees", schoolFeeRouter);
+apiRouter.use("/sales-intelligence", salesIntelligenceRouter);
+apiRouter.use("/settings", settingsRouter);

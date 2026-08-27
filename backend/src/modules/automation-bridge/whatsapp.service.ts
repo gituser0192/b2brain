@@ -197,7 +197,7 @@ export class WhatsappService {
     return prisma.automationMessageDraft.findMany({
       where: { organizationId: org },
       include: {
-        connector: { select: { name: true, type: true } },
+        connector: { select: { name: true, type: true, provider: true } },
         event: { select: { eventName: true, traceId: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -318,6 +318,8 @@ export class WhatsappService {
         "DRAFT_NOT_FOUND",
       );
     const c = draft.connector;
+    if (draft.sourceType === "WHATSAPP_SIMULATOR" || draft.providerStatus === "SIMULATED_NOT_SENDABLE" || c.provider.toUpperCase() === "B2BRAIN_SIMULATOR")
+      throw new AppError(409, "Simulator drafts cannot be sent to an external provider.", "SIMULATOR_SEND_FORBIDDEN");
     if (!c.accessTokenEncrypted || !c.whatsappPhoneNumberId)
       throw new AppError(
         409,

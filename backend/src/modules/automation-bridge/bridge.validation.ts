@@ -112,6 +112,21 @@ export const whatsappTemplateDraftSchema=z.object({connectorId:z.string().uuid()
 export const whatsappEscalationSchema=z.object({inquiryId:z.string().uuid(),reason:z.string().trim().min(3).max(1000)}).strict();
 export type WhatsappTemplateDraftInput=z.infer<typeof whatsappTemplateDraftSchema>;
 export type WhatsappEscalationInput=z.infer<typeof whatsappEscalationSchema>;
+export const whatsappSimulatorSchema = z.object({
+  connectorId: z.string().uuid(),
+  externalMessageId: z.string().trim().min(3).max(240),
+  from: z.string().trim().regex(/^\+?[1-9]\d{6,14}$/),
+  contactName: z.string().trim().min(1).max(160),
+  message: z.string().trim().min(1).max(4096),
+  receivedAt: z.string().datetime().optional(),
+}).strict();
+export const whatsappTakeoverSchema = z.object({
+  inquiryId: z.string().uuid(),
+  enabled: z.boolean(),
+  reason: z.string().trim().min(3).max(500),
+}).strict();
+export type WhatsappSimulatorInput = z.infer<typeof whatsappSimulatorSchema>;
+export type WhatsappTakeoverInput = z.infer<typeof whatsappTakeoverSchema>;
 export const collectionEmailDeliverySchema = z.object({
   connectorId: z.string().uuid(),
   approvalId: z.string().uuid(),

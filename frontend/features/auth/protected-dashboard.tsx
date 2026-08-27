@@ -34,6 +34,7 @@ const StayWorkspace = dynamic(() => import("@/features/stay/stay-workspace").the
 const GovernanceWorkspace = dynamic(() => import("@/features/governance/governance-workspace").then((module) => module.GovernanceWorkspace), { loading: workspaceLoading });
 const ActionCentreWorkspace = dynamic(() => import("@/features/action-centre/action-centre-workspace").then((module) => module.ActionCentreWorkspace), { loading: workspaceLoading });
 const SchoolWorkspace = dynamic(() => import("@/features/school/school-workspace").then((module) => module.SchoolWorkspace), { loading: workspaceLoading });
+const SettingsWorkspace = dynamic(() => import("@/features/settings/settings-workspace").then((module) => module.SettingsWorkspace), { loading: workspaceLoading });
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: "D", permission: null },
@@ -56,6 +57,7 @@ const helpNavItem = {
   icon: "?",
   permission: null,
 };
+const settingsNavItem = { key: "settings", label: "Settings", icon: "⚙", permission: null };
 
 interface OrganizationResponse {
   success: true;
@@ -111,12 +113,14 @@ export function ProtectedDashboard() {
     | "calendar"
     | "inquiries"
     | "stay"
-    | "school";
+    | "school"
+    | "settings";
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [enabledServices, setEnabledServices] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isLoading && !session) router.replace("/login");
+    else if (!isLoading && session && !session.user.isPlatformAdmin && !session.organization.onboardingCompleted) router.replace("/onboarding");
   }, [isLoading, session, router]);
   useEffect(() => {
     if (!session) return;
@@ -147,8 +151,8 @@ export function ProtectedDashboard() {
     isOrganizationOwner &&
     session.membership.permissions.includes("ORGANIZATION_UPDATE");
   const visibleNavItems = isOrganizationOwner
-    ? [...navItems, ...ownerNavItems, helpNavItem]
-    : [...navItems, helpNavItem];
+    ? [...navItems, ...ownerNavItems, helpNavItem, settingsNavItem]
+    : [...navItems, helpNavItem, settingsNavItem];
   function toggleOrganizationEditor(organization: AuthOrganization) {
     if (!editing)
       setForm({
@@ -458,6 +462,7 @@ export function ProtectedDashboard() {
         {notice && <div className="dashboard-notice success">{notice}</div>}
         {error && <div className="dashboard-notice error">{error}</div>}
         {activeView === "governance" && <GovernanceWorkspace />}
+        {activeView === "settings" && <SettingsWorkspace />}
         {activeView === "actions" && <ActionCentreWorkspace />}
 
         {activeView === "overview" ? (

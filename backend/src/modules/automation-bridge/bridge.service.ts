@@ -8,6 +8,7 @@ import type {
   IntakeInput,
 } from "./bridge.validation.js";
 import { LeadAssignmentService } from "../inquiries/lead-assignment.service.js";
+import { LeadToCashAutomationService } from "./lead-to-cash-automation.service.js";
 const connectorView={id:true,name:true,type:true,status:true,mode:true,provider:true,externalAccountRef:true,webhookKey:true,whatsappPhoneNumberId:true,whatsappBusinessAccountId:true,credentialsConfiguredAt:true,lastReceivedAt:true,lastSuccessfulAt:true,lastErrorAt:true,lastErrorMessage:true,createdAt:true,_count:{select:{events:true,messageDrafts:true}}}as const;
 const eventInclude = {
   connector: { select: { id: true, name: true, type: true, mode: true } },
@@ -15,6 +16,7 @@ const eventInclude = {
 };
 export class BridgeService {
   private assignment = new LeadAssignmentService();
+  private leadToCash = new LeadToCashAutomationService();
   async list(org: string) {
     const [connectors, events] = await Promise.all([
       prisma.integrationConnector.findMany({
@@ -456,6 +458,8 @@ export class BridgeService {
               },
             });
         }
+        if (event.connector.type === "WEBSITE")
+          await this.leadToCash.run(org, user, inquiry.id, event.id);
       }
     }
     return processed;

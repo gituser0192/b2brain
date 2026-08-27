@@ -72,7 +72,7 @@ export class GovernanceService {
             "Pending approval was not found.",
             "APPROVAL_NOT_FOUND",
           );
-        if (approval.requestedById === actorUserId && !["AUTOMATION_POLICY_EXECUTION", "SCHOOL_GUARDIAN_ALERT_BATCH", "SCHOOL_FEE_REMINDER_BATCH", "COLLECTION_AGENT_RUN"].includes(approval.sourceType))
+        if (approval.requestedById === actorUserId && !["AUTOMATION_POLICY_EXECUTION", "SCHOOL_GUARDIAN_ALERT_BATCH", "SCHOOL_FEE_REMINDER_BATCH", "COLLECTION_AGENT_RUN", "QUOTATION_AUTOMATION", "INVOICE_AUTOMATION"].includes(approval.sourceType))
           throw new AppError(
             403,
             "The requester cannot decide their own approval.",
@@ -102,6 +102,22 @@ export class GovernanceService {
           const followUpStatus = input.decision === "APPROVE" ? "PENDING" : "CANCELED";
           await transaction.customerFollowUp.updateMany({ where: { organizationId, customerId: context.customerId, deletedAt: null, status: "PENDING", OR: [{ invoiceId: context.invoiceId }, { invoiceId: null, title: { in: [`Collect ${invoice.invoiceNumber}`, `Payment follow-up: ${invoice.invoiceNumber}`] } }] }, data: { invoiceId: context.invoiceId, status: followUpStatus, description: input.decision === "APPROVE" ? `Approved reminder ready for delivery: ${message}` : input.decision === "RETURN" ? `Reminder requires changes: ${input.note}` : `Collection reminder rejected: ${input.note}`, updatedById: actorUserId, completedAt: null } });
           await transaction.notification.updateMany({ where: { organizationId, sourceType: "COLLECTION_AGENT_RUN", sourceId: run.id, deletedAt: null }, data: { type: "SYSTEM", title: input.decision === "APPROVE" ? "Collection reminder approved" : input.decision === "REJECT" ? "Collection reminder rejected" : "Collection reminder needs changes", message: input.decision === "APPROVE" ? `${invoice.invoiceNumber} is ready for a configured delivery provider. No message has been sent.` : `${invoice.invoiceNumber} was ${input.decision.toLowerCase()}. ${input.note ?? ""}`.trim(), actionPath: "/dashboard?view=automation", readAt: null, updatedById: actorUserId } });
+        } else if (approval.sourceType === "QUOTATION_AUTOMATION") {
+          const context = approval.context as { quotationId?: string; customerId?: string; dealId?: string; deliveryChannel?: string } | null;
+          if (!context?.quotationId || !context.customerId || !context.dealId || context.deliveryChannel !== "EMAIL") throw new AppError(409, "The quotation approval is missing its verified context.", "INVALID_APPROVAL_CONTEXT");
+          const quotation = await transaction.quotation.findFirst({ where: { id: context.quotationId, organizationId, customerId: context.customerId, dealId: context.dealId, archivedAt: null, status: "DRAFT" }, select: { id: true, quotationNumber: true } });
+          if (!quotation) throw new AppError(409, "The linked quotation changed after preparation.", "APPROVAL_SOURCE_CHANGED");
+          if (input.decision === "REJECT") await transaction.quotation.update({ where: { id: quotation.id, organizationId }, data: { status: "REJECTED", rejectedAt: new Date(), updatedById: actorUserId } });
+          await transaction.automationPolicyExecution.updateMany({ where: { id: approval.sourceId, organizationId, status: "AWAITING_APPROVAL" }, data: { status: input.decision === "APPROVE" ? "COMPLETED" : input.decision === "REJECT" ? "SKIPPED" : "MATCHED", completedAt: input.decision === "APPROVE" ? new Date() : null, failureMessage: input.decision === "REJECT" ? input.note : null, ...(input.decision === "RETURN" ? { dedupeKey: null } : {}) } });
+          updatedContext = { ...context, deliveryState: input.decision === "APPROVE" ? "APPROVED_FOR_EMAIL" : input.decision === "REJECT" ? "CANCELED" : "CHANGES_REQUESTED", externalDeliveryPerformed: false };
+        } else if (approval.sourceType === "INVOICE_AUTOMATION") {
+          const context = approval.context as { invoiceId?: string; customerId?: string; quotationId?: string; deliveryChannel?: string } | null;
+          if (!context?.invoiceId || !context.customerId || !context.quotationId || context.deliveryChannel !== "EMAIL") throw new AppError(409, "The invoice approval is missing its verified context.", "INVALID_APPROVAL_CONTEXT");
+          const invoice = await transaction.invoice.findFirst({ where: { id: context.invoiceId, organizationId, customerId: context.customerId, deletedAt: null, status: "DRAFT", sourceQuotation: { id: context.quotationId, organizationId } }, select: { id: true } });
+          if (!invoice) throw new AppError(409, "The linked invoice changed after preparation.", "APPROVAL_SOURCE_CHANGED");
+          await transaction.invoice.update({ where: { id: invoice.id, organizationId }, data: { status: input.decision === "APPROVE" ? "ISSUED" : "CANCELED", updatedById: actorUserId } });
+          await transaction.automationPolicyExecution.updateMany({ where: { id: approval.sourceId, organizationId, status: "AWAITING_APPROVAL" }, data: { status: input.decision === "APPROVE" ? "COMPLETED" : input.decision === "REJECT" ? "SKIPPED" : "MATCHED", completedAt: input.decision === "APPROVE" ? new Date() : null, failureMessage: input.decision === "REJECT" ? input.note : null, ...(input.decision === "RETURN" ? { dedupeKey: null } : {}) } });
+          updatedContext = { ...context, deliveryState: input.decision === "APPROVE" ? "APPROVED_FOR_EMAIL" : input.decision === "REJECT" ? "CANCELED" : "CHANGES_REQUESTED", externalDeliveryPerformed: false };
         } else if (approval.sourceType === "VOICE_CALL_JOB") {
           const callStatus =
             input.decision === "APPROVE"

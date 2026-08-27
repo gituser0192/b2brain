@@ -14,6 +14,7 @@ export interface AuthOrganization {
   timezone: string;
   currency: string;
   isServiceProvider: boolean;
+  onboardingCompleted: boolean;
 }
 export interface AuthMembership {
   id: string;

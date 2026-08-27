@@ -15,6 +15,7 @@ interface AuthContextValue {
   register(input: RegisterInput): Promise<RegistrationResponse>;
   logout(): Promise<void>;
   updateOrganization(organization: AuthOrganization): void;
+  reloadSession(): Promise<AuthSession>;
   authorizedRequest<T>(path: string, init?: RequestInit): Promise<T>;
 }
 
@@ -40,6 +41,12 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const updateOrganization = useCallback((organization: AuthOrganization) => {
     setSession((current) => current ? { ...current, organization } : current);
   }, []);
+  const reloadSession = useCallback(async () => {
+    if (!accessToken) throw new Error("Authentication is required.");
+    const response = await apiRequest<MeResponse>("/auth/me", { headers: { Authorization: `Bearer ${accessToken}` } });
+    setSession(response.data);
+    return response.data;
+  }, [accessToken]);
   const authorizedRequest = useCallback(async <T,>(path: string, init?: RequestInit) => {
     if (!accessToken) throw new Error("Authentication is required.");
     return apiRequest<T>(path, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${accessToken}` } });
@@ -62,7 +69,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     return () => { active = false; };
   }, []);
 
-  const value = useMemo(() => ({ session, accessToken, isLoading, login, register, logout, updateOrganization, authorizedRequest }), [session, accessToken, isLoading, login, register, logout, updateOrganization, authorizedRequest]);
+  const value = useMemo(() => ({ session, accessToken, isLoading, login, register, logout, updateOrganization, reloadSession, authorizedRequest }), [session, accessToken, isLoading, login, register, logout, updateOrganization, reloadSession, authorizedRequest]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

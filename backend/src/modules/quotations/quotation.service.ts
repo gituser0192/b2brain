@@ -5,6 +5,7 @@ import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { EmailService } from "../../shared/email/email.service.js";
 import { WhatsappService } from "../automation-bridge/whatsapp.service.js";
+import { InvoiceAutomationService } from "../finance/invoice-automation.service.js";
 import type {
   QuotationConversionInput,
   QuotationFollowUpInput,
@@ -26,6 +27,7 @@ const include = {
 export class QuotationService {
   private email = new EmailService();
   private whatsapp = new WhatsappService();
+  private invoiceAutomation = new InvoiceAutomationService();
   private token(id: string, organizationId: string, expiresAt: Date) {
     const payload = Buffer.from(JSON.stringify({ id, organizationId, expiresAt: expiresAt.toISOString() })).toString("base64url");
     const signature = createHmac("sha256", env.JWT_ACCESS_SECRET).update(`quotation:${payload}`).digest("base64url");
@@ -333,9 +335,16 @@ export class QuotationService {
     const timestamp = new Date();
     const updated = await prisma.$transaction(async transaction => {
       const result = await transaction.quotation.update({ where: { id: quotation.id, organizationId: quotation.organizationId }, data: { status: input.decision, acceptedAt: input.decision === "ACCEPTED" ? timestamp : null, rejectedAt: input.decision === "REJECTED" ? timestamp : null, updatedById: quotation.updatedById }, include });
+      if (quotation.dealId) await transaction.deal.updateMany({ where: { id: quotation.dealId, organizationId: quotation.organizationId, customerId: quotation.customerId, deletedAt: null }, data: { stage: input.decision === "ACCEPTED" ? "WON" : "LOST", probability: input.decision === "ACCEPTED" ? 100 : 0, updatedById: quotation.updatedById } });
+      await transaction.customerFollowUp.updateMany({ where: { organizationId: quotation.organizationId, customerId: quotation.customerId, deletedAt: null, status: "PENDING", title: `Quotation follow-up: ${quotation.quotationNumber}` }, data: { status: input.decision === "ACCEPTED" ? "COMPLETED" : "CANCELED", completedAt: timestamp, updatedById: quotation.updatedById } });
+      await transaction.notification.updateMany({ where: { organizationId: quotation.organizationId, sourceType: "QUOTATION", sourceId: quotation.id, deletedAt: null }, data: { deletedAt: timestamp, updatedById: quotation.updatedById } });
       await transaction.customerActivity.create({ data: { organizationId: quotation.organizationId, customerId: quotation.customerId, type: "NOTE", summary: `${quotation.customer.displayName} ${input.decision.toLowerCase()} quotation ${quotation.quotationNumber}.`, details: input.note, occurredAt: timestamp, createdById: quotation.updatedById, updatedById: quotation.updatedById } });
       return result;
     });
+    if (input.decision === "ACCEPTED") {
+      try { await this.invoiceAutomation.prepare(quotation.organizationId, quotation.updatedById, quotation.id); }
+      catch { /* The customer decision remains valid; failed automation is recorded for operators. */ }
+    }
     return updated;
   }
 

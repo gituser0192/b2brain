@@ -1,4 +1,5 @@
 import { Router, type RequestHandler } from "express";
+import rateLimit from "express-rate-limit";
 import { AppError } from "../../shared/errors/app-error.js";
 import { requireActiveContext, requireAuth, requireEnabledService, requirePermission } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
@@ -12,10 +13,17 @@ import {
   type WhatsappCredentialsInput,
   type WhatsappEscalationInput,
   type WhatsappTemplateDraftInput,
+  whatsappSimulatorSchema,
+  whatsappTakeoverSchema,
+  type WhatsappSimulatorInput,
+  type WhatsappTakeoverInput,
 } from "./bridge.validation.js";
 import { WhatsappService } from "./whatsapp.service.js";
+import { WhatsappSimulatorService } from "./whatsapp-simulator.service.js";
 
 const service = new WhatsappService();
+const simulator = new WhatsappSimulatorService();
+const simulatorLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false, message: { success: false, message: "Too many simulator messages. Try again shortly.", code: "RATE_LIMITED" } });
 const auth = (request: Parameters<RequestHandler>[0]) => {
   if (!request.auth) throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
   return request.auth;
@@ -43,6 +51,14 @@ whatsappAdminRouter.get("/message-drafts", requirePermission("AUTOMATION_VIEW"),
   response.json(success(await service.drafts(auth(request).organizationId))));
 whatsappAdminRouter.get("/whatsapp-workspace", ...inquiryAccess, requirePermission("AUTOMATION_VIEW"), async (request, response) =>
   response.json(success(await service.workspace(auth(request).organizationId))));
+whatsappAdminRouter.post("/whatsapp-simulator/messages", simulatorLimiter, ...inquiryAccess, requirePermission("AUTOMATION_MANAGE"), validateBody(whatsappSimulatorSchema), async (request, response) => {
+  const context = auth(request);
+  response.status(202).json(success(await simulator.receive(context.organizationId, context.userId, request.body as WhatsappSimulatorInput), "Simulated WhatsApp message processed."));
+});
+whatsappAdminRouter.put("/connectors/:id/whatsapp-takeover", ...inquiryAccess, requirePermission("AUTOMATION_MANAGE"), validateBody(whatsappTakeoverSchema), async (request, response) => {
+  const context = auth(request);
+  response.json(success(await simulator.takeover(context.organizationId, context.userId, String(request.params.id), request.body as WhatsappTakeoverInput), "Conversation control updated."));
+});
 whatsappAdminRouter.post("/connectors/:id/message-drafts", requirePermission("AUTOMATION_MANAGE"), validateBody(messageDraftSchema), async (request, response) => {
   const context = auth(request);
   response.status(201).json(success(await service.draft(context.organizationId, context.userId, String(request.params.id), request.body as MessageDraftInput), "Reply draft created for approval."));

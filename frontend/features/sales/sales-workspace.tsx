@@ -2,6 +2,7 @@
 import { SalesWorkQueue } from "./sales-work-queue";
 import { SalesJourney } from "./sales-journey";
 import { QuotationManager } from "./quotation-manager";
+import { SalesIntelligence } from "./sales-intelligence";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
@@ -155,6 +156,7 @@ export function SalesWorkspace({
         {canManage && <button onClick={() => show()}>+ New deal</button>}
       </header>
       {error && <div className="dashboard-notice error">{error}</div>}
+      <SalesIntelligence />
       <SalesWorkQueue onNavigate={onNavigate} />
       <SalesJourney />
       <QuotationManager />

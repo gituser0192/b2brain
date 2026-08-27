@@ -1,8 +1,9 @@
 import { prisma } from "../../database/prisma.js";
+import { dashboardMonths, monthKey } from "./dashboard-period.js";
 
 export class DashboardService {
   async summary(organizationId: string, membershipId: string, roleCode: string, permissions: string[], days: number | null) {
-    const organization = await prisma.organization.findFirst({ where: { id: organizationId, deletedAt: null }, select: { currency: true } });
+    const organization = await prisma.organization.findFirst({ where: { id: organizationId, deletedAt: null }, select: { currency: true, timezone: true } });
     const organizationPlan = await prisma.organizationPlan.findUnique({ where: { organizationId } });
     const planExpired = Boolean(organizationPlan && (["PAST_DUE", "EXPIRED", "CANCELED"].includes(organizationPlan.status) || (organizationPlan.status === "TRIAL" && organizationPlan.trialEndsAt && organizationPlan.trialEndsAt <= new Date()) || (organizationPlan.expiresAt && organizationPlan.expiresAt <= new Date())));
     const since = days === null ? undefined : new Date(Date.now() - days * 86400000);
@@ -11,7 +12,7 @@ export class DashboardService {
     const can = (service: string, permission: string) => enabled.has(service) && permissions.includes(permission);
     const date = since ? { gte: since } : undefined;
     const [customers, followUps, deals, quotations, projects, overdueTasks, employees, invoices, payments, unmatchedPayments, expenses, orders, stockLevels, campaigns, campaignLeads, supportTickets, websiteRequests, websiteDeployments, purchaseOrders, calendarEvents, inquiries] = await Promise.all([
-      can("CRM", "CRM_VIEW") ? prisma.customer.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { status: true } }) : [],
+      can("CRM", "CRM_VIEW") ? prisma.customer.findMany({ where: { organizationId, deletedAt: null }, select: { status: true } }) : [],
       can("CRM", "CRM_ACTIVITY_VIEW") ? prisma.customerFollowUp.count({ where: { organizationId, status: "PENDING", deletedAt: null, dueAt: { lt: new Date() } } }) : 0,
       can("SALES", "DEAL_VIEW") ? prisma.deal.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { stage: true, amount: true, probability: true, currency: true } }) : [],
       can("SALES", "DEAL_VIEW") ? prisma.quotation.findMany({ where: { organizationId, archivedAt: null, status: { in: ["DRAFT", "SENT", "EXPIRED"] } }, select: { status: true, total: true, validUntil: true } }) : [],
@@ -19,7 +20,7 @@ export class DashboardService {
       can("PROJECTS", "TASK_VIEW") ? prisma.projectTask.count({ where: { organizationId, deletedAt: null, status: { notIn: ["COMPLETED", "CANCELED"] }, dueDate: { lt: new Date() } } }) : 0,
       can("PEOPLE", "EMPLOYEE_VIEW") ? prisma.employee.count({ where: { organizationId, status: "ACTIVE", deletedAt: null } }) : 0,
       can("FINANCE", "FINANCE_VIEW") ? prisma.invoice.findMany({ where: { organizationId, deletedAt: null, status: { not: "CANCELED" }, ...(date ? { issueDate: date } : {}) }, include: { payments: { where: { deletedAt: null } } } }) : [],
-      can("FINANCE", "FINANCE_VIEW") ? prisma.payment.findMany({ where: { organizationId, deletedAt: null, ...(date ? { paidAt: date } : {}) }, select: { amount: true, currency: true } }) : [],
+      can("FINANCE", "FINANCE_VIEW") ? prisma.payment.findMany({ where: { organizationId, deletedAt: null, ...(date ? { paidAt: date } : {}) }, select: { amount: true, refundedAmount: true, currency: true } }) : [],
       can("FINANCE", "FINANCE_VIEW") ? prisma.incomingPaymentTransaction.count({ where: { organizationId, status: "UNMATCHED", deletedAt: null } }) : 0,
       can("FINANCE", "FINANCE_VIEW") ? prisma.expense.findMany({ where: { organizationId, status: "RECORDED", deletedAt: null, ...(date ? { expenseDate: date } : {}) }, select: { amount: true, currency: true } }) : [],
       can("ORDERS", "ORDER_VIEW") ? prisma.order.findMany({ where: { organizationId, deletedAt: null, ...(date ? { createdAt: date } : {}) }, select: { status: true, total: true, currency: true } }) : [],
@@ -33,15 +34,35 @@ export class DashboardService {
       can("CALENDAR", "CALENDAR_VIEW") ? prisma.calendarEvent.findMany({ where: { organizationId, deletedAt: null, startAt: { gte: new Date(new Date().setHours(0,0,0,0)) } }, select: { status: true, startAt: true } }) : [],
       can("LEADS", "INQUIRY_VIEW") ? prisma.inquiry.findMany({ where: { organizationId, deletedAt: null, status: { notIn: ["CONVERTED", "DISQUALIFIED", "SPAM"] } }, select: { nextFollowUpAt: true, followUpCompletedAt: true } }) : [],
     ]);
+    const timezone = organization?.timezone ?? "Asia/Kolkata";
+    const monthPeriod = dashboardMonths(new Date(), timezone);
+    const [pendingTasks, monthPayments, monthExpenses, historyPayments, historyExpenses, recentCustomers, recentProjects, recentActivities] = await Promise.all([
+      can("PROJECTS", "TASK_VIEW") ? prisma.projectTask.count({ where: { organizationId, deletedAt: null, status: { notIn: ["COMPLETED", "CANCELED"] } } }) : 0,
+      can("FINANCE", "FINANCE_VIEW") ? prisma.payment.findMany({ where: { organizationId, deletedAt: null, paidAt: { gte: monthPeriod.currentStart, lt: monthPeriod.currentEnd } }, select: { amount: true, refundedAmount: true } }) : [],
+      can("FINANCE", "FINANCE_VIEW") ? prisma.expense.findMany({ where: { organizationId, deletedAt: null, status: "RECORDED", expenseDate: { gte: monthPeriod.currentStart, lt: monthPeriod.currentEnd } }, select: { amount: true } }) : [],
+      can("FINANCE", "FINANCE_VIEW") ? prisma.payment.findMany({ where: { organizationId, deletedAt: null, paidAt: { gte: monthPeriod.historyStart, lt: monthPeriod.currentEnd } }, select: { amount: true, refundedAmount: true, paidAt: true } }) : [],
+      can("FINANCE", "FINANCE_VIEW") ? prisma.expense.findMany({ where: { organizationId, deletedAt: null, status: "RECORDED", expenseDate: { gte: monthPeriod.historyStart, lt: monthPeriod.currentEnd } }, select: { amount: true, expenseDate: true } }) : [],
+      can("CRM", "CRM_VIEW") ? prisma.customer.findMany({ where: { organizationId, deletedAt: null }, select: { id: true, displayName: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 5 }) : [],
+      can("PROJECTS", "PROJECT_VIEW") ? prisma.project.findMany({ where: { organizationId, deletedAt: null }, select: { id: true, name: true, code: true, status: true, updatedAt: true }, orderBy: { updatedAt: "desc" }, take: 5 }) : [],
+      can("CRM", "CRM_ACTIVITY_VIEW") ? prisma.customerActivity.findMany({ where: { organizationId, deletedAt: null, customer: { deletedAt: null } }, select: { id: true, type: true, summary: true, occurredAt: true, customer: { select: { id: true, displayName: true } } }, orderBy: { occurredAt: "desc" }, take: 8 }) : [],
+    ]);
     const invoiceTotal = invoices.reduce((sum, item) => sum + Number(item.total), 0);
-    const invoicePaid = invoices.reduce((sum, item) => sum + item.payments.reduce((paid, payment) => paid + Number(payment.amount), 0), 0);
-    const received = payments.reduce((sum, item) => sum + Number(item.amount), 0);
+    const invoicePaid = invoices.reduce((sum, item) => sum + item.payments.reduce((paid, payment) => paid + Number(payment.amount) - Number(payment.refundedAmount), 0), 0);
+    const received = payments.reduce((sum, item) => sum + Number(item.amount) - Number(item.refundedAmount), 0);
     const expenseTotal = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
     const openDeals = deals.filter((item) => !["WON", "LOST"].includes(item.stage));
     const wonDeals = deals.filter((item) => item.stage === "WON");
     const convertedLeads = campaignLeads.filter((item) => item.status === "CONVERTED");
     const attributedRevenue = convertedLeads.filter((item) => item.deal?.stage === "WON").reduce((sum, item) => sum + Number(item.deal!.amount), 0);
     const marketingSpend = campaigns.reduce((sum, item) => sum + Number(item.spend), 0);
+    const currentMonthRevenue = monthPayments.reduce((sum, item) => sum + Number(item.amount) - Number(item.refundedAmount), 0);
+    const currentMonthExpenses = monthExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
+    const monthlyCash = monthPeriod.boundaries.slice(0, -1).map((boundary, index) => {
+      const key = monthKey(boundary, timezone), next = monthPeriod.boundaries[index + 1]!;
+      const revenue = historyPayments.filter((item) => item.paidAt >= boundary && item.paidAt < next).reduce((sum, item) => sum + Number(item.amount) - Number(item.refundedAmount), 0);
+      const expenses = historyExpenses.filter((item) => item.expenseDate >= boundary && item.expenseDate < next).reduce((sum, item) => sum + Number(item.amount), 0);
+      return { month: key, revenue, expenses, profit: revenue - expenses };
+    });
     const alerts = [
       followUps ? { type: "FOLLOW_UP", count: followUps, label: "Overdue CRM follow-ups", view: "crm" } : null,
       overdueTasks ? { type: "TASK", count: overdueTasks, label: "Overdue project tasks", view: "projects" } : null,
@@ -56,12 +77,12 @@ export class DashboardService {
       quotations.filter((item) => item.status === "EXPIRED" || item.validUntil <= new Date(Date.now() + 3 * 86_400_000)).length ? { type: "QUOTATION", count: quotations.filter((item) => item.status === "EXPIRED" || item.validUntil <= new Date(Date.now() + 3 * 86_400_000)).length, label: "Quotations expiring or expired", view: "sales" } : null,
       unmatchedPayments ? { type: "PAYMENT_RECONCILIATION", count: unmatchedPayments, label: "Incoming payments awaiting reconciliation", view: "finance" } : null,
     ].filter(Boolean);
-    return { periodDays: days, enabledServices: [...enabled], currency: organization?.currency ?? "INR", metrics: {
+    return { periodDays: days, enabledServices: [...enabled], currency: organization?.currency ?? "INR", timezone, monthlyCash, recent: { customers: recentCustomers, projects: recentProjects, activities: recentActivities }, metrics: {
       customers: customers.length, leads: customers.filter((item) => item.status === "LEAD").length, activeCustomers: customers.filter((item) => item.status === "ACTIVE").length, overdueFollowUps: followUps,
       openDeals: openDeals.length, pipelineValue: openDeals.reduce((sum, item) => sum + Number(item.amount), 0), weightedForecast: openDeals.reduce((sum, item) => sum + Number(item.amount) * item.probability / 100, 0), wonRevenue: wonDeals.reduce((sum, item) => sum + Number(item.amount), 0),
       openQuotations: quotations.length, quotationValue: quotations.reduce((sum, item) => sum + Number(item.total), 0),
-      activeProjects: projects, overdueTasks, activeEmployees: employees,
-      invoiced: invoiceTotal, received, outstanding: Math.max(0, invoiceTotal - invoicePaid), expenses: expenseTotal, netCash: received - expenseTotal,
+      activeProjects: projects, pendingTasks, overdueTasks, activeEmployees: employees, openInquiries: inquiries.length,
+      invoiced: invoiceTotal, received, outstanding: Math.max(0, invoiceTotal - invoicePaid), expenses: expenseTotal, netCash: received - expenseTotal, currentMonthRevenue, currentMonthExpenses, currentMonthProfit: currentMonthRevenue - currentMonthExpenses,
       orders: orders.length, activeOrders: orders.filter((item) => !["FULFILLED", "CANCELED", "REFUNDED"].includes(item.status)).length, orderValue: orders.filter((item) => !["CANCELED", "REFUNDED"].includes(item.status)).reduce((sum, item) => sum + Number(item.total), 0),
       stockOnHand: stockLevels.reduce((sum, item) => sum + Number(item.onHand), 0), stockReserved: stockLevels.reduce((sum, item) => sum + Number(item.reserved), 0), lowStock: stockLevels.filter((item) => Number(item.onHand) - Number(item.reserved) <= Number(item.reorderPoint)).length,
       activeCampaigns: campaigns.filter((item) => item.status === "ACTIVE").length, marketingSpend, marketingLeads: campaignLeads.length, conversions: convertedLeads.length, attributedRevenue, returnOnSpend: marketingSpend > 0 ? attributedRevenue / marketingSpend : 0,

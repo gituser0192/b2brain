@@ -3,6 +3,7 @@ import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import type {
   ExpenseInput,
+  FinanceLedgerQuery,
   InvoiceInput,
   PaymentInput,
 } from "./finance.validation.js";
@@ -376,5 +377,55 @@ export class FinanceService {
         updatedById: actorUserId,
       },
     });
+  }
+
+  async getExpense(organizationId: string, id: string) {
+    const expense = await prisma.expense.findFirst({ where: { id, organizationId, deletedAt: null } });
+    if (!expense) throw new AppError(404, "Expense not found.", "EXPENSE_NOT_FOUND");
+    return expense;
+  }
+
+  async updateExpense(organizationId: string, actorUserId: string, id: string, input: ExpenseInput) {
+    if (input.projectId && !(await prisma.project.findFirst({ where: { id: input.projectId, organizationId, deletedAt: null } })))
+      throw new AppError(404, "Project not found.", "PROJECT_NOT_FOUND");
+    const result = await prisma.expense.updateMany({
+      where: { id, organizationId, deletedAt: null },
+      data: { ...input, amount: new Prisma.Decimal(input.amount), updatedById: actorUserId },
+    });
+    if (result.count !== 1) throw new AppError(404, "Expense not found.", "EXPENSE_NOT_FOUND");
+    return this.getExpense(organizationId, id);
+  }
+
+  async archiveExpense(organizationId: string, actorUserId: string, id: string) {
+    const result = await prisma.expense.updateMany({ where: { id, organizationId, deletedAt: null }, data: { deletedAt: new Date(), updatedById: actorUserId } });
+    if (result.count !== 1) throw new AppError(404, "Expense not found.", "EXPENSE_NOT_FOUND");
+  }
+
+  async ledger(organizationId: string, query: FinanceLedgerQuery) {
+    const date = query.from || query.to ? { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } : undefined;
+    const [payments, expenses] = await Promise.all([
+      query.type === "EXPENSE" || query.category ? [] : prisma.payment.findMany({
+        where: { organizationId, deletedAt: null, ...(date ? { paidAt: date } : {}), ...(query.method ? { method: query.method } : {}) },
+        include: { invoice: { select: { invoiceNumber: true, customer: { select: { displayName: true } } } } }, orderBy: { paidAt: "desc" },
+      }),
+      query.type === "REVENUE" || query.method ? [] : prisma.expense.findMany({
+        where: { organizationId, deletedAt: null, status: "RECORDED", ...(date ? { expenseDate: date } : {}), ...(query.category ? { category: { equals: query.category, mode: "insensitive" } } : {}) }, orderBy: { expenseDate: "desc" },
+      }),
+    ]);
+    const records = [
+      ...payments.map((payment) => ({ id: payment.id, type: "REVENUE" as const, date: payment.paidAt, description: `${payment.invoice.invoiceNumber} · ${payment.invoice.customer.displayName}`, category: "Customer payment", method: payment.method, amount: Number(payment.amount) - Number(payment.refundedAmount), currency: payment.currency })),
+      ...expenses.map((expense) => ({ id: expense.id, type: "EXPENSE" as const, date: expense.expenseDate, description: expense.title, category: expense.category, method: null, amount: Number(expense.amount), currency: expense.currency })),
+    ].sort((left, right) => right.date.getTime() - left.date.getTime());
+    const revenue = payments.reduce((sum, payment) => sum + Number(payment.amount) - Number(payment.refundedAmount), 0);
+    const spent = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+    const monthly = new Map<string, { month: string; revenue: number; expenses: number; profit: number }>();
+    for (const record of records) {
+      const month = `${record.date.getUTCFullYear()}-${String(record.date.getUTCMonth() + 1).padStart(2, "0")}`;
+      const item = monthly.get(month) ?? { month, revenue: 0, expenses: 0, profit: 0 };
+      if (record.type === "REVENUE") item.revenue += record.amount; else item.expenses += record.amount;
+      item.profit = item.revenue - item.expenses;
+      monthly.set(month, item);
+    }
+    return { records, metrics: { revenue, expenses: spent, profit: revenue - spent }, monthly: [...monthly.values()].sort((left, right) => left.month.localeCompare(right.month)), categories: [...new Set(expenses.map((expense) => expense.category))].sort() };
   }
 }

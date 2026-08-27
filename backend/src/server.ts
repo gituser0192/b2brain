@@ -13,16 +13,26 @@ async function start() {
   const stopScheduler = startAgentScheduler();
   const stopEmailDispatcher = startEmailDeliveryDispatcher();
 
+  let shuttingDown = false;
   const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     logger.info({ signal }, "Shutting down");
     stopScheduler();
     stopEmailDispatcher();
+    const forcedExit = setTimeout(() => {
+      logger.error({ signal }, "Graceful shutdown timed out");
+      process.exit(1);
+    }, 10_000);
+    forcedExit.unref();
     server.close((error) => {
       void prisma.$disconnect().then(() => {
-      if (error) { logger.error({ err: error }, "Shutdown failed"); process.exit(1); }
-      process.exit(0);
+        clearTimeout(forcedExit);
+        if (error) { logger.error({ err: error }, "Shutdown failed"); process.exit(1); }
+        process.exit(0);
       });
     });
+    server.closeIdleConnections();
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
