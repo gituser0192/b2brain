@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { classifyWhatsappMessage, normalizeWhatsappPhone } from "../src/modules/automation-bridge/whatsapp-simulator.service.js";
+import { normalizeWhatsappPhone } from "../src/modules/automation-bridge/whatsapp-simulator.service.js";
+import { inquiryTypeForAgentIntent } from "../src/modules/enquiry-agent/enquiry-agent.service.js";
 import { whatsappSimulatorSchema } from "../src/modules/automation-bridge/bridge.validation.js";
 
 describe("WhatsApp CRM intake simulator", () => {
   it.each([
-    ["I am interested in a demo of your service", "SALES"],
-    ["What is the price and is blue colour available?", "PRODUCT_QUESTION"],
-    ["I need help, the product is not working", "COMPLAINT"],
-    ["Please repair this issue", "SUPPORT"],
-    ["I want to buy 20 pieces and arrange delivery", "ORDER_REQUEST"],
-    ["Hello there", "UNCLASSIFIED"],
-    ["Click here for free money and crypto profit", "SPAM"],
-  ])("classifies %s", (message, expected) => {
-    expect(classifyWhatsappMessage(message)).toBe(expected);
+    ["SALES_ENQUIRY", "SALES"],
+    ["SERVICE_PRICING", "PRODUCT_QUESTION"],
+    ["SUPPORT_REQUEST", "SUPPORT"],
+    ["COMPLAINT", "COMPLAINT"],
+    ["REFUND_PAYMENT", "SUPPORT"],
+    ["SPAM", "SPAM"],
+    ["UNKNOWN", "UNCLASSIFIED"],
+  ])("maps shared agent intent %s to CRM inquiry type %s", (intent, expected) => {
+    expect(inquiryTypeForAgentIntent(intent)).toBe(expected);
   });
 
   it("normalizes common phone formatting", () => {

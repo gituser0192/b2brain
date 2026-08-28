@@ -6,6 +6,7 @@ import { FollowUpAutomationManager } from "./follow-up-automation-manager";
 import { PolicyManager } from "./policy-manager";
 import { EmailDeliveryManager } from "./email-delivery-manager";
 import { CollectionScheduleManager } from "./collection-schedule-manager";
+import { EnquiryAgentPlayground } from "./enquiry-agent-playground";
 
 const foundations = [
   {
@@ -71,6 +72,7 @@ export function AutomationWorkspace() {
       </div>
 
       <AgentManager />
+      <EnquiryAgentPlayground />
       <CollectionScheduleManager />
       <AgentRunCentre />
       <EmailDeliveryManager />

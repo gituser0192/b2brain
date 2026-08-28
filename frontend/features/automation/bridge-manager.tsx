@@ -1,7 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
+import { queryKeys } from "@/services/query-keys";
 import { WhatsappFollowUpWorkspace } from "./whatsapp-follow-up-workspace";
 type Connector = {
   id: string;
@@ -69,7 +71,8 @@ const connectorBlank = {
     raw: {},
   };
 export function BridgeManager() {
-  const { authorizedRequest } = useAuth(),
+  const { authorizedRequest, session } = useAuth(),
+    queryClient = useQueryClient(),
     [connectors, setConnectors] = useState<Connector[]>([]),
     [events, setEvents] = useState<Event[]>([]),
     [drafts, setDrafts] = useState<Draft[]>([]),
@@ -199,12 +202,13 @@ export function BridgeManager() {
   async function simulateWhatsapp() {
     try {
       setError("");
-      const response = await authorizedRequest<{ success: true; data: { duplicate: boolean; classification?: string; customerCreated?: boolean; humanTakeover?: boolean } }>("/automation-bridge/whatsapp-simulator/messages", {
+      const response = await authorizedRequest<{ success: true; data: { duplicate: boolean; classification?: string; customerCreated?: boolean; customerName?: string; humanTakeover?: boolean } }>("/automation-bridge/whatsapp-simulator/messages", {
         method: "POST",
         body: JSON.stringify({ ...simulatorMessage, connectorId: selected }),
       });
-      setSimulatorResult(response.data.duplicate ? "Duplicate safely ignored." : `${response.data.classification?.replaceAll("_", " ")} processed. ${response.data.customerCreated ? "A CRM lead was created." : "The existing CRM customer was updated."}`);
+      setSimulatorResult(response.data.duplicate ? "Duplicate safely ignored." : `${response.data.classification?.replaceAll("_", " ")} processed. ${response.data.customerCreated ? `CRM lead ${response.data.customerName ?? "created"} was created.` : `Matched existing CRM customer: ${response.data.customerName ?? "customer"}.`}`);
       setSimulatorMessage({ externalMessageId: crypto.randomUUID(), from: simulatorMessage.from, contactName: simulatorMessage.contactName, message: "" });
+      if (session) await queryClient.invalidateQueries({ queryKey: queryKeys.crm(session.organization.id) });
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Unable to simulate WhatsApp intake.");

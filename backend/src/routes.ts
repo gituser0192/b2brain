@@ -43,6 +43,7 @@ import { automationPolicyRouter } from "./modules/automation-policies/automation
 import { schoolFeeRouter } from "./modules/school-fees/school-fee.routes.js";
 import { salesIntelligenceRouter } from "./modules/sales-intelligence/sales-intelligence.routes.js";
 import { settingsRouter } from "./modules/settings/settings.routes.js";
+import { enquiryAgentRouter } from "./modules/enquiry-agent/enquiry-agent.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -102,3 +103,4 @@ apiRouter.use("/school", schoolRouter);
 apiRouter.use("/school-fees", schoolFeeRouter);
 apiRouter.use("/sales-intelligence", salesIntelligenceRouter);
 apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/enquiry-agent", enquiryAgentRouter);

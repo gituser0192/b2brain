@@ -20,6 +20,18 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+let sessionRestorePromise: Promise<{ accessToken: string; account: AuthSession }> | null = null;
+
+function restoreSessionOnce() {
+  sessionRestorePromise ??= (async () => {
+    const refreshed = await apiRequest<RefreshResponse>("/auth/refresh", { method: "POST" });
+    const account = await apiRequest<MeResponse>("/auth/me", {
+      headers: { Authorization: `Bearer ${refreshed.data.accessToken}` },
+    });
+    return { accessToken: refreshed.data.accessToken, account: account.data };
+  })();
+  return sessionRestorePromise;
+}
 
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -32,11 +44,14 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     setSession(account);
     return account;
   }, []);
-  const login = useCallback(async (input: LoginInput) => establish(await apiRequest<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(input) })), [establish]);
+  const login = useCallback(async (input: LoginInput) => {
+    sessionRestorePromise = null;
+    return establish(await apiRequest<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(input) }));
+  }, [establish]);
   const register = useCallback((input: RegisterInput) => apiRequest<RegistrationResponse>("/auth/register", { method: "POST", body: JSON.stringify(input) }), []);
   const logout = useCallback(async () => {
     try { await apiRequest("/auth/logout", { method: "POST" }); }
-    finally { setAccessToken(null); setSession(null); }
+    finally { sessionRestorePromise = null; setAccessToken(null); setSession(null); }
   }, []);
   const updateOrganization = useCallback((organization: AuthOrganization) => {
     setSession((current) => current ? { ...current, organization } : current);
@@ -56,10 +71,10 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     let active = true;
     async function restore() {
       try {
-        const refreshed = await apiRequest<RefreshResponse>("/auth/refresh", { method: "POST" });
-        const account = await apiRequest<MeResponse>("/auth/me", { headers: { Authorization: `Bearer ${refreshed.data.accessToken}` } });
-        if (active) { setAccessToken(refreshed.data.accessToken); setSession(account.data); }
+        const restored = await restoreSessionOnce();
+        if (active) { setAccessToken(restored.accessToken); setSession(restored.account); }
       } catch {
+        sessionRestorePromise = null;
         if (active) { setAccessToken(null); setSession(null); }
       } finally {
         if (active) setIsLoading(false);
