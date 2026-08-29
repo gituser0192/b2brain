@@ -13873,6 +13873,33 @@ a {
   border-top: 1px solid #dce5ef;
   background: #fff;
 }
+
+.workspace-agent-sections { display:flex; gap:8px; padding:0 4px; border-bottom:1px solid #dbe4f0; }
+.workspace-agent-sections button { border:0; border-bottom:3px solid transparent; background:transparent; padding:14px 16px; color:#66758f; font-weight:800; cursor:pointer; }
+.workspace-agent-sections button.active { color:#0879df; border-bottom-color:#1698ee; }
+.agent-management-view { display:grid; gap:18px; padding:22px 4px; }
+.agent-management-view > header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+.agent-management-view > header p { margin:0 0 5px; color:#0879df; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+.agent-management-view > header h3 { margin:0 0 5px; font-size:24px; color:#0a1d3d; }
+.agent-management-view > header span { color:#6b7890; }
+.agent-management-view > header > button { border:0; border-radius:10px; padding:11px 16px; background:#087fe5; color:white; font-weight:800; cursor:pointer; }
+.agent-health-score { min-width:110px; padding:14px; border-radius:15px; background:#092d5a; color:white; font-size:28px; text-align:center; }
+.agent-health-score small { display:block; margin-top:3px; color:#a9cff7; font-size:11px; font-weight:700; }
+.agent-alert-list,.agent-recommendations,.agent-goal-list { display:grid; gap:10px; }
+.agent-alert-list > h3,.agent-recommendations > h3 { margin:4px 0; color:#0a1d3d; }
+.agent-alert-list article,.agent-recommendations article,.agent-goal-list article { display:flex; align-items:center; gap:14px; padding:15px; border:1px solid #dbe4f0; border-radius:13px; background:white; }
+.agent-alert-list article > div,.agent-recommendations article > div { flex:1; min-width:0; }
+.agent-alert-list p,.agent-recommendations p { margin:4px 0; color:#52627c; }
+.agent-alert-list small { color:#8290a6; }
+.agent-alert-list button,.agent-recommendations button { border:1px solid #b9d5ef; border-radius:8px; padding:8px 11px; background:#f5faff; color:#0872ce; font-weight:800; cursor:pointer; }
+.agent-alert-severity { min-width:60px; border-radius:999px; padding:5px 8px; text-align:center; font-size:10px; font-weight:900; }
+.agent-alert-severity.high { background:#fee8e6; color:#b3261e; }.agent-alert-severity.medium { background:#fff3d6; color:#8a5800; }.agent-alert-severity.low { background:#e6f7ee; color:#08783e; }
+.agent-empty-copy { margin:0; padding:18px; border:1px dashed #cbd9e8; border-radius:12px; color:#6d7b91; background:#f8fbff; }
+.agent-goal-form { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)) auto; gap:10px; padding:15px; border-radius:14px; background:#eef6ff; }
+.agent-goal-form label { display:grid; gap:5px; }.agent-goal-form label span { font-size:11px; font-weight:800; color:#3d4e68; }.agent-goal-form input,.agent-goal-form select { min-width:0; border:1px solid #c9d9ea; border-radius:8px; padding:9px; background:white; }.agent-goal-form button { align-self:end; border:0; border-radius:8px; padding:10px 13px; background:#087fe5; color:white; font-weight:800; }
+.agent-goal-list article { display:grid; }.agent-goal-list article header,.agent-goal-list article footer { display:flex; justify-content:space-between; gap:14px; }.agent-goal-list article header div { display:grid; gap:3px; }.agent-goal-list article header small { color:#697a94; }.agent-goal-list article header span { border-radius:999px; padding:5px 9px; font-size:10px; font-weight:900; }.agent-goal-list .risk { background:#fee8e6;color:#b3261e; }.agent-goal-list .track { background:#e5f7ec;color:#08783e; }.goal-progress { height:8px; overflow:hidden; border-radius:999px; background:#e5edf6; }.goal-progress i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#1698ee,#7357ed); }.agent-goal-list footer { color:#61718a; font-size:12px; }
+@media(max-width:900px){.agent-goal-form{grid-template-columns:1fr 1fr}.agent-management-view>header{align-items:stretch}.agent-alert-list article{align-items:flex-start;flex-wrap:wrap}}
+@media(max-width:600px){.workspace-agent-sections{overflow-x:auto}.agent-management-view>header{display:grid}.agent-health-score{width:max-content}.agent-goal-form{grid-template-columns:1fr}.agent-alert-list article,.agent-recommendations article{display:grid}.workspace-agent.full .workspace-metric-grid{grid-template-columns:1fr 1fr}}
 .workspace-agent-composer textarea {
   flex: 1;
   resize: none;

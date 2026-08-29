@@ -6,6 +6,8 @@ const db = vi.hoisted(() => ({
   connectorCreate: vi.fn(),
   eventFindFirst: vi.fn(),
   eventCreate: vi.fn(),
+  eventUpdate: vi.fn(),
+  eventUpdateMany: vi.fn(),
   eventFindMany: vi.fn(),
   customerCount: vi.fn(),
   customerFindFirst: vi.fn(),
@@ -14,6 +16,7 @@ const db = vi.hoisted(() => ({
   txCustomerCreate: vi.fn(),
   txAuditCreate: vi.fn(),
 }));
+const proactive = vi.hoisted(() => ({ brief: vi.fn(), goals: vi.fn() }));
 vi.mock("../src/database/prisma.js", () => ({
   prisma: {
     integrationConnector: {
@@ -23,6 +26,8 @@ vi.mock("../src/database/prisma.js", () => ({
     integrationEvent: {
       findFirst: db.eventFindFirst,
       create: db.eventCreate,
+      update: db.eventUpdate,
+      updateMany: db.eventUpdateMany,
       findMany: db.eventFindMany,
     },
     customer: { count: db.customerCount, findFirst: db.customerFindFirst },
@@ -30,6 +35,15 @@ vi.mock("../src/database/prisma.js", () => ({
     $transaction: db.transaction,
   },
 }));
+vi.mock(
+  "../src/modules/workspace-agent/workspace-agent.proactive.service.js",
+  () => ({
+    WorkspaceAgentProactiveService: class {
+      brief = proactive.brief;
+      goals = proactive.goals;
+    },
+  }),
+);
 import { WorkspaceAgentService } from "../src/modules/workspace-agent/workspace-agent.service.js";
 import { workspaceAgentMessageSchema } from "../src/modules/workspace-agent/workspace-agent.validation.js";
 
@@ -55,6 +69,8 @@ describe("Ask B² Brain workspace agent", () => {
     });
     db.eventFindFirst.mockResolvedValue(null);
     db.eventCreate.mockResolvedValue({ id: "event-1" });
+    db.eventUpdate.mockResolvedValue({ id: "event-1" });
+    db.eventUpdateMany.mockResolvedValue({ count: 1 });
     db.auditCreate.mockResolvedValue({});
     db.transaction.mockImplementation((run: (tx: unknown) => unknown) =>
       run({
@@ -63,6 +79,22 @@ describe("Ask B² Brain workspace agent", () => {
       }),
     );
     db.txAuditCreate.mockResolvedValue({});
+    proactive.brief.mockResolvedValue({
+      meaningful: true,
+      alerts: [{ code: "OVERDUE_TASKS" }],
+      recommendations: [{ title: "Review tasks" }],
+      health: { score: 72, missingData: [] },
+      activity: {
+        newCustomers: 3,
+        newLeads: 2,
+        overdueFollowUps: 4,
+        overdueTasks: 5,
+      },
+    });
+    proactive.goals.mockResolvedValue([
+      { id: "goal-1", risk: "HIGH" },
+      { id: "goal-2", risk: "ON_TRACK" },
+    ]);
   });
   it("counts only customers in the authenticated organization", async () => {
     db.customerCount.mockResolvedValue(4);
@@ -116,6 +148,24 @@ describe("Ask B² Brain workspace agent", () => {
     expect(db.customerCount).not.toHaveBeenCalled();
     expect(db.eventCreate).not.toHaveBeenCalled();
   });
+  it("blocks a concurrent request after its idempotency reservation exists", async () => {
+    db.eventFindFirst.mockResolvedValue({
+      id: "event-processing",
+      status: "PROCESSING",
+      payload: { conversationId: input("x").conversationId },
+    });
+    await expect(
+      new WorkspaceAgentService().message(
+        context,
+        input("Count all CRM customers", "same-concurrent-message"),
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "WORKSPACE_AGENT_REQUEST_RESERVED",
+    });
+    expect(db.customerCount).not.toHaveBeenCalled();
+    expect(db.eventCreate).not.toHaveBeenCalled();
+  });
   it("rejects frontend identity and organization fields", () => {
     expect(
       workspaceAgentMessageSchema.safeParse({
@@ -148,5 +198,19 @@ describe("Ask B² Brain workspace agent", () => {
         }),
       }),
     );
+  });
+  it.each([
+    ["today's brief", "brief"],
+    ["Review Today’s Brief.", "brief"],
+    ["goals", "goals"],
+    ["Create a measurable goal.", "goals"],
+    ["New customers", "brief"],
+    ["Overdue follow-ups/tasks", "brief"],
+  ])("routes management phrase %s to %s", async (message, section) => {
+    const result = await new WorkspaceAgentService().message(
+      context,
+      input(message, `intent-${message}`),
+    );
+    expect(result).toMatchObject({ managementSection: section });
   });
 });

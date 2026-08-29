@@ -181,6 +181,22 @@ enum BusinessRecommendationStatus {
   RESOLVED
 }
 
+enum BusinessGoalType {
+  MONTHLY_REVENUE
+  NEW_LEADS
+  CUSTOMER_CONVERSION
+  EXPENSE_LIMIT
+  PROJECT_COMPLETION
+  FOLLOW_UP_RESPONSE
+}
+
+enum BusinessGoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  ARCHIVED
+}
+
 enum BusinessKnowledgeStatus {
   DRAFT
   APPROVED
@@ -924,6 +940,8 @@ model User {
   approvalsDecided             ApprovalRequest[]             @relation("ApprovalDecidedBy")
   auditEvents                  AuditEvent[]                  @relation("AuditActorUser")
   recommendationsDecided       BusinessRecommendation[]      @relation("RecommendationDecidedBy")
+  businessGoalsCreated         BusinessGoal[]                @relation("BusinessGoalCreatedBy")
+  businessGoalsUpdated         BusinessGoal[]                @relation("BusinessGoalUpdatedBy")
   projectsOwned                Project[]                     @relation("ProjectOwner")
   projectsCreated              Project[]                     @relation("ProjectCreatedBy")
   projectsUpdated              Project[]                     @relation("ProjectUpdatedBy")
@@ -1088,6 +1106,7 @@ model Organization {
   approvalRequests         ApprovalRequest[]
   auditEvents              AuditEvent[]
   businessRecommendations  BusinessRecommendation[]
+  businessGoals            BusinessGoal[]
   projects                 Project[]
   projectTasks             ProjectTask[]
   projectMembers           ProjectMember[]
@@ -1883,6 +1902,30 @@ model BusinessRecommendation {
   @@index([organizationId, serviceCode, status])
   @@index([organizationId, status, snoozedUntil])
   @@index([decidedById])
+}
+
+model BusinessGoal {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  type           BusinessGoalType
+  title          String
+  targetValue    Decimal            @db.Decimal(18, 2)
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         BusinessGoalStatus @default(ACTIVE)
+  createdById    String             @db.Uuid
+  updatedById    String             @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  archivedAt     DateTime?
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User               @relation("BusinessGoalCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User               @relation("BusinessGoalUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, periodEnd])
+  @@index([organizationId, type, status])
+  @@index([createdById])
+  @@index([updatedById])
 }
 
 model Project {

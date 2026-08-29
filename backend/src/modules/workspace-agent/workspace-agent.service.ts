@@ -4,6 +4,8 @@ import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { ServiceRequestService } from "../service-requests/service-request.service.js";
 import type { WorkspaceAgentMessage } from "./workspace-agent.validation.js";
+import { WorkspaceAgentProactiveService } from "./workspace-agent.proactive.service.js";
+import { routeWorkspaceRequest } from "./workspace-agent.router.js";
 
 type Context = {
   organizationId: string;
@@ -21,6 +23,7 @@ const money = (value: number, currency: string) =>
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
 export class WorkspaceAgentService {
+  private readonly proactive = new WorkspaceAgentProactiveService();
   private async connector(context: Context) {
     const existing = await prisma.integrationConnector.findFirst({
       where: {
@@ -315,7 +318,7 @@ export class WorkspaceAgentService {
       await tx.auditEvent.create({
         data: {
           organizationId: context.organizationId,
-          actorType: "AI_AGENT",
+          actorType: "SYSTEM",
           actorUserId: context.userId,
           serviceCode: "CRM",
           actionCode: "WORKSPACE_AGENT_CUSTOMER_CREATED",
@@ -339,6 +342,8 @@ export class WorkspaceAgentService {
   }
 
   async message(context: Context, input: WorkspaceAgentMessage) {
+    const startedAt = Date.now(),
+      route = routeWorkspaceRequest(input.message);
     const connector = await this.connector(context);
     const duplicate = await prisma.integrationEvent.findFirst({
       where: {
@@ -346,27 +351,59 @@ export class WorkspaceAgentService {
         connectorId: connector.id,
         externalEventId: input.externalMessageId,
       },
-      select: { id: true, payload: true },
+      select: { id: true, payload: true, status: true },
     });
-    if (duplicate)
+    if (duplicate && (duplicate.payload as { output?: object }).output)
       return {
         duplicate: true,
         eventId: duplicate.id,
         ...((duplicate.payload as { output?: object }).output ?? {}),
       };
+    if (duplicate)
+      throw new AppError(
+        409,
+        "This request is already being processed or previously failed safely.",
+        "WORKSPACE_AGENT_REQUEST_RESERVED",
+      );
+    let event: { id: string };
+    try {
+      event = await prisma.integrationEvent.create({
+        data: {
+          organizationId: context.organizationId,
+          connectorId: connector.id,
+          externalEventId: input.externalMessageId,
+          eventName: "workspace-agent.message",
+          kind: "INQUIRY",
+          status: "PROCESSING",
+          signatureVerified: true,
+          payload: {
+            conversationId: input.conversationId,
+            message: input.message,
+          },
+          payloadHash: createHash("sha256").update(input.message).digest("hex"),
+          attemptCount: 1,
+          createdById: context.userId,
+          updatedById: context.userId,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        throw new AppError(
+          409,
+          "This request is already being processed.",
+          "WORKSPACE_AGENT_REQUEST_RESERVED",
+        );
+      throw error;
+    }
     const lower = input.message.toLowerCase();
     let output: Record<string, unknown>;
-    if (
-      /add\s+.+(?:phone|\d{7,}).*(?:crm|customer)|add\s+.+\d{7,}/i.test(
-        input.message,
-      )
-    )
+    if (route.intent === "CUSTOMER_CREATE")
       output = await this.createCustomer(context, input.message);
-    else if (
-      /(?:count|total|how many|number of).*(?:customer|client)|(?:customer|client).*(?:count|total|how many|number of)/i.test(
-        input.message,
-      )
-    ) {
+    else if (route.intent === "CUSTOMER_COUNT") {
       if (!context.permissions.includes("CRM_VIEW"))
         throw new AppError(
           403,
@@ -380,11 +417,72 @@ export class WorkspaceAgentService {
         answer: `Your organization has ${count} CRM customer${count === 1 ? "" : "s"}.`,
         metrics: [{ label: "CRM customers", value: count }],
       };
-    } else if (
-      /(business health|what is going on|what should i improve)/i.test(
-        input.message,
-      )
-    ) {
+    } else if (route.intent === "DAILY_BRIEF") {
+      const brief = await this.proactive.brief(context);
+      output = {
+        answer: brief.meaningful
+          ? `Today's brief found ${brief.alerts.length} explainable alert${brief.alerts.length === 1 ? "" : "s"} and ${brief.recommendations.length} priority action${brief.recommendations.length === 1 ? "" : "s"}.`
+          : "Today's brief found no meaningful changes requiring attention.",
+        metrics: [
+          { label: "Business health", value: brief.health.score ?? 0 },
+          { label: "New customers", value: brief.activity.newCustomers ?? 0 },
+          {
+            label: "Overdue follow-ups",
+            value: brief.activity.overdueFollowUps ?? 0,
+          },
+          { label: "Overdue tasks", value: brief.activity.overdueTasks ?? 0 },
+        ],
+        warnings: brief.health.missingData,
+        managementSection: "brief",
+      };
+    } else if (route.intent === "GOAL_CREATE") {
+      output = {
+        answer:
+          "Open Goals to choose a measurable goal type, target and date range. I will calculate progress and risk from your permitted organization data.",
+        managementSection: "goals",
+      };
+    } else if (route.intent === "GOAL_LIST") {
+      const goals = await this.proactive.goals(context);
+      output = {
+        answer: goals.length
+          ? `You have ${goals.length} business goal${goals.length === 1 ? "" : "s"}. ${goals.filter((goal) => goal.risk === "HIGH").length} ${goals.filter((goal) => goal.risk === "HIGH").length === 1 ? "is" : "are"} currently at high risk.`
+          : "No measurable business goals have been created yet.",
+        metrics: [
+          { label: "Goals", value: goals.length },
+          {
+            label: "High risk",
+            value: goals.filter((goal) => goal.risk === "HIGH").length,
+          },
+        ],
+        managementSection: "goals",
+      };
+    } else if (route.intent === "NEW_CUSTOMERS") {
+      const brief = await this.proactive.brief(context);
+      output = {
+        answer: `Today your organization added ${brief.activity.newCustomers ?? 0} new customer${brief.activity.newCustomers === 1 ? "" : "s"}, including ${brief.activity.newLeads ?? 0} new lead${brief.activity.newLeads === 1 ? "" : "s"}.`,
+        metrics: [
+          {
+            label: "New customers today",
+            value: brief.activity.newCustomers ?? 0,
+          },
+          { label: "New leads today", value: brief.activity.newLeads ?? 0 },
+        ],
+        managementSection: "brief",
+      };
+    } else if (route.intent === "OVERDUE_WORK") {
+      const brief = await this.proactive.brief(context);
+      output = {
+        answer: `There are ${brief.activity.overdueFollowUps ?? 0} overdue customer follow-up${brief.activity.overdueFollowUps === 1 ? "" : "s"} and ${brief.activity.overdueTasks ?? 0} overdue project task${brief.activity.overdueTasks === 1 ? "" : "s"}.`,
+        metrics: [
+          {
+            label: "Overdue follow-ups",
+            value: brief.activity.overdueFollowUps ?? 0,
+          },
+          { label: "Overdue tasks", value: brief.activity.overdueTasks ?? 0 },
+        ],
+        managementSection: "brief",
+      };
+    } else if (route.intent === "BUSINESS_HEALTH") {
       const health = await this.health(context);
       output = {
         answer:
@@ -393,9 +491,7 @@ export class WorkspaceAgentService {
             : `Your explainable business health score is ${health.overall}/100.`,
         health,
       };
-    } else if (
-      /(financial score|revenue|expenses|profit)/i.test(input.message)
-    ) {
+    } else if (route.intent === "FINANCE_SUMMARY") {
       const value = await this.finance(context);
       output = {
         answer: `This month: ${money(value.current.revenue, value.currency)} revenue, ${money(value.current.expenses, value.currency)} expenses and ${money(value.current.profit, value.currency)} profit.`,
@@ -407,7 +503,7 @@ export class WorkspaceAgentService {
               ]
             : [],
       };
-    } else if (/(predict|forecast|next month)/i.test(input.message)) {
+    } else if (route.intent === "FORECAST") {
       const value = await this.finance(context);
       const observed = value.monthly.filter(
         (item) => item.revenue || item.expenses,
@@ -441,31 +537,19 @@ export class WorkspaceAgentService {
           },
         };
       }
-    } else if (
-      /(how do i add a customer|how.*crm|explain b2|what can b2)/i.test(
-        input.message,
-      )
-    )
+    } else if (route.intent === "PRODUCT_HELP")
       output = {
         answer:
           "Open CRM from the left menu, choose “Add customer”, enter the real customer details and save. You can also tell me: “Add Rahul with phone number 9876543210 to CRM.”",
         records: [{ type: "NAVIGATION", id: "crm", label: "Open CRM" }],
       };
-    else if (
-      /(help me set up|agent setup|set up my business agent)/i.test(
-        input.message,
-      )
-    )
+    else if (route.intent === "SETUP_GUIDANCE")
       output = {
         answer:
           "Let’s set up your business agent. Start by adding your business description, industry, services, pricing, hours, locations, goals and escalation preferences in the guided setup.",
         setup: { step: "BUSINESS_DESCRIPTION", completed: false },
       };
-    else if (
-      /(delete|refund|payment reversal|legal|credential|security problem)/i.test(
-        input.message,
-      )
-    ) {
+    else if (route.intent === "HUMAN_ESCALATION") {
       const request = await new ServiceRequestService().create(
         context.organizationId,
         context.userId,
@@ -503,39 +587,47 @@ export class WorkspaceAgentService {
       conversationId: input.conversationId,
       message: input.message,
       output,
+      diagnostics: {
+        route: route.intent,
+        processingPath: route.path,
+        aiCalled: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        toolCalls: route.path === "DETERMINISTIC_FALLBACK" ? 0 : 1,
+        responseTimeMs: Date.now() - startedAt,
+      },
     };
-    const event = await prisma.integrationEvent.create({
+    await prisma.integrationEvent.update({
+      where: { id: event.id },
       data: {
-        organizationId: context.organizationId,
-        connectorId: connector.id,
-        externalEventId: input.externalMessageId,
-        eventName: "workspace-agent.message",
-        kind: "INQUIRY",
         status: "COMPLETED",
-        signatureVerified: true,
         payload: payload as Prisma.InputJsonValue,
         payloadHash: createHash("sha256")
           .update(JSON.stringify(payload))
           .digest("hex"),
-        attemptCount: 1,
         processedAt: new Date(),
-        createdById: context.userId,
         updatedById: context.userId,
       },
     });
     await prisma.auditEvent.create({
       data: {
         organizationId: context.organizationId,
-        actorType: "AI_AGENT",
+        actorType: "SYSTEM",
         actorUserId: context.userId,
         serviceCode: "WORKSPACE_AGENT",
         actionCode: "WORKSPACE_AGENT_REQUEST_COMPLETED",
         sourceType: "INTEGRATION_EVENT",
         sourceId: event.id,
-        summary: "Ask B² Brain completed an authenticated workspace request.",
+        summary:
+          "Ask B² Brain completed an authenticated deterministic workspace request.",
         metadata: {
           membershipId: context.membershipId,
           externalActionPerformed: false,
+          route: route.intent,
+          processingPath: route.path,
+          aiCalled: false,
+          responseTimeMs: Date.now() - startedAt,
         },
       },
     });
@@ -558,12 +650,103 @@ export class WorkspaceAgentService {
       .filter(
         (event) =>
           (event.payload as { conversationId?: string }).conversationId ===
-          conversationId,
+            conversationId &&
+          Boolean((event.payload as { output?: object }).output),
       )
       .map((event) => ({
         id: event.id,
         createdAt: event.createdAt,
         ...(event.payload as object),
       }));
+  }
+
+  async usage(context: Context) {
+    const connector = await this.connector(context),
+      monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+    const events = await prisma.integrationEvent.findMany({
+      where: {
+        organizationId: context.organizationId,
+        connectorId: connector.id,
+        eventName: "workspace-agent.message",
+        createdAt: { gte: monthStart },
+      },
+      select: { payload: true, status: true },
+      orderBy: { createdAt: "desc" },
+      take: 5000,
+    });
+    const diagnostics: Array<{
+      status: string;
+      aiCalled?: unknown;
+      inputTokens?: unknown;
+      outputTokens?: unknown;
+      estimatedCostUsd?: unknown;
+      toolCalls?: unknown;
+      processingPath?: unknown;
+      responseTimeMs?: unknown;
+    }> = events.map((event) => ({
+      status: event.status,
+      ...((event.payload as { diagnostics?: Record<string, unknown> })
+        .diagnostics ?? {}),
+    }));
+    const number = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) ? value : 0;
+    return {
+      periodStart: monthStart,
+      requests: events.length,
+      aiRequests: diagnostics.filter((item) => item.aiCalled === true).length,
+      deterministicRequests: diagnostics.filter(
+        (item) => item.aiCalled === false,
+      ).length,
+      inputTokens: diagnostics.reduce(
+        (sum, item) => sum + number(item.inputTokens),
+        0,
+      ),
+      outputTokens: diagnostics.reduce(
+        (sum, item) => sum + number(item.outputTokens),
+        0,
+      ),
+      estimatedCostUsd: diagnostics.reduce(
+        (sum, item) => sum + number(item.estimatedCostUsd),
+        0,
+      ),
+      toolCalls: diagnostics.reduce(
+        (sum, item) => sum + number(item.toolCalls),
+        0,
+      ),
+      providerFailures: 0,
+      fallbackUsage: diagnostics.filter(
+        (item) => item.processingPath === "DETERMINISTIC_FALLBACK",
+      ).length,
+      averageResponseTimeMs: diagnostics.length
+        ? Math.round(
+            diagnostics.reduce(
+              (sum, item) => sum + number(item.responseTimeMs),
+              0,
+            ) / diagnostics.length,
+          )
+        : 0,
+      capped: events.length === 5000,
+    };
+  }
+
+  async markFailed(context: Context, externalMessageId: string) {
+    const connector = await this.connector(context);
+    await prisma.integrationEvent.updateMany({
+      where: {
+        organizationId: context.organizationId,
+        connectorId: connector.id,
+        externalEventId: externalMessageId,
+        status: "PROCESSING",
+      },
+      data: {
+        status: "FAILED",
+        failureMessage:
+          "Processing failed safely. Reuse of this request ID is blocked to prevent duplicate actions.",
+        processedAt: new Date(),
+        updatedById: context.userId,
+      },
+    });
   }
 }
