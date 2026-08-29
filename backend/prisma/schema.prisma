@@ -181,6 +181,28 @@ enum BusinessRecommendationStatus {
   RESOLVED
 }
 
+enum BusinessKnowledgeStatus {
+  DRAFT
+  APPROVED
+  ARCHIVED
+}
+
+enum BusinessKnowledgeCategory {
+  BUSINESS_OVERVIEW
+  SERVICE
+  PRODUCT
+  PRICING
+  BUSINESS_HOURS
+  LOCATION
+  SERVICE_AREA
+  FAQ
+  BOOKING_CONTACT
+  REFUND_POLICY
+  CANCELLATION_POLICY
+  OTHER_POLICY
+  ADDITIONAL
+}
+
 enum ProjectStatus {
   PLANNING
   ACTIVE
@@ -1022,6 +1044,9 @@ model User {
   schoolFeeRemindersUpdated    SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderUpdatedBy")
   schoolFeeRemindersApproved   SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderApprovedBy")
   schoolImportsCreated         SchoolImportBatch[]           @relation("SchoolImportCreatedBy")
+  businessKnowledgeCreated     BusinessKnowledgeEntry[]      @relation("BusinessKnowledgeCreatedBy")
+  businessKnowledgeUpdated     BusinessKnowledgeEntry[]      @relation("BusinessKnowledgeUpdatedBy")
+  businessKnowledgeApproved    BusinessKnowledgeEntry[]      @relation("BusinessKnowledgeApprovedBy")
 
   @@index([status, deletedAt])
 }
@@ -1138,8 +1163,32 @@ model Organization {
   schoolFeePayments        SchoolFeePayment[]
   schoolFeeReminders       SchoolFeeReminderDraft[]
   schoolImportBatches      SchoolImportBatch[]
+  businessKnowledge        BusinessKnowledgeEntry[]
 
   @@index([status, deletedAt])
+}
+
+model BusinessKnowledgeEntry {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @db.Uuid
+  category       BusinessKnowledgeCategory
+  title          String
+  content        String
+  status         BusinessKnowledgeStatus   @default(DRAFT)
+  approvedAt     DateTime?
+  approvedById   String?                   @db.Uuid
+  archivedAt     DateTime?
+  createdById    String                    @db.Uuid
+  updatedById    String                    @db.Uuid
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                      @relation("BusinessKnowledgeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      User                      @relation("BusinessKnowledgeUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  approvedBy     User?                     @relation("BusinessKnowledgeApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, category, updatedAt])
+  @@index([organizationId, title])
 }
 
 model OrganizationMembership {

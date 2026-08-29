@@ -75,8 +75,10 @@ const blank = () => ({
 });
 export function InquiryWorkspace({
   onNavigate,
+  selectedInquiryId = null,
 }: {
   onNavigate: (view: "crm" | "sales" | "support") => void;
+  selectedInquiryId?: string | null;
 }) {
   const { session, authorizedRequest } = useAuth(),
     [items, setItems] = useState<Item[]>([]),
@@ -123,6 +125,10 @@ export function InquiryWorkspace({
     const task = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(task);
   }, [load]);
+  useEffect(() => {
+    const selected = items.find((item) => item.id === selectedInquiryId);
+    if (selected) show(selected);
+  }, [items, selectedInquiryId]);
   function show(i?: Item) {
     setDuplicate(null);
     setChosen(i ?? null);

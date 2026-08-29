@@ -10,31 +10,187 @@ import { useAuth } from "./auth-context";
 import { NotificationCenter } from "@/features/notifications/notification-center";
 import { BusinessDashboard } from "@/features/dashboard/business-dashboard";
 
-const workspaceLoading = () => <div className="dashboard-data-loader"><span className="spinner dark" />Opening service…</div>;
-const TeamWorkspace = dynamic(() => import("@/features/memberships/team-workspace").then((module) => module.TeamWorkspace), { loading: workspaceLoading });
-const RolesWorkspace = dynamic(() => import("@/features/roles/roles-workspace").then((module) => module.RolesWorkspace), { loading: workspaceLoading });
-const CustomerWorkspace = dynamic(() => import("@/features/customers/customer-workspace").then((module) => module.CustomerWorkspace), { loading: workspaceLoading });
-const AutomationWorkspace = dynamic(() => import("@/features/automation/automation-workspace").then((module) => module.AutomationWorkspace), { loading: workspaceLoading });
-const ProjectWorkspace = dynamic(() => import("@/features/projects/project-workspace").then((module) => module.ProjectWorkspace), { loading: workspaceLoading });
-const EmployeeWorkspace = dynamic(() => import("@/features/employees/employee-workspace").then((module) => module.EmployeeWorkspace), { loading: workspaceLoading });
-const SalesWorkspace = dynamic(() => import("@/features/sales/sales-workspace").then((module) => module.SalesWorkspace), { loading: workspaceLoading });
-const FinanceWorkspace = dynamic(() => import("@/features/finance/finance-workspace").then((module) => module.FinanceWorkspace), { loading: workspaceLoading });
-const CatalogueWorkspace = dynamic(() => import("@/features/catalogue/catalogue-workspace").then((module) => module.CatalogueWorkspace), { loading: workspaceLoading });
-const OrderWorkspace = dynamic(() => import("@/features/orders/order-workspace").then((module) => module.OrderWorkspace), { loading: workspaceLoading });
-const InventoryWorkspace = dynamic(() => import("@/features/inventory/inventory-workspace").then((module) => module.InventoryWorkspace), { loading: workspaceLoading });
-const MarketingWorkspace = dynamic(() => import("@/features/marketing/marketing-workspace").then((module) => module.MarketingWorkspace), { loading: workspaceLoading });
-const AnalysisWorkspace = dynamic(() => import("@/features/analysis/analysis-workspace").then((module) => module.AnalysisWorkspace), { loading: workspaceLoading });
-const SupportWorkspace = dynamic(() => import("@/features/support/support-workspace").then((module) => module.SupportWorkspace), { loading: workspaceLoading });
-const ServiceRequestWorkspace = dynamic(() => import("@/features/service-requests/service-request-workspace").then((module) => module.ServiceRequestWorkspace), { loading: workspaceLoading });
-const WebsiteWorkspace = dynamic(() => import("@/features/websites/website-workspace").then((module) => module.WebsiteWorkspace), { loading: workspaceLoading });
-const ProcurementWorkspace = dynamic(() => import("@/features/procurement/procurement-workspace").then((module) => module.ProcurementWorkspace), { loading: workspaceLoading });
-const CalendarWorkspace = dynamic(() => import("@/features/calendar/calendar-workspace").then((module) => module.CalendarWorkspace), { loading: workspaceLoading });
-const InquiryWorkspace = dynamic(() => import("@/features/inquiries/inquiry-workspace").then((module) => module.InquiryWorkspace), { loading: workspaceLoading });
-const StayWorkspace = dynamic(() => import("@/features/stay/stay-workspace").then((module) => module.StayWorkspace), { loading: workspaceLoading });
-const GovernanceWorkspace = dynamic(() => import("@/features/governance/governance-workspace").then((module) => module.GovernanceWorkspace), { loading: workspaceLoading });
-const ActionCentreWorkspace = dynamic(() => import("@/features/action-centre/action-centre-workspace").then((module) => module.ActionCentreWorkspace), { loading: workspaceLoading });
-const SchoolWorkspace = dynamic(() => import("@/features/school/school-workspace").then((module) => module.SchoolWorkspace), { loading: workspaceLoading });
-const SettingsWorkspace = dynamic(() => import("@/features/settings/settings-workspace").then((module) => module.SettingsWorkspace), { loading: workspaceLoading });
+const workspaceLoading = () => (
+  <div className="dashboard-data-loader">
+    <span className="spinner dark" />
+    Opening service…
+  </div>
+);
+const TeamWorkspace = dynamic(
+  () =>
+    import("@/features/memberships/team-workspace").then(
+      (module) => module.TeamWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const RolesWorkspace = dynamic(
+  () =>
+    import("@/features/roles/roles-workspace").then(
+      (module) => module.RolesWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const CustomerWorkspace = dynamic(
+  () =>
+    import("@/features/customers/customer-workspace").then(
+      (module) => module.CustomerWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const AutomationWorkspace = dynamic(
+  () =>
+    import("@/features/automation/automation-workspace").then(
+      (module) => module.AutomationWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const ProjectWorkspace = dynamic(
+  () =>
+    import("@/features/projects/project-workspace").then(
+      (module) => module.ProjectWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const EmployeeWorkspace = dynamic(
+  () =>
+    import("@/features/employees/employee-workspace").then(
+      (module) => module.EmployeeWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const SalesWorkspace = dynamic(
+  () =>
+    import("@/features/sales/sales-workspace").then(
+      (module) => module.SalesWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const FinanceWorkspace = dynamic(
+  () =>
+    import("@/features/finance/finance-workspace").then(
+      (module) => module.FinanceWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const CatalogueWorkspace = dynamic(
+  () =>
+    import("@/features/catalogue/catalogue-workspace").then(
+      (module) => module.CatalogueWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const OrderWorkspace = dynamic(
+  () =>
+    import("@/features/orders/order-workspace").then(
+      (module) => module.OrderWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const InventoryWorkspace = dynamic(
+  () =>
+    import("@/features/inventory/inventory-workspace").then(
+      (module) => module.InventoryWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const MarketingWorkspace = dynamic(
+  () =>
+    import("@/features/marketing/marketing-workspace").then(
+      (module) => module.MarketingWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const AnalysisWorkspace = dynamic(
+  () =>
+    import("@/features/analysis/analysis-workspace").then(
+      (module) => module.AnalysisWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const SupportWorkspace = dynamic(
+  () =>
+    import("@/features/support/support-workspace").then(
+      (module) => module.SupportWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const ServiceRequestWorkspace = dynamic(
+  () =>
+    import("@/features/service-requests/service-request-workspace").then(
+      (module) => module.ServiceRequestWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const WebsiteWorkspace = dynamic(
+  () =>
+    import("@/features/websites/website-workspace").then(
+      (module) => module.WebsiteWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const ProcurementWorkspace = dynamic(
+  () =>
+    import("@/features/procurement/procurement-workspace").then(
+      (module) => module.ProcurementWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const CalendarWorkspace = dynamic(
+  () =>
+    import("@/features/calendar/calendar-workspace").then(
+      (module) => module.CalendarWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const InquiryWorkspace = dynamic(
+  () =>
+    import("@/features/inquiries/inquiry-workspace").then(
+      (module) => module.InquiryWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const StayWorkspace = dynamic(
+  () =>
+    import("@/features/stay/stay-workspace").then(
+      (module) => module.StayWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const GovernanceWorkspace = dynamic(
+  () =>
+    import("@/features/governance/governance-workspace").then(
+      (module) => module.GovernanceWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const ActionCentreWorkspace = dynamic(
+  () =>
+    import("@/features/action-centre/action-centre-workspace").then(
+      (module) => module.ActionCentreWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const SchoolWorkspace = dynamic(
+  () =>
+    import("@/features/school/school-workspace").then(
+      (module) => module.SchoolWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const SettingsWorkspace = dynamic(
+  () =>
+    import("@/features/settings/settings-workspace").then(
+      (module) => module.SettingsWorkspace,
+    ),
+  { loading: workspaceLoading },
+);
+const WorkspaceAgent = dynamic(
+  () =>
+    import("@/features/workspace-agent/workspace-agent").then(
+      (module) => module.WorkspaceAgent,
+    ),
+  { loading: workspaceLoading },
+);
 
 const navItems = [
   { key: "overview", label: "Dashboard", icon: "D", permission: null },
@@ -57,7 +213,12 @@ const helpNavItem = {
   icon: "?",
   permission: null,
 };
-const settingsNavItem = { key: "settings", label: "Settings", icon: "⚙", permission: null };
+const settingsNavItem = {
+  key: "settings",
+  label: "Settings",
+  icon: "⚙",
+  permission: null,
+};
 
 interface OrganizationResponse {
   success: true;
@@ -114,13 +275,21 @@ export function ProtectedDashboard() {
     | "inquiries"
     | "stay"
     | "school"
-    | "settings";
+    | "settings"
+    | "b2agent";
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [enabledServices, setEnabledServices] = useState<string[]>([]);
+  const [agentOpen, setAgentOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !session) router.replace("/login");
-    else if (!isLoading && session && !session.user.isPlatformAdmin && !session.organization.onboardingCompleted) router.replace("/onboarding");
+    else if (
+      !isLoading &&
+      session &&
+      !session.user.isPlatformAdmin &&
+      !session.organization.onboardingCompleted
+    )
+      router.replace("/onboarding");
   }, [isLoading, session, router]);
   useEffect(() => {
     if (!session) return;
@@ -218,6 +387,14 @@ export function ProtectedDashboard() {
               );
             })(),
           )}
+          {enabledServices.includes("B2BRAIN_AGENT") && (
+            <button
+              className={activeView === "b2agent" ? "active" : ""}
+              onClick={() => setActiveView("b2agent")}
+            >
+              <span className="nav-icon">✦</span>Ask B² Brain
+            </button>
+          )}
           {enabledServices.includes("ACTION_CENTRE") &&
             session.membership.permissions.includes("APPROVAL_VIEW") && (
               <button
@@ -265,7 +442,10 @@ export function ProtectedDashboard() {
             )}
           {enabledServices.includes("SCHOOL") &&
             session.membership.permissions.includes("SCHOOL_VIEW") && (
-              <button className={activeView === "school" ? "active" : ""} onClick={() => setActiveView("school")}>
+              <button
+                className={activeView === "school" ? "active" : ""}
+                onClick={() => setActiveView("school")}
+              >
                 <span className="nav-icon">S</span>B² School
               </button>
             )}
@@ -464,8 +644,13 @@ export function ProtectedDashboard() {
         {activeView === "governance" && <GovernanceWorkspace />}
         {activeView === "settings" && <SettingsWorkspace />}
         {activeView === "actions" && <ActionCentreWorkspace />}
+        {activeView === "b2agent" && (
+          <WorkspaceAgent
+            onNavigate={(view) => setActiveView(view as ActiveView)}
+          />
+        )}
 
-        {activeView === "overview" ? (
+        {activeView === "b2agent" ? null : activeView === "overview" ? (
           <BusinessDashboard
             onNavigate={(view) => setActiveView(view as ActiveView)}
           />
@@ -721,6 +906,36 @@ export function ProtectedDashboard() {
           </>
         )}
       </main>
+      {enabledServices.includes("B2BRAIN_AGENT") && (
+        <button
+          type="button"
+          className="b2brain-floating-agent"
+          onClick={() => setAgentOpen((value) => !value)}
+          aria-label="Open Ask B² Brain"
+          title="Ask B² Brain"
+        >
+          <Image src="/brand/b2brain-logo.png" alt="" width={42} height={42} />
+          <span>Ask B² Brain</span>
+        </button>
+      )}
+      {enabledServices.includes("B2BRAIN_AGENT") && agentOpen && (
+        <aside className="workspace-agent-drawer">
+          <header>
+            <div>
+              <strong>Ask B² Brain</strong>
+              <span>Business Operating Agent</span>
+            </div>
+            <button onClick={() => setAgentOpen(false)}>×</button>
+          </header>
+          <WorkspaceAgent
+            compact
+            onNavigate={(view) => {
+              setActiveView(view as ActiveView);
+              setAgentOpen(false);
+            }}
+          />
+        </aside>
+      )}
     </div>
   );
 }

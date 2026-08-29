@@ -7,7 +7,10 @@ import { roleRouter } from "./modules/roles/role.routes.js";
 import { serviceRouter } from "./modules/services/service.routes.js";
 import { platformRouter } from "./modules/platform/platform.routes.js";
 import { customerRouter } from "./modules/customers/customer.routes.js";
-import { crmEngagementRouter, engagementRouter } from "./modules/customer-engagement/engagement.routes.js";
+import {
+  crmEngagementRouter,
+  engagementRouter,
+} from "./modules/customer-engagement/engagement.routes.js";
 import { notificationRouter } from "./modules/notifications/notification.routes.js";
 import { agentRouter } from "./modules/agents/agent.routes.js";
 import { projectRouter } from "./modules/projects/project.routes.js";
@@ -25,16 +28,28 @@ import { websiteRouter } from "./modules/websites/website.routes.js";
 import { procurementRouter } from "./modules/procurement/procurement.routes.js";
 import { calendarRouter } from "./modules/calendar/calendar.routes.js";
 import { inquiryRouter } from "./modules/inquiries/inquiry.routes.js";
-import { bridgeRouter, bridgeWebhookRouter } from "./modules/automation-bridge/bridge.routes.js";
-import { whatsappAdminRouter, whatsappWebhookRouter } from "./modules/automation-bridge/whatsapp.routes.js";
-import { publicWebsiteFormRouter, websiteFormAdminRouter } from "./modules/automation-bridge/website-form.routes.js";
+import {
+  bridgeRouter,
+  bridgeWebhookRouter,
+} from "./modules/automation-bridge/bridge.routes.js";
+import {
+  whatsappAdminRouter,
+  whatsappWebhookRouter,
+} from "./modules/automation-bridge/whatsapp.routes.js";
+import {
+  publicWebsiteFormRouter,
+  websiteFormAdminRouter,
+} from "./modules/automation-bridge/website-form.routes.js";
 import { stayRouter } from "./modules/stay/stay.routes.js";
 import { voiceCallRouter } from "./modules/voice-calls/voice-call.routes.js";
 import { governanceRouter } from "./modules/governance/governance.routes.js";
 import { actionCentreRouter } from "./modules/action-centre/action-centre.routes.js";
 import { salesWorkQueueRouter } from "./modules/sales-work-queue/sales-work-queue.routes.js";
 import { followUpAutomationRouter } from "./modules/follow-up-automation/follow-up-automation.routes.js";
-import { publicQuotationRouter, quotationRouter } from "./modules/quotations/quotation.routes.js";
+import {
+  publicQuotationRouter,
+  quotationRouter,
+} from "./modules/quotations/quotation.routes.js";
 import { paymentCollectionRouter } from "./modules/payment-collection/payment-collection.routes.js";
 import { managedServiceDeskRouter } from "./modules/managed-services/managed-service.routes.js";
 import { serviceRequestRouter } from "./modules/service-requests/service-request.routes.js";
@@ -44,6 +59,8 @@ import { schoolFeeRouter } from "./modules/school-fees/school-fee.routes.js";
 import { salesIntelligenceRouter } from "./modules/sales-intelligence/sales-intelligence.routes.js";
 import { settingsRouter } from "./modules/settings/settings.routes.js";
 import { enquiryAgentRouter } from "./modules/enquiry-agent/enquiry-agent.routes.js";
+import { businessKnowledgeRouter } from "./modules/business-knowledge/business-knowledge.routes.js";
+import { workspaceAgentRouter } from "./modules/workspace-agent/workspace-agent.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -103,4 +120,6 @@ apiRouter.use("/school", schoolRouter);
 apiRouter.use("/school-fees", schoolFeeRouter);
 apiRouter.use("/sales-intelligence", salesIntelligenceRouter);
 apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/business-knowledge", businessKnowledgeRouter);
 apiRouter.use("/enquiry-agent", enquiryAgentRouter);
+apiRouter.use("/workspace-agent", workspaceAgentRouter);

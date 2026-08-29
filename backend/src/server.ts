@@ -4,14 +4,18 @@ import { logger } from "./config/logger.js";
 import { prisma } from "./database/prisma.js";
 import { startAgentScheduler } from "./modules/agents/agent-schedule.service.js";
 import { startEmailDeliveryDispatcher } from "./modules/automation-bridge/email-delivery.service.js";
+import { startMetaWhatsappDispatcher } from "./modules/automation-bridge/whatsapp.service.js";
 
 async function start() {
   logger.info(safeDatabaseIdentity(), "Database target");
   await prisma.$connect();
   await prisma.$queryRaw`SELECT 1`;
-  const server = app.listen(env.PORT, () => logger.info({ port: env.PORT }, "Backend listening"));
+  const server = app.listen(env.PORT, () =>
+    logger.info({ port: env.PORT }, "Backend listening"),
+  );
   const stopScheduler = startAgentScheduler();
   const stopEmailDispatcher = startEmailDeliveryDispatcher();
+  const stopMetaWhatsappDispatcher = startMetaWhatsappDispatcher();
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {
@@ -20,6 +24,7 @@ async function start() {
     logger.info({ signal }, "Shutting down");
     stopScheduler();
     stopEmailDispatcher();
+    stopMetaWhatsappDispatcher();
     const forcedExit = setTimeout(() => {
       logger.error({ signal }, "Graceful shutdown timed out");
       process.exit(1);
@@ -28,7 +33,10 @@ async function start() {
     server.close((error) => {
       void prisma.$disconnect().then(() => {
         clearTimeout(forcedExit);
-        if (error) { logger.error({ err: error }, "Shutdown failed"); process.exit(1); }
+        if (error) {
+          logger.error({ err: error }, "Shutdown failed");
+          process.exit(1);
+        }
         process.exit(0);
       });
     });
