@@ -220,6 +220,48 @@ const settingsNavItem = {
   permission: null,
 };
 
+type ActiveView =
+  | "overview"
+  | "welcome"
+  | "b2help"
+  | "people"
+  | "roles"
+  | "actions"
+  | "governance"
+  | "crm"
+  | "automation"
+  | "projects"
+  | "employees"
+  | "sales"
+  | "finance"
+  | "catalogue"
+  | "orders"
+  | "inventory"
+  | "marketing"
+  | "analysis"
+  | "support"
+  | "websites"
+  | "procurement"
+  | "calendar"
+  | "inquiries"
+  | "stay"
+  | "school"
+  | "settings"
+  | "b2agent";
+
+const activeViews = new Set<ActiveView>([
+  "overview", "welcome", "b2help", "people", "roles", "actions",
+  "governance", "crm", "automation", "projects", "employees", "sales",
+  "finance", "catalogue", "orders", "inventory", "marketing", "analysis",
+  "support", "websites", "procurement", "calendar", "inquiries", "stay",
+  "school", "settings", "b2agent",
+]);
+
+function viewFromLocation(): ActiveView {
+  const view = new URLSearchParams(window.location.search).get("view");
+  return view && activeViews.has(view as ActiveView) ? (view as ActiveView) : "overview";
+}
+
 interface OrganizationResponse {
   success: true;
   message?: string;
@@ -249,37 +291,31 @@ export function ProtectedDashboard() {
     timezone: "Asia/Kolkata",
     currency: "INR",
   });
-  type ActiveView =
-    | "overview"
-    | "welcome"
-    | "b2help"
-    | "people"
-    | "roles"
-    | "actions"
-    | "governance"
-    | "crm"
-    | "automation"
-    | "projects"
-    | "employees"
-    | "sales"
-    | "finance"
-    | "catalogue"
-    | "orders"
-    | "inventory"
-    | "marketing"
-    | "analysis"
-    | "support"
-    | "websites"
-    | "procurement"
-    | "calendar"
-    | "inquiries"
-    | "stay"
-    | "school"
-    | "settings"
-    | "b2agent";
-  const [activeView, setActiveView] = useState<ActiveView>("overview");
+  const [activeView, setActiveViewState] = useState<ActiveView>("overview");
+  const [navigationReady, setNavigationReady] = useState(false);
   const [enabledServices, setEnabledServices] = useState<string[]>([]);
   const [agentOpen, setAgentOpen] = useState(false);
+
+  function setActiveView(view: ActiveView) {
+    setActiveViewState(view);
+    const url = new URL(window.location.href);
+    if (view === "overview") url.searchParams.delete("view");
+    else url.searchParams.set("view", view);
+    window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  useEffect(() => {
+    const restoreView = () => setActiveViewState(viewFromLocation());
+    const task = window.setTimeout(() => {
+      restoreView();
+      setNavigationReady(true);
+    }, 0);
+    window.addEventListener("popstate", restoreView);
+    return () => {
+      window.clearTimeout(task);
+      window.removeEventListener("popstate", restoreView);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isLoading && !session) router.replace("/login");
@@ -304,7 +340,7 @@ export function ProtectedDashboard() {
     );
     return () => window.clearTimeout(task);
   }, [session, authorizedRequest]);
-  if (isLoading || !session)
+  if (isLoading || !session || !navigationReady)
     return (
       <main className="screen-loader">
         <span className="spinner dark" />
