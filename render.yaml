@@ -2,7 +2,7 @@ services:
   - type: web
     name: b2brain-staging-api
     runtime: node
-    buildCommand: npm ci && npm run build:production --workspace @b2brain/backend
+    buildCommand: npm ci --include=dev && npm run build:production --workspace @b2brain/backend
     preDeployCommand: npm run prisma:deploy --workspace @b2brain/backend
     startCommand: npm run start --workspace @b2brain/backend
     healthCheckPath: /api/v1/ready
