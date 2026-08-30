@@ -30,6 +30,13 @@ const envSchema = z
       .string()
       .default("false")
       .transform((value) => value === "true"),
+    EXTERNAL_CHANNELS_ENABLED: z
+      .string()
+      .default("false")
+      .transform((value) => value === "true"),
+    JSON_BODY_LIMIT: z.enum(["256kb", "512kb", "1mb"]).default("1mb"),
+    API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(900_000),
+    API_RATE_LIMIT_MAX: z.coerce.number().int().min(50).max(10_000).default(1000),
     JWT_ACCESS_SECRET: z.string().min(32),
     JWT_ACCESS_EXPIRES_IN: z.string().regex(durationPattern).default("15m"),
     REFRESH_TOKEN_SECRET: z.string().min(32),
@@ -167,9 +174,32 @@ const envSchema = z
       .min(1)
       .max(10000)
       .default(100),
+    WORKSPACE_AI_PROVIDER: z.enum(["disabled", "openai"]).default("disabled"),
+    WORKSPACE_AI_KILL_SWITCH: z.string().default("false").transform((value) => value === "true"),
+    WORKSPACE_AI_DETERMINISTIC_ONLY: z.string().default("true").transform((value) => value === "true"),
+    WORKSPACE_AI_MODEL: z.string().min(1).optional().transform((value) => value || undefined),
+    WORKSPACE_AI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+    WORKSPACE_AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(12000),
+    WORKSPACE_AI_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
+    WORKSPACE_AI_MAX_INPUT_CHARS: z.coerce.number().int().min(1000).max(30000).default(12000),
+    WORKSPACE_AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(200).max(2000).default(700),
+    WORKSPACE_AI_DAILY_TOKEN_LIMIT: z.coerce.number().int().min(1000).max(10000000).default(100000),
+    WORKSPACE_AI_MONTHLY_TOKEN_LIMIT: z.coerce.number().int().min(1000).max(100000000).default(1000000),
+    WORKSPACE_AI_DAILY_REQUEST_LIMIT: z.coerce.number().int().min(1).max(10000).default(100),
+    WORKSPACE_AI_MAX_TOOL_ITERATIONS: z.coerce.number().int().min(0).max(5).default(1),
+    WORKSPACE_AI_CIRCUIT_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(20).default(3),
+    WORKSPACE_AI_CIRCUIT_RESET_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
+    WORKSPACE_AI_INPUT_COST_PER_MILLION_USD: z.coerce.number().min(0).default(0),
+    WORKSPACE_AI_OUTPUT_COST_PER_MILLION_USD: z.coerce.number().min(0).default(0),
   })
   .superRefine((value, context) => {
     if (value.META_WHATSAPP_ENABLED) {
+      if (!value.EXTERNAL_CHANNELS_ENABLED)
+        context.addIssue({
+          code: "custom",
+          path: ["META_WHATSAPP_ENABLED"],
+          message: "External channels must be enabled before Meta WhatsApp can be enabled.",
+        });
       for (const key of [
         "META_WHATSAPP_VERIFY_TOKEN",
         "META_WHATSAPP_APP_SECRET",
@@ -219,7 +249,17 @@ const envSchema = z
           message: "Hosted enquiry AI requires a model.",
         });
     }
+    if (value.WORKSPACE_AI_PROVIDER === "openai" && !value.WORKSPACE_AI_KILL_SWITCH && !value.WORKSPACE_AI_DETERMINISTIC_ONLY) {
+      if (!value.OPENAI_API_KEY) context.addIssue({ code: "custom", path: ["OPENAI_API_KEY"], message: "Hosted workspace AI requires an API key." });
+      if (!value.WORKSPACE_AI_MODEL) context.addIssue({ code: "custom", path: ["WORKSPACE_AI_MODEL"], message: "Hosted workspace AI requires a model." });
+    }
     if (value.NODE_ENV !== "production") return;
+    if (!value.DIRECT_URL)
+      context.addIssue({
+        code: "custom",
+        path: ["DIRECT_URL"],
+        message: "A direct PostgreSQL URL is required for production migrations.",
+      });
     if (!value.FRONTEND_URL.startsWith("https://"))
       context.addIssue({
         code: "custom",

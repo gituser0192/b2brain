@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "./database/prisma.js";
+import { env } from "./config/env.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { organizationRouter } from "./modules/organizations/organization.routes.js";
 import { membershipRouter } from "./modules/memberships/membership.routes.js";
@@ -69,8 +70,16 @@ apiRouter.get("/health", (_request, response) => {
   response.status(200).json(success({ status: "healthy" }));
 });
 apiRouter.get("/ready", async (_request, response) => {
-  await prisma.$queryRaw`SELECT 1`;
-  response.status(200).json(success({ status: "ready" }));
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    response.status(200).json(success({ status: "ready" }));
+  } catch {
+    response.status(503).json({
+      success: false,
+      message: "The service is not ready.",
+      code: "SERVICE_NOT_READY",
+    });
+  }
 });
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/organizations", organizationRouter);
@@ -102,9 +111,11 @@ apiRouter.use("/automation-bridge", bridgeRouter);
 apiRouter.use("/automation-policies", automationPolicyRouter);
 apiRouter.use("/automation-bridge", whatsappAdminRouter);
 apiRouter.use("/automation-bridge", websiteFormAdminRouter);
-apiRouter.use("/webhooks/intake", bridgeWebhookRouter);
-apiRouter.use("/webhooks/whatsapp", whatsappWebhookRouter);
-apiRouter.use("/public/forms", publicWebsiteFormRouter);
+if (env.EXTERNAL_CHANNELS_ENABLED) {
+  apiRouter.use("/webhooks/intake", bridgeWebhookRouter);
+  apiRouter.use("/webhooks/whatsapp", whatsappWebhookRouter);
+  apiRouter.use("/public/forms", publicWebsiteFormRouter);
+}
 apiRouter.use("/stay", stayRouter);
 apiRouter.use("/voice-calls", voiceCallRouter);
 apiRouter.use("/governance", governanceRouter);

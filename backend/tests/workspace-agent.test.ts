@@ -109,6 +109,60 @@ describe("Ask B² Brain workspace agent", () => {
       answer: "Your organization has 4 CRM customers.",
     });
   });
+  it("keeps simple factual requests on the zero-token path", async () => {
+    const provider = { enabled: true, name: "test", analyze: vi.fn() };
+    db.customerCount.mockResolvedValue(2);
+    await new WorkspaceAgentService(provider).message(
+      context,
+      input("Count all CRM customers", "zero-token"),
+    );
+    expect(provider.analyze).not.toHaveBeenCalled();
+    expect(db.eventUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payload: expect.objectContaining({
+            diagnostics: expect.objectContaining({ aiCalled: false, inputTokens: 0 }),
+          }),
+        }),
+      }),
+    );
+  });
+  it("uses hosted reasoning only for complex analysis with backend facts", async () => {
+    db.eventFindMany.mockResolvedValue([]);
+    proactive.goals.mockResolvedValue([]);
+    const provider = {
+      enabled: true,
+      name: "test",
+      analyze: vi.fn().mockResolvedValue({
+        answer: "Prioritize overdue work using the verified figures.",
+        evidenceReferences: ["activity.overdueTasks"],
+        conclusions: ["Execution needs attention."],
+        recommendations: [{ action: "Review overdue tasks", reason: "Five are overdue.", expectedImpact: "Improve delivery." }],
+        assumptions: [], missingData: [], confidence: "HIGH",
+        proposedToolActions: ["NAVIGATE"], requiresConfirmation: true,
+        requiresHumanEscalation: false, source: "REAL_AI",
+        providerName: "test", model: "test-model",
+        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      }),
+    };
+    const result = await new WorkspaceAgentService(provider).message(
+      context,
+      input("What should I improve?", "reasoning-1"),
+    );
+    expect(provider.analyze).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantKey: context.organizationId,
+        request: "What should I improve?",
+        facts: expect.arrayContaining([
+          expect.objectContaining({ id: "activity.overdueTasks", value: 5 }),
+        ]),
+      }),
+    );
+    expect(result).toMatchObject({
+      answer: "Prioritize overdue work using the verified figures.",
+      reasoning: { source: "REAL_AI", requiresConfirmation: true },
+    });
+  });
   it("creates a customer after an explicit request and audits it", async () => {
     db.customerFindFirst.mockResolvedValue(null);
     db.txCustomerCreate.mockResolvedValue({

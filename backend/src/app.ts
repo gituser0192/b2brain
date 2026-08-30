@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
+import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -35,7 +36,14 @@ app.use(pinoHttp({
     req: safeRequestLog,
   },
 }));
-app.use(express.json({ limit: "1mb", verify: (request, _response, buffer) => { (request as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer); } }));
+app.use("/api/v1", rateLimit({
+  windowMs: env.API_RATE_LIMIT_WINDOW_MS,
+  limit: env.API_RATE_LIMIT_MAX,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests. Try again later.", code: "RATE_LIMITED" },
+}));
+app.use(express.json({ limit: env.JSON_BODY_LIMIT, verify: (request, _response, buffer) => { (request as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer); } }));
 app.use(cookieParser());
 app.use("/api/v1", apiRouter);
 app.use(notFoundHandler);

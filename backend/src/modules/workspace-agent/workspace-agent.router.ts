@@ -9,6 +9,7 @@ export type WorkspaceAgentIntent =
   | "BUSINESS_HEALTH"
   | "FINANCE_SUMMARY"
   | "FORECAST"
+  | "AI_ANALYSIS"
   | "PRODUCT_HELP"
   | "SETUP_GUIDANCE"
   | "HUMAN_ESCALATION"
@@ -19,12 +20,13 @@ export type ProcessingPath =
   | "PRODUCT_HELP"
   | "WRITE_ACTION"
   | "HUMAN_ESCALATION"
-  | "DETERMINISTIC_FALLBACK";
+  | "DETERMINISTIC_FALLBACK"
+  | "AI_ANALYSIS";
 
 export function routeWorkspaceRequest(message: string): {
   intent: WorkspaceAgentIntent;
   path: ProcessingPath;
-  aiRequired: false;
+  aiRequired: boolean;
 } {
   const value = message.trim(),
     lower = value.toLowerCase();
@@ -82,7 +84,13 @@ export function routeWorkspaceRequest(message: string): {
       path: "DETERMINISTIC_TOOL",
       aiRequired: false,
     };
-  if (/(business health|what is going on|what should i improve)/i.test(value))
+  if (
+    /(what should i improve|why.*(?:revenue|profit|business).*(?:down|low)|(?:analyse|analyze|explain).*(?:business|performance|forecast)|business strategy|action plan|growth strategy|kya improve|kaise improve|sudhar|strategy batao)/i.test(
+      value,
+    )
+  )
+    return { intent: "AI_ANALYSIS", path: "AI_ANALYSIS", aiRequired: true };
+  if (/(business health|what is going on)/i.test(value))
     return {
       intent: "BUSINESS_HEALTH",
       path: "DETERMINISTIC_TOOL",

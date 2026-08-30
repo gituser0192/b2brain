@@ -80,9 +80,18 @@ const groups: [WorkspaceAgentIntent, string[]][] = [
     [
       "Business health",
       "Check my business health",
-      "What should I improve",
       "What is going on in my business",
       "business health batao",
+    ],
+  ],
+  [
+    "AI_ANALYSIS",
+    [
+      "What should I improve?",
+      "Analyze why my revenue is down",
+      "Give me a business growth strategy",
+      "Explain my business performance",
+      "Business me kya improve karu",
     ],
   ],
   [
@@ -151,18 +160,18 @@ const groups: [WorkspaceAgentIntent, string[]][] = [
   ],
 ];
 
-describe("workspace agent 75-request routing evaluation", () => {
-  it("selects the expected safe route without AI tokens", () => {
+describe("workspace agent routing evaluation", () => {
+  it("selects the expected deterministic or reasoning path", () => {
     const cases = groups.flatMap(([intent, messages]) =>
       messages.map((message) => ({ intent, message })),
     );
-    expect(cases).toHaveLength(75);
+    expect(cases).toHaveLength(79);
     let correct = 0;
     for (const test of cases) {
       const result = routeWorkspaceRequest(test.message);
       if (result.intent === test.intent) correct += 1;
       expect(result.intent, test.message).toBe(test.intent);
-      expect(result.aiRequired).toBe(false);
+      expect(result.aiRequired).toBe(test.intent === "AI_ANALYSIS");
     }
     expect(correct / cases.length).toBe(1);
   });

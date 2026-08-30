@@ -6,6 +6,12 @@ import { ServiceRequestService } from "../service-requests/service-request.servi
 import type { WorkspaceAgentMessage } from "./workspace-agent.validation.js";
 import { WorkspaceAgentProactiveService } from "./workspace-agent.proactive.service.js";
 import { routeWorkspaceRequest } from "./workspace-agent.router.js";
+import { env } from "../../config/env.js";
+import {
+  createWorkspaceReasoningProvider,
+  type WorkspaceReasoningProvider,
+  type WorkspaceReasoningResult,
+} from "./workspace-agent.provider.js";
 
 type Context = {
   organizationId: string;
@@ -24,6 +30,123 @@ const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
 export class WorkspaceAgentService {
   private readonly proactive = new WorkspaceAgentProactiveService();
+  constructor(
+    private readonly reasoningProvider: WorkspaceReasoningProvider =
+      createWorkspaceReasoningProvider(),
+  ) {}
+
+  private async reasoningLimits(context: Context, connectorId: string) {
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const monthStart = new Date(dayStart);
+    monthStart.setUTCDate(1);
+    const events = await prisma.integrationEvent.findMany({
+      where: {
+        organizationId: context.organizationId,
+        connectorId,
+        eventName: "workspace-agent.message",
+        createdAt: { gte: monthStart },
+      },
+      select: { payload: true, createdAt: true },
+      take: 5000,
+    });
+    const diagnostics = events.map(
+      (event) =>
+        (event.payload as { diagnostics?: Record<string, unknown> }).diagnostics ?? {},
+    );
+    const tokens = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) ? value : 0;
+    const monthTokens = diagnostics.reduce(
+      (sum, item) => sum + tokens(item.inputTokens) + tokens(item.outputTokens),
+      0,
+    );
+    const today = events.filter((event) => event.createdAt >= dayStart);
+    const todayAi = today.filter(
+      (event) =>
+        (event.payload as { diagnostics?: { aiCalled?: boolean } }).diagnostics
+          ?.aiCalled === true,
+    );
+    const todayTokens = todayAi.reduce((sum, event) => {
+      const item = (event.payload as { diagnostics?: Record<string, unknown> })
+        .diagnostics ?? {};
+      return sum + tokens(item.inputTokens) + tokens(item.outputTokens);
+    }, 0);
+    return {
+      allowed:
+        todayAi.length < env.WORKSPACE_AI_DAILY_REQUEST_LIMIT &&
+        todayTokens < env.WORKSPACE_AI_DAILY_TOKEN_LIMIT &&
+        monthTokens < env.WORKSPACE_AI_MONTHLY_TOKEN_LIMIT,
+    };
+  }
+
+  private async reason(
+    context: Context,
+    connectorId: string,
+    conversationId: string,
+    request: string,
+  ): Promise<WorkspaceReasoningResult> {
+    const [brief, goals, limits, history] = await Promise.all([
+      this.proactive.brief(context),
+      this.proactive.goals(context),
+      this.reasoningLimits(context, connectorId),
+      prisma.integrationEvent.findMany({
+        where: {
+          organizationId: context.organizationId,
+          connectorId,
+          eventName: "workspace-agent.message",
+          status: "COMPLETED",
+        },
+        select: { payload: true },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+    ]);
+    const facts = [
+      { id: "health.score", label: "Business health score", value: brief.health.score, period: brief.period },
+      { id: "activity.newCustomers", label: "New customers", value: brief.activity.newCustomers, period: brief.period },
+      { id: "activity.newLeads", label: "New leads", value: brief.activity.newLeads, period: brief.period },
+      { id: "activity.overdueFollowUps", label: "Overdue follow-ups", value: brief.activity.overdueFollowUps, period: "Through today" },
+      { id: "activity.overdueTasks", label: "Overdue tasks", value: brief.activity.overdueTasks, period: "Through today" },
+      { id: "activity.atRiskProjects", label: "At-risk projects", value: brief.activity.atRiskProjects, period: "Through today" },
+      ...(brief.finance
+        ? [
+            { id: "finance.revenue", label: "Revenue", value: brief.finance.revenue, period: brief.period },
+            { id: "finance.expenses", label: "Expenses", value: brief.finance.expenses, period: brief.period },
+            { id: "finance.profit", label: "Profit", value: brief.finance.profit, period: brief.period },
+          ]
+        : []),
+      ...goals.slice(0, 8).flatMap((goal, index) => [
+        { id: `goal.${index}.progress`, label: `${goal.title} progress`, value: goal.progress, period: `Ends ${goal.periodEnd.toISOString()}` },
+        { id: `goal.${index}.risk`, label: `${goal.title} risk`, value: goal.risk, period: `Ends ${goal.periodEnd.toISOString()}` },
+      ]),
+    ];
+    const conversationSummary = history
+      .filter(
+        (event) =>
+          (event.payload as { conversationId?: string }).conversationId ===
+          conversationId,
+      )
+      .slice(0, 5)
+      .reverse()
+      .map((event) => {
+        const payload = event.payload as {
+          message?: string;
+          output?: { answer?: string };
+        };
+        return `User: ${(payload.message ?? "").slice(0, 300)}\nAssistant: ${(payload.output?.answer ?? "").slice(0, 500)}`;
+      })
+      .join("\n");
+    if (!limits.allowed)
+      return new (await import("./workspace-agent.provider.js"))
+        .DeterministicWorkspaceReasoningFallback()
+        .analyze({ tenantKey: context.organizationId, request, conversationSummary, facts });
+    return this.reasoningProvider.analyze({
+      tenantKey: context.organizationId,
+      request,
+      conversationSummary,
+      facts,
+    });
+  }
   private async connector(context: Context) {
     const existing = await prisma.integrationConnector.findFirst({
       where: {
@@ -341,11 +464,15 @@ export class WorkspaceAgentService {
     };
   }
 
-  async message(context: Context, input: WorkspaceAgentMessage) {
+  async message(
+    context: Context,
+    input: WorkspaceAgentMessage,
+    reservedEvent?: { id: string },
+  ) {
     const startedAt = Date.now(),
       route = routeWorkspaceRequest(input.message);
     const connector = await this.connector(context);
-    const duplicate = await prisma.integrationEvent.findFirst({
+    const duplicate = reservedEvent ? null : await prisma.integrationEvent.findFirst({
       where: {
         organizationId: context.organizationId,
         connectorId: connector.id,
@@ -366,7 +493,8 @@ export class WorkspaceAgentService {
         "WORKSPACE_AGENT_REQUEST_RESERVED",
       );
     let event: { id: string };
-    try {
+    if (reservedEvent) event = reservedEvent;
+    else try {
       event = await prisma.integrationEvent.create({
         data: {
           organizationId: context.organizationId,
@@ -401,6 +529,7 @@ export class WorkspaceAgentService {
     }
     const lower = input.message.toLowerCase();
     let output: Record<string, unknown>;
+    let reasoning: WorkspaceReasoningResult | null = null;
     if (route.intent === "CUSTOMER_CREATE")
       output = await this.createCustomer(context, input.message);
     else if (route.intent === "CUSTOMER_COUNT") {
@@ -481,6 +610,44 @@ export class WorkspaceAgentService {
           { label: "Overdue tasks", value: brief.activity.overdueTasks ?? 0 },
         ],
         managementSection: "brief",
+      };
+    } else if (route.intent === "AI_ANALYSIS") {
+      reasoning = await this.reason(
+        context,
+        connector.id,
+        input.conversationId,
+        input.message,
+      );
+      const brief = await this.proactive.brief(context);
+      const evidence = [
+        { id: "health.score", label: "Business health score", value: brief.health.score, period: brief.period },
+        { id: "activity.newCustomers", label: "New customers", value: brief.activity.newCustomers, period: brief.period },
+        { id: "activity.newLeads", label: "New leads", value: brief.activity.newLeads, period: brief.period },
+        { id: "activity.overdueFollowUps", label: "Overdue follow-ups", value: brief.activity.overdueFollowUps, period: "Through today" },
+        { id: "activity.overdueTasks", label: "Overdue tasks", value: brief.activity.overdueTasks, period: "Through today" },
+        { id: "activity.atRiskProjects", label: "At-risk projects", value: brief.activity.atRiskProjects, period: "Through today" },
+        ...(brief.finance
+          ? [
+              { id: "finance.revenue", label: "Revenue", value: brief.finance.revenue, period: brief.period },
+              { id: "finance.expenses", label: "Expenses", value: brief.finance.expenses, period: brief.period },
+              { id: "finance.profit", label: "Profit", value: brief.finance.profit, period: brief.period },
+            ]
+          : []),
+      ].filter((fact) => reasoning!.evidenceReferences.includes(fact.id));
+      output = {
+        answer: reasoning.answer,
+        reasoning: {
+          source: reasoning.source,
+          confidence: reasoning.confidence,
+          evidence,
+          conclusions: reasoning.conclusions,
+          recommendations: reasoning.recommendations,
+          assumptions: reasoning.assumptions,
+          missingData: reasoning.missingData,
+          proposedToolActions: reasoning.proposedToolActions,
+          requiresConfirmation: reasoning.requiresConfirmation,
+          requiresHumanEscalation: reasoning.requiresHumanEscalation,
+        },
       };
     } else if (route.intent === "BUSINESS_HEALTH") {
       const health = await this.health(context);
@@ -590,10 +757,16 @@ export class WorkspaceAgentService {
       diagnostics: {
         route: route.intent,
         processingPath: route.path,
-        aiCalled: false,
-        inputTokens: 0,
-        outputTokens: 0,
-        estimatedCostUsd: 0,
+        aiCalled: reasoning?.source === "REAL_AI",
+        inputTokens: reasoning?.usage.inputTokens ?? 0,
+        outputTokens: reasoning?.usage.outputTokens ?? 0,
+        estimatedCostUsd: reasoning
+          ? (reasoning.usage.inputTokens * env.WORKSPACE_AI_INPUT_COST_PER_MILLION_USD +
+              reasoning.usage.outputTokens * env.WORKSPACE_AI_OUTPUT_COST_PER_MILLION_USD) /
+            1_000_000
+          : 0,
+        providerFailure: reasoning?.providerFailed === true,
+        fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
         toolCalls: route.path === "DETERMINISTIC_FALLBACK" ? 0 : 1,
         responseTimeMs: Date.now() - startedAt,
       },
@@ -626,7 +799,8 @@ export class WorkspaceAgentService {
           externalActionPerformed: false,
           route: route.intent,
           processingPath: route.path,
-          aiCalled: false,
+          aiCalled: reasoning?.source === "REAL_AI",
+          fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
           responseTimeMs: Date.now() - startedAt,
         },
       },
@@ -715,9 +889,14 @@ export class WorkspaceAgentService {
         (sum, item) => sum + number(item.toolCalls),
         0,
       ),
-      providerFailures: 0,
+      providerFailures: diagnostics.filter(
+        (item) =>
+          (item as { providerFailure?: unknown }).providerFailure === true,
+      ).length,
       fallbackUsage: diagnostics.filter(
-        (item) => item.processingPath === "DETERMINISTIC_FALLBACK",
+        (item) =>
+          item.processingPath === "DETERMINISTIC_FALLBACK" ||
+          (item as { fallbackUsed?: unknown }).fallbackUsed === true,
       ).length,
       averageResponseTimeMs: diagnostics.length
         ? Math.round(
@@ -748,5 +927,55 @@ export class WorkspaceAgentService {
         updatedById: context.userId,
       },
     });
+  }
+
+  async retry(context: Context, externalMessageId: string) {
+    const connector = await this.connector(context);
+    const event = await prisma.integrationEvent.findFirst({
+      where: {
+        organizationId: context.organizationId,
+        connectorId: connector.id,
+        externalEventId: externalMessageId,
+        eventName: "workspace-agent.message",
+      },
+      select: { id: true, status: true, payload: true },
+    });
+    if (!event)
+      throw new AppError(404, "The failed reasoning request was not found.", "NOT_FOUND");
+    const payload = event.payload as {
+      conversationId?: string;
+      message?: string;
+      diagnostics?: { fallbackUsed?: boolean; providerFailure?: boolean };
+    };
+    if (!payload.conversationId || !payload.message || !routeWorkspaceRequest(payload.message).aiRequired)
+      throw new AppError(409, "Only failed analysis requests can be retried safely.", "UNSAFE_RETRY");
+    const retryable =
+      event.status === "FAILED" ||
+      (event.status === "COMPLETED" &&
+        payload.diagnostics?.fallbackUsed === true &&
+        payload.diagnostics?.providerFailure === true);
+    if (!retryable)
+      throw new AppError(409, "This analysis request is not eligible for retry.", "NOT_RETRYABLE");
+    const claimed = await prisma.integrationEvent.updateMany({
+      where: { id: event.id, organizationId: context.organizationId, status: event.status },
+      data: {
+        status: "PROCESSING",
+        failureMessage: null,
+        processedAt: null,
+        attemptCount: { increment: 1 },
+        updatedById: context.userId,
+      },
+    });
+    if (claimed.count !== 1)
+      throw new AppError(409, "This analysis retry is already being processed.", "RETRY_RESERVED");
+    return this.message(
+      context,
+      {
+        conversationId: payload.conversationId,
+        externalMessageId,
+        message: payload.message,
+      },
+      { id: event.id },
+    );
   }
 }

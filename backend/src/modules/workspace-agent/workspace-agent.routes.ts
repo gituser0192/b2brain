@@ -57,6 +57,16 @@ router.get("/conversations/:id", async (request, response) =>
     success(await service.history(auth(request), String(request.params.id))),
   ),
 );
+router.post("/messages/:externalMessageId/retry", async (request, response) => {
+  const context = auth(request),
+    externalMessageId = String(request.params.externalMessageId);
+  try {
+    response.json(success(await service.retry(context, externalMessageId)));
+  } catch (error) {
+    await service.markFailed(context, externalMessageId);
+    throw error;
+  }
+});
 router.get("/brief", async (request, response) =>
   response.json(success(await proactive.brief(auth(request)))),
 );

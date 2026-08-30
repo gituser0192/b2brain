@@ -32,6 +32,18 @@ type Output = {
   escalation?: { id: string; requestNumber: string; status: string };
   setup?: { step: string; completed: boolean };
   managementSection?: "brief" | "goals" | "conversation";
+  reasoning?: {
+    source: "REAL_AI" | "DETERMINISTIC_FALLBACK";
+    confidence: "LOW" | "MEDIUM" | "HIGH";
+    evidence: { id: string; label: string; value: string | number | null; period: string }[];
+    conclusions: string[];
+    recommendations: { action: string; reason: string; expectedImpact: string }[];
+    assumptions: string[];
+    missingData: string[];
+    proposedToolActions: string[];
+    requiresConfirmation: boolean;
+    requiresHumanEscalation: boolean;
+  };
 };
 type Item = { id: string; createdAt: string; message: string; output: Output };
 type Brief = {
@@ -563,6 +575,43 @@ export function WorkspaceAgent({
                     <strong>Ask B² Brain</strong>
                   </header>
                   <p>{item.output.answer}</p>
+                  {item.output.reasoning && (
+                    <div className="forecast-card">
+                      <strong>
+                        {item.output.reasoning.source === "REAL_AI"
+                          ? "AI-assisted analysis"
+                          : "Verified-data fallback"}
+                      </strong>
+                      <span>
+                        Confidence: {item.output.reasoning.confidence.toLowerCase()}
+                      </span>
+                      {item.output.reasoning.conclusions.length > 0 && (
+                        <ul>
+                          {item.output.reasoning.conclusions.map((value) => (
+                            <li key={value}>{value}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.output.reasoning.recommendations.length > 0 && (
+                        <ol>
+                          {item.output.reasoning.recommendations.map((value) => (
+                            <li key={`${value.action}:${value.reason}`}>
+                              <strong>{value.action}</strong> — {value.reason} ({value.expectedImpact})
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {item.output.reasoning.missingData.map((value) => (
+                        <p className="agent-warning" key={value}>{value}</p>
+                      ))}
+                      {(item.output.reasoning.requiresConfirmation ||
+                        item.output.reasoning.proposedToolActions.length > 0) && (
+                        <p className="agent-warning">
+                          Suggested actions require your confirmation; none were executed automatically.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {item.output.metrics?.length ? (
                     <div className="workspace-metric-grid">
                       {item.output.metrics.map((metric) => (
@@ -699,6 +748,14 @@ export function WorkspaceAgent({
                       permissions were enforced by the backend. No organization
                       ID was accepted from this message.
                     </p>
+                    {item.output.reasoning?.evidence.map((source) => (
+                      <p key={source.id}>
+                        <strong>{source.label}:</strong> {source.value ?? "Unavailable"} · {source.period}
+                      </p>
+                    ))}
+                    {item.output.reasoning?.assumptions.length ? (
+                      <p>Assumptions: {item.output.reasoning.assumptions.join("; ")}</p>
+                    ) : null}
                   </details>
                 </div>
               </article>

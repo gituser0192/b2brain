@@ -20,6 +20,8 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, request, respo
   if (error instanceof AppError) appError = error;
   else if (error instanceof ZodError) appError = new AppError(400, "Validation failed.", "VALIDATION_ERROR", zodFields(error));
   else if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") appError = new AppError(409, "A record with these details already exists.", "CONFLICT");
+  else if (error && typeof error === "object" && "type" in error && error.type === "entity.parse.failed") appError = new AppError(400, "The request body is not valid JSON.", "INVALID_JSON");
+  else if (error && typeof error === "object" && "type" in error && error.type === "entity.too.large") appError = new AppError(413, "The request body is too large.", "PAYLOAD_TOO_LARGE");
   else appError = new AppError(500, "Something went wrong.", "INTERNAL_SERVER_ERROR");
 
   if (appError.statusCode >= 500) logger.error({ err: error, method: request.method, path: request.path }, "Unhandled request error");

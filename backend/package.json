@@ -15,6 +15,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "seed:platform": "tsx prisma/seed.ts",
     "test": "vitest run"
   },
   "engines": { "node": "22.x", "npm": "10.x" },
