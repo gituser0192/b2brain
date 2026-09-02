@@ -2,98 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
-
-type Output = {
-  answer: string;
-  duplicate?: boolean;
-  metrics?: { label: string; value: number }[];
-  warnings?: string[];
-  suggestions?: string[];
-  health?: {
-    overall: number | null;
-    components: { name: string; score: number; evidence: string }[];
-    warnings: string[];
-    recommendations: string[];
-    period: string;
-  };
-  finance?: {
-    currency: string;
-    current: { revenue: number; expenses: number; profit: number };
-    margin: number | null;
-    score: number | null;
-  };
-  forecast?: {
-    method: string;
-    dateRange: string;
-    confidence: string;
-    assumptions: string[];
-  };
-  records?: { type: string; id: string; label: string }[];
-  escalation?: { id: string; requestNumber: string; status: string };
-  setup?: { step: string; completed: boolean };
-  managementSection?: "brief" | "goals" | "conversation";
-  reasoning?: {
-    source: "REAL_AI" | "DETERMINISTIC_FALLBACK";
-    confidence: "LOW" | "MEDIUM" | "HIGH";
-    evidence: { id: string; label: string; value: string | number | null; period: string }[];
-    conclusions: string[];
-    recommendations: { action: string; reason: string; expectedImpact: string }[];
-    assumptions: string[];
-    missingData: string[];
-    proposedToolActions: string[];
-    requiresConfirmation: boolean;
-    requiresHumanEscalation: boolean;
-  };
-};
-type Item = { id: string; createdAt: string; message: string; output: Output };
-type Brief = {
-  calculatedAt: string;
-  period: string;
-  meaningful: boolean;
-  health: {
-    score: number | null;
-    change: number | null;
-    missingData: string[];
-  };
-  finance: {
-    revenue: number;
-    expenses: number;
-    profit: number;
-    previousRevenue: number;
-    previousExpenses: number;
-    previousProfit: number;
-  } | null;
-  activity: {
-    newCustomers: number | null;
-    newLeads: number | null;
-    overdueFollowUps: number | null;
-    overdueTasks: number | null;
-    atRiskProjects: number;
-    importantServiceRequests: number | null;
-  };
-  alerts: {
-    code: string;
-    title: string;
-    why: string;
-    evidence: string;
-    period: string;
-    severity: string;
-    action: string;
-    view: string;
-  }[];
-  recommendations: { title: string; reason: string; view: string }[];
-};
-type Goal = {
-  id: string;
-  type: string;
-  title: string;
-  targetValue: number;
-  currentValue: number | null;
-  progress: number | null;
-  requiredPace: number | null;
-  risk: string;
-  periodEnd: string;
-};
+import { WorkspaceAgentHeader } from "./workspace-agent-header";
+import type { AgentItem, AgentOutput, AgentSection, BusinessBrief, BusinessGoal } from "./workspace-agent-types";
 const prompts = [
   "Check my business health",
   "Summarize revenue, expenses and profit",
@@ -136,19 +46,19 @@ export function WorkspaceAgent({
       window.localStorage.setItem(storageKey, id);
       return id;
     }),
-    [items, setItems] = useState<Item[]>([]),
+    [items, setItems] = useState<AgentItem[]>([]),
     [message, setMessage] = useState(""),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
-    [section, setSection] = useState<"brief" | "goals" | "conversation">(
+    [section, setSection] = useState<AgentSection>(
       "brief",
     ),
-    [brief, setBrief] = useState<Brief | null>(null),
-    [goals, setGoals] = useState<Goal[]>([]),
+    [brief, setBrief] = useState<BusinessBrief | null>(null),
+    [goals, setGoals] = useState<BusinessGoal[]>([]),
     [goalOpen, setGoalOpen] = useState(false),
     [goal, setGoal] = useState(initialGoal);
   const load = useCallback(async () => {
-    const response = await authorizedRequest<{ success: true; data: Item[] }>(
+    const response = await authorizedRequest<{ success: true; data: AgentItem[] }>(
       `/workspace-agent/conversations/${conversationId}`,
     );
     setItems(response.data);
@@ -172,10 +82,10 @@ export function WorkspaceAgent({
   const loadManagement = useCallback(async () => {
     if (compact) return;
     const [briefResponse, goalResponse] = await Promise.all([
-      authorizedRequest<{ success: true; data: Brief }>(
+      authorizedRequest<{ success: true; data: BusinessBrief }>(
         "/workspace-agent/brief",
       ),
-      authorizedRequest<{ success: true; data: Goal[] }>(
+      authorizedRequest<{ success: true; data: BusinessGoal[] }>(
         "/workspace-agent/goals",
       ),
     ]);
@@ -228,7 +138,7 @@ export function WorkspaceAgent({
     setLoading(true);
     setError("");
     try {
-      const response = await authorizedRequest<{ success: true; data: Output }>(
+      const response = await authorizedRequest<{ success: true; data: AgentOutput }>(
         "/workspace-agent/messages",
         {
           method: "POST",
@@ -261,45 +171,7 @@ export function WorkspaceAgent({
   }
   return (
     <section className={`workspace-agent ${compact ? "compact" : "full"}`}>
-      {!compact && (
-        <header>
-          <div>
-            <p>B² Brain Agent</p>
-            <h2>Ask B² Brain</h2>
-            <span>Your organization-scoped Business Operating Agent.</span>
-          </div>
-          <div className="agent-trust">
-            <span>✓ Permission aware</span>
-            <span>✓ Organization isolated</span>
-            <span>✓ Real business data</span>
-          </div>
-        </header>
-      )}
-      {!compact && (
-        <nav
-          className="workspace-agent-sections"
-          aria-label="Ask B² Brain sections"
-        >
-          <button
-            className={section === "brief" ? "active" : ""}
-            onClick={() => setSection("brief")}
-          >
-            Today&apos;s Brief
-          </button>
-          <button
-            className={section === "goals" ? "active" : ""}
-            onClick={() => setSection("goals")}
-          >
-            Goals
-          </button>
-          <button
-            className={section === "conversation" ? "active" : ""}
-            onClick={() => setSection("conversation")}
-          >
-            Conversation
-          </button>
-        </nav>
-      )}
+      {!compact && <WorkspaceAgentHeader section={section} onSection={setSection} />}
       {!compact && section === "brief" && brief && (
         <section className="agent-management-view">
           <header>
