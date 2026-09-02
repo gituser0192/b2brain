@@ -56,7 +56,9 @@ export const refresh: RequestHandler = async (request, response) => {
   if (!token) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
   const result = await service.refresh(token, metadata(request));
   setRefresh(response, result.refreshToken);
-  response.json(success({ accessToken: result.accessToken }, "Session refreshed."));
+  const { refreshToken, ...data } = result;
+  void refreshToken;
+  response.json(success(data, "Session refreshed."));
 };
 
 export const logout: RequestHandler = async (request, response) => {

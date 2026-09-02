@@ -25,10 +25,8 @@ let sessionRestorePromise: Promise<{ accessToken: string; account: AuthSession }
 function restoreSessionOnce() {
   sessionRestorePromise ??= (async () => {
     const refreshed = await apiRequest<RefreshResponse>("/auth/refresh", { method: "POST" });
-    const account = await apiRequest<MeResponse>("/auth/me", {
-      headers: { Authorization: `Bearer ${refreshed.data.accessToken}` },
-    });
-    return { accessToken: refreshed.data.accessToken, account: account.data };
+    const { accessToken, ...account } = refreshed.data;
+    return { accessToken, account };
   })();
   return sessionRestorePromise;
 }

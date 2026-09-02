@@ -37,7 +37,7 @@ export interface MeResponse {
 }
 export interface RefreshResponse {
   success: true;
-  data: { accessToken: string };
+  data: AuthSession & { accessToken: string };
 }
 export interface RegistrationResponse {
   success: true;

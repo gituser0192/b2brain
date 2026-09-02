@@ -105,7 +105,7 @@ export class AuthService {
       const claimed = await tx.refreshSession.updateMany({ where: { id: session.id, revokedAt: null, expiresAt: { gt: new Date() } }, data: { revokedAt: new Date(), replacedBySessionId: replacement.id, lastUsedAt: new Date() } });
       if (claimed.count !== 1) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
     });
-    return { accessToken: issueAccessToken(toContext(membership)), refreshToken };
+    return { ...safeData(membership), accessToken: issueAccessToken(toContext(membership)), refreshToken };
   }
 
   async logout(token?: string) { if (token) await this.repository.revokeSession(hashRefreshToken(token)); }
