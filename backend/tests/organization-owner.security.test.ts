@@ -8,11 +8,9 @@ function request(roleCode: string): Request {
 
 describe("organization owner boundary", () => {
   it("rejects a non-owner even when their role has management permissions", () => {
-    const next = vi.fn() as NextFunction;
+    const next = vi.fn();
     requireOrganizationOwner(request("ORGANIZATION_ADMIN"), {} as Response, next);
-    const error = next.mock.calls[0]?.[0] as { statusCode: number; code: string };
-    expect(error.statusCode).toBe(403);
-    expect(error.code).toBe("ORGANIZATION_OWNER_REQUIRED");
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403, code: "ORGANIZATION_OWNER_REQUIRED" }));
   });
 
   it("allows the organization owner", () => {

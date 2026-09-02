@@ -4,14 +4,14 @@ Clean Version 2 foundation for B² Brain. The frontend and backend are independe
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22.x
 - npm 10+
-- PostgreSQL-compatible connection string only when database-backed development begins
+- PostgreSQL-compatible connection string
 
 ## Start locally
 
 1. Copy `frontend/.env.example` to `frontend/.env.local`.
-2. Copy `backend/.env.example` to `backend/.env` and add development-only secrets. A database connection is not made on startup.
+2. Copy `backend/.env.example` to `backend/.env` and add development-only secrets, including a PostgreSQL connection string. The backend verifies database readiness during startup.
 3. Run `npm run dev:frontend` for http://localhost:3000.
 4. Run `npm run dev:backend` for http://localhost:5000.
 
@@ -26,4 +26,4 @@ The backend health endpoint is `GET http://localhost:5000/api/v1/health`.
 - `npm run typecheck`
 - `npm run lint`
 
-No production database migration or connection belongs in foundation setup.
+Production deployments must use reviewed migrations through `npm run prisma:deploy --workspace @b2brain/backend`; never use development reset commands against staging or production.

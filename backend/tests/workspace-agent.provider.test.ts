@@ -16,7 +16,7 @@ describe("workspace hosted reasoning provider", () => {
   it("accepts strict grounded output and records usage", async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
+      json: () => Promise.resolve({
         output: [{ content: [{ type: "output_text", text: JSON.stringify({
           answer: "Profit is negative in the supplied current-month data.",
           evidenceReferences: ["finance.profit"], conclusions: ["Profit is negative."],

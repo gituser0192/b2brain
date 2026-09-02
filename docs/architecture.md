@@ -1,56 +1,61 @@
-# Architecture
+# B² Brain architecture
 
-## Application boundaries
+## Repository boundaries
 
-The **frontend** is an independent Next.js application responsible for browser rendering, interaction, and calls to the versioned backend API. The **backend** is an independent Express application responsible for authentication, authorization, business rules, persistence, and external integrations. The **packages** workspace contains deliberately small, secret-free contracts shared across applications: API/domain types, genuinely shared validation, permission vocabulary, and non-secret configuration.
+B² Brain is an npm-workspace monorepo:
 
-Dependencies must point toward shared packages; shared packages must not import either application or one another in cycles.
+- `frontend` is a Next.js App Router application responsible for browser rendering and interaction.
+- `backend` is an Express API responsible for authentication, authorization, organization isolation, business rules, persistence, agents, and external integrations.
+- `packages` contains small shared configuration, permission, type, and validation workspaces.
+- `backend/prisma` owns the PostgreSQL schema, reviewed migrations, and platform seed.
 
-## Dashboard separation
+The frontend communicates with the versioned backend API through `frontend/services/api-client.ts`. The backend is the security boundary; client-side service visibility and filtering are not authorization controls.
 
-- **Customer dashboard:** tenant-scoped experience for organization owners, organization admins, managers, sales, HR, accountants, and employees. Visibility depends on organization, enabled services, and permissions.
-- **Admin dashboard:** future internal B² Brain operations workspace for onboarding, service/support/website/marketing requests, subscription assistance, and organization health.
-- **Super Admin dashboard:** future platform-owner workspace for organizations, admins, services, plans, subscriptions, feature flags, entitlements, platform settings, audit logs, and suspension.
+## Frontend architecture
 
-These are separate route boundaries. This foundation does not implement dashboards or access control.
+Public authentication routes live under `frontend/app/(auth)`. The authenticated customer workspace, provider operations desk, and platform administration routes live under `frontend/app/(dashboard)`.
 
-## Multi-tenant ownership
+The customer workspace currently uses `/dashboard` with a `view` query parameter. `ProtectedDashboard` owns authentication redirects, service discovery, sidebar/header composition, and workspace selection. Business UI is organized under `frontend/features` by domain. Large workspaces are being split incrementally into stateful orchestration components and smaller presentation components without changing behavior.
 
-Tenant-owned records must eventually carry `organizationId`, timestamps, and, where appropriate, `createdById`, `updatedById`, and `deletedAt`. Every tenant query must enforce organization scope on the server; client-side filtering is not a security boundary. Cross-tenant and platform actions require explicit authorization and auditable behavior.
+Global styles are imported in this order from the root layout:
 
-## Service catalogue
+1. `globals.css`
+2. `styles/customer-enquiry-agent.css`
+3. `styles/knowledge-management.css`
+4. `styles/dashboard-mobile.css`
 
-Services describe software capabilities; they do not generate code. A future module is registered as a service, configured by a Super Admin, included in a plan, entitled to an organization, then exposed to a user only when permissions allow. Navigation derives from those effective entitlements and permissions.
+Their cascade order is intentional and must be preserved until visual-regression coverage exists.
 
-Reserved backend boundaries include Service, Plan, PlanService, OrganizationService, Subscription, FeatureFlag, and Entitlement.
+## Backend architecture
 
-## Database strategy
+`server.ts` owns startup, database readiness, background dispatcher startup, and graceful shutdown. `app.ts` composes security headers, CORS, logging, rate limits, body parsing, routes, and error handling. `routes.ts` registers the versioned API modules.
 
-Use one Neon PostgreSQL database with separate domain tables, not one database per module. The future schema may include organizations, users, memberships, roles, permissions, service-catalogue records, subscriptions, CRM customers, projects, tasks, finance records, employees, notifications, activity logs, and audit logs.
+Backend domains live under `backend/src/modules`. Established core modules generally use route/controller/service/repository/validation layers. Newer workflow modules often use route/service/validation layers and may access Prisma directly. Any normalization of these boundaries must be incremental and test-protected.
 
-The Prisma file is intentionally model-free. No connection, introspection, push, reset, or migration is performed during foundation setup. Every future migration requires review before it reaches the existing database.
+## Authentication and organization isolation
 
-## Development order
+Users belong to organizations through `OrganizationMembership`. Refresh sessions are tied to a membership. Access tokens identify a user, membership, and organization, but every protected request reloads the active context from the database.
 
-1. Project foundation
-2. Shared error and response standards
-3. Authentication
-4. Organizations
-5. Organization memberships
-6. Roles and permissions
-7. Service catalogue
-8. Plans and entitlements
-9. Dynamic navigation
-10. CRM
-11. Projects
-12. Tasks
-13. Finance
-14. Employees
-15. Analytics
-16. Customer dashboard
-17. Admin dashboard
-18. Super Admin dashboard
-19. Subscriptions
-20. Notifications
-21. Testing
-22. Deployment
+The authenticated request context contains `userId`, `membershipId`, `organizationId`, role code and permissions, platform-administrator status, and effective service access mode where applicable.
+
+Tenant-owned identifiers are never trusted from frontend state. Backend queries must scope records using the authenticated `organizationId`, validate related records against that organization, and return safe errors for inaccessible records. Service plans, organization service enablement, member assignments, permission checks, and read-only access are enforced by backend middleware.
+
+## Business domains
+
+The Prisma schema and backend include identity, organizations, memberships, permissions, plans, CRM, inquiries, projects, employees, finance, sales, quotations, payments, notifications, governance, automation, customer enquiry agents, the internal Business Operating Agent, service requests, websites, inventory, procurement, marketing, support, stay management, and school management.
+
+System roles, permissions, services, and platform plans may be seeded. Tenant business data must not be seeded for newly registered organizations.
+
+## Agents and integrations
+
+The Customer Enquiry Agent handles restricted external customer conversations and organization-approved customer-facing knowledge. The Business Operating Agent is a separate authenticated internal assistant and must not expose information across organizations.
+
+External channels are controlled by environment kill switches. Meta inbound and outbound processing remain separately gated. Agent actions are constrained by backend policy, approval, idempotency, human-takeover, usage-limit, and tenant-isolation controls.
+
+## Deployment
+
+The frontend is deployed to Vercel, the backend to Render, and PostgreSQL is hosted by Neon. Render uses `render.yaml`, `prisma migrate deploy`, and `/api/v1/ready` for readiness. Production secrets belong only in provider environment settings and must never be committed.
+
+## Change discipline
+
+Structural cleanup must use small reviewable commits. Preserve authentication, organization isolation, permission enforcement, API contracts, migration history, and existing behavior. Run typechecking, lint, focused tests, the complete backend test suite, and frontend/backend production builds before deployment.

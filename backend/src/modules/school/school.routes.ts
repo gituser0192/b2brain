@@ -405,9 +405,10 @@ schoolRouter.post(
         "Choose an Excel or CSV file.",
         "SCHOOL_IMPORT_FILE_REQUIRED",
       );
+    const body = request.body as { kind?: unknown };
     const kind =
-      request.body.kind === "STUDENTS" || request.body.kind === "TEACHERS"
-        ? request.body.kind
+      body.kind === "STUDENTS" || body.kind === "TEACHERS"
+        ? body.kind
         : undefined;
     response
       .status(201)

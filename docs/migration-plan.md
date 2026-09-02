@@ -1,7 +1,18 @@
-# Migration plan
+# Structural refactoring plan
 
-The current B² Brain project remains untouched and operational. Version 2 will not be produced through a blind copy.
+B² Brain Version 2 is an active application. Structural changes must preserve its frontend behavior, API contracts, authentication, organization isolation, database data, and migration history.
 
-Each feature will be audited first: behavior, dependencies, data ownership, permissions, API contracts, and tests. It will then be redesigned or moved into its intended boundary. Database migrations must be reviewed for tenant safety, compatibility, rollback strategy, and production impact before execution. No destructive Prisma command is part of this process.
+The current maintainability cleanup separates oversized frontend workspaces into domain-owned presentation components while leaving state and API orchestration stable. Each extraction is verified and committed independently.
 
-A feature must pass its type checks, lint rules, focused tests, integration checks, and relevant builds before migration proceeds to the next feature. Shared standards come before Authentication, which is the recommended first business module only after this foundation is approved.
+Future structural work should proceed in this order:
+
+1. Add browser-level journey and visual-regression coverage.
+2. Establish shared design tokens and global CSS foundations.
+3. Split feature-specific styles from `globals.css` while preserving cascade order.
+4. Continue frontend component extraction one feature at a time.
+5. Normalize backend module boundaries behind characterization tests.
+6. Consolidate genuinely shared validation and tenant-scoped data-access patterns.
+7. Evaluate Prisma multi-file schema organization without changing models or migrations.
+8. Remove confirmed dead code only after import, runtime, and test verification.
+
+Never use destructive Prisma commands for cleanup. Production migrations use `prisma migrate deploy`. Every phase requires a rollback commit and must pass typechecking, lint, relevant tests, the complete backend suite, and both production builds.
