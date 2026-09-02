@@ -6,6 +6,10 @@ import { PaymentCollectionManager } from "./payment-collection-manager";
 import { FinanceLedger } from "./finance-ledger";
 import { InvoiceEntryForm } from "./invoice-entry-form";
 import {
+  ExpenseEntryForm,
+  PaymentEntryForm,
+} from "./finance-transaction-forms";
+import {
   FinanceRecords,
   formatMoney as money,
   type FinanceExpense as Expense,
@@ -171,6 +175,45 @@ export function FinanceWorkspace() {
       "Invoice created.",
     );
   }
+  function saveExpense() {
+    void action(
+      () =>
+        authorizedRequest(
+          editingExpenseId
+            ? `/finance/expenses/${editingExpenseId}`
+            : "/finance/expenses",
+          {
+            method: editingExpenseId ? "PUT" : "POST",
+            body: JSON.stringify({
+              ...expense,
+              projectId: null,
+              currency: "INR",
+              status: "RECORDED",
+              expenseDate: new Date(
+                `${expense.expenseDate}T00:00:00`,
+              ).toISOString(),
+            }),
+          },
+        ).then(() => undefined),
+      editingExpenseId ? "Expense updated." : "Expense recorded.",
+    );
+  }
+  function savePayment() {
+    if (!selected) return;
+    void action(
+      () =>
+        authorizedRequest(`/finance/invoices/${selected.id}/payments`, {
+          method: "POST",
+          body: JSON.stringify({
+            amount: payment.amount,
+            method: payment.method,
+            reference: payment.reference || null,
+            paidAt: new Date(`${payment.paidAt}T00:00:00`).toISOString(),
+          }),
+        }).then(() => undefined),
+      "Payment recorded.",
+    );
+  }
   return (
     <div className="finance-workspace">
       <header className="project-heading">
@@ -277,185 +320,21 @@ export function FinanceWorkspace() {
                 onSave={saveInvoice}
               />
             ) : mode === "expense" ? (
-              <>
-                <div className="agent-form-grid">
-                  <label>
-                    <span>Title</span>
-                    <input
-                      value={expense.title}
-                      onChange={(event) =>
-                        setExpense({ ...expense, title: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Category</span>
-                    <input
-                      value={expense.category}
-                      onChange={(event) =>
-                        setExpense({ ...expense, category: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Amount</span>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={expense.amount}
-                      onChange={(event) =>
-                        setExpense({
-                          ...expense,
-                          amount: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Date</span>
-                    <input
-                      type="date"
-                      value={expense.expenseDate}
-                      onChange={(event) =>
-                        setExpense({
-                          ...expense,
-                          expenseDate: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-                <footer>
-                  <button
-                    disabled={
-                      saving ||
-                      !expense.title ||
-                      !expense.category ||
-                      !expense.expenseDate ||
-                      expense.amount <= 0
-                    }
-                    onClick={() =>
-                      void action(
-                        () =>
-                          authorizedRequest(editingExpenseId ? `/finance/expenses/${editingExpenseId}` : "/finance/expenses", {
-                            method: editingExpenseId ? "PUT" : "POST",
-                            body: JSON.stringify({
-                              ...expense,
-                              projectId: null,
-                              currency: "INR",
-                              status: "RECORDED",
-                              expenseDate: new Date(
-                                `${expense.expenseDate}T00:00:00`,
-                              ).toISOString(),
-                            }),
-                          }).then(() => undefined),
-                        editingExpenseId ? "Expense updated." : "Expense recorded.",
-                      )
-                    }
-                  >
-                    {saving ? "Saving..." : editingExpenseId ? "Update expense" : "Record expense"}
-                  </button>
-                </footer>
-              </>
+              <ExpenseEntryForm
+                value={expense}
+                setValue={setExpense}
+                saving={saving}
+                isEditing={Boolean(editingExpenseId)}
+                onSave={saveExpense}
+              />
             ) : (
-              <>
-                <p className="payment-balance">
-                  Outstanding balance:{" "}
-                  <strong>{money(selected?.outstanding ?? 0)}</strong>
-                </p>
-                <div className="agent-form-grid">
-                  <label>
-                    <span>Amount</span>
-                    <input
-                      type="number"
-                      min="0.01"
-                      max={selected?.outstanding}
-                      step="0.01"
-                      value={payment.amount}
-                      onChange={(event) =>
-                        setPayment({
-                          ...payment,
-                          amount: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Method</span>
-                    <select
-                      value={payment.method}
-                      onChange={(event) =>
-                        setPayment({ ...payment, method: event.target.value })
-                      }
-                    >
-                      <option value="BANK_TRANSFER">Bank transfer</option>
-                      <option value="UPI">UPI</option>
-                      <option value="CASH">Cash</option>
-                      <option value="CARD">Card</option>
-                      <option value="CHEQUE">Cheque</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Payment reference</span>
-                    <input
-                      value={payment.reference}
-                      onChange={(event) =>
-                        setPayment({
-                          ...payment,
-                          reference: event.target.value,
-                        })
-                      }
-                      placeholder="UTR, receipt or transaction ID"
-                    />
-                  </label>
-                  <label>
-                    <span>Paid date</span>
-                    <input
-                      type="date"
-                      value={payment.paidAt}
-                      onChange={(event) =>
-                        setPayment({ ...payment, paidAt: event.target.value })
-                      }
-                    />
-                  </label>
-                </div>
-                <footer>
-                  <button
-                    disabled={
-                      saving ||
-                      !selected ||
-                      payment.amount <= 0 ||
-                      payment.amount > (selected?.outstanding ?? 0) ||
-                      !payment.paidAt
-                    }
-                    onClick={() =>
-                      selected &&
-                      void action(
-                        () =>
-                          authorizedRequest(
-                            `/finance/invoices/${selected.id}/payments`,
-                            {
-                              method: "POST",
-                              body: JSON.stringify({
-                                amount: payment.amount,
-                                method: payment.method,
-                                reference: payment.reference || null,
-                                paidAt: new Date(
-                                  `${payment.paidAt}T00:00:00`,
-                                ).toISOString(),
-                              }),
-                            },
-                          ).then(() => undefined),
-                        "Payment recorded.",
-                      )
-                    }
-                  >
-                    {saving ? "Saving..." : "Record payment"}
-                  </button>
-                </footer>
-              </>
+              <PaymentEntryForm
+                value={payment}
+                setValue={setPayment}
+                invoice={selected}
+                saving={saving}
+                onSave={savePayment}
+              />
             )}
           </div>
         </div>
