@@ -8,6 +8,7 @@ import type { AuthOrganization } from "./auth.types";
 import { useAuth } from "./auth-context";
 import { NotificationCenter } from "@/features/notifications/notification-center";
 import { BusinessDashboard } from "@/features/dashboard/business-dashboard";
+import { DashboardSidebar } from "./dashboard-sidebar";
 import {
   ActionCentreWorkspace,
   AnalysisWorkspace,
@@ -36,34 +37,6 @@ import {
   WorkspaceAgent,
   type ActiveView,
 } from "./dashboard-workspaces";
-
-const navItems = [
-  { key: "overview", label: "Dashboard", icon: "D", permission: null },
-];
-
-const ownerNavItems = [
-  { key: "welcome", label: "Workspace Setup", icon: "W", permission: null },
-  {
-    key: "people",
-    label: "Access & Team",
-    icon: "T",
-    permission: "MEMBERSHIP_VIEW",
-  },
-  { key: "roles", label: "Roles", icon: "R", permission: "ROLE_VIEW" },
-];
-
-const helpNavItem = {
-  key: "b2help",
-  label: "B² Brain Help",
-  icon: "?",
-  permission: null,
-};
-const settingsNavItem = {
-  key: "settings",
-  label: "Settings",
-  icon: "⚙",
-  permission: null,
-};
 
 const activeViews = new Set<ActiveView>([
   "overview", "welcome", "b2help", "people", "roles", "actions",
@@ -173,9 +146,6 @@ export function ProtectedDashboard() {
   const hasOrganizationUpdate =
     isOrganizationOwner &&
     session.membership.permissions.includes("ORGANIZATION_UPDATE");
-  const visibleNavItems = isOrganizationOwner
-    ? [...navItems, ...ownerNavItems, helpNavItem, settingsNavItem]
-    : [...navItems, helpNavItem, settingsNavItem];
   function toggleOrganizationEditor(organization: AuthOrganization) {
     if (!editing)
       setForm({
@@ -212,260 +182,16 @@ export function ProtectedDashboard() {
 
   return (
     <div className="dashboard-shell">
-      <aside className={`dashboard-sidebar${mobileNavOpen ? " mobile-open" : ""}`} id="dashboard-navigation">
-        <div className="dashboard-logo">
-          <Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} />
-          <span>
-            <strong>B² Brain</strong>
-            <small>Workspace</small>
-          </span>
-        </div>
-        <button
-          type="button"
-          className="mobile-nav-close"
-          onClick={() => setMobileNavOpen(false)}
-          aria-label="Close service menu"
-        >
-          ×
-        </button>
-        <nav aria-label="Primary navigation">
-          {visibleNavItems.map((item) =>
-            (() => {
-              const enabled =
-                item.permission === null ||
-                session.membership.permissions.includes(item.permission);
-              return (
-                <button
-                  key={item.label}
-                  className={activeView === item.key ? "active" : ""}
-                  disabled={!enabled}
-                  onClick={() =>
-                    enabled && setActiveView(item.key as ActiveView)
-                  }
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  {item.label}
-                </button>
-              );
-            })(),
-          )}
-          {enabledServices.includes("B2BRAIN_AGENT") && (
-            <button
-              className={activeView === "b2agent" ? "active" : ""}
-              onClick={() => setActiveView("b2agent")}
-            >
-              <span className="nav-icon">✦</span>Ask B² Brain
-            </button>
-          )}
-          {enabledServices.includes("ACTION_CENTRE") &&
-            session.membership.permissions.includes("APPROVAL_VIEW") && (
-              <button
-                className={activeView === "actions" ? "active" : ""}
-                onClick={() => setActiveView("actions")}
-              >
-                <span className="nav-icon">!</span>Action Centre
-              </button>
-            )}
-          {enabledServices.includes("GOVERNANCE") &&
-            session.membership.permissions.includes("APPROVAL_VIEW") && (
-              <button
-                className={activeView === "governance" ? "active" : ""}
-                onClick={() => setActiveView("governance")}
-              >
-                <span className="nav-icon">✓</span>Approvals & Audit
-              </button>
-            )}
-          {enabledServices.includes("CRM") &&
-            session.membership.permissions.includes("CRM_VIEW") && (
-              <button
-                className={activeView === "crm" ? "active" : ""}
-                onClick={() => setActiveView("crm")}
-              >
-                <span className="nav-icon">C</span>CRM
-              </button>
-            )}
-          {enabledServices.includes("LEADS") &&
-            session.membership.permissions.includes("INQUIRY_VIEW") && (
-              <button
-                className={activeView === "inquiries" ? "active" : ""}
-                onClick={() => setActiveView("inquiries")}
-              >
-                <span className="nav-icon">Q</span>Inquiries
-              </button>
-            )}
-          {enabledServices.includes("STAY") &&
-            session.membership.permissions.includes("STAY_VIEW") && (
-              <button
-                className={activeView === "stay" ? "active" : ""}
-                onClick={() => setActiveView("stay")}
-              >
-                <span className="nav-icon">H</span>B² Stay
-              </button>
-            )}
-          {enabledServices.includes("SCHOOL") &&
-            session.membership.permissions.includes("SCHOOL_VIEW") && (
-              <button
-                className={activeView === "school" ? "active" : ""}
-                onClick={() => setActiveView("school")}
-              >
-                <span className="nav-icon">S</span>B² School
-              </button>
-            )}
-          {enabledServices.includes("CATALOGUE") &&
-            session.membership.permissions.includes("CATALOGUE_VIEW") && (
-              <button
-                className={activeView === "catalogue" ? "active" : ""}
-                onClick={() => setActiveView("catalogue")}
-              >
-                <span className="nav-icon">G</span>Catalogue
-              </button>
-            )}
-          {enabledServices.includes("ORDERS") &&
-            session.membership.permissions.includes("ORDER_VIEW") && (
-              <button
-                className={activeView === "orders" ? "active" : ""}
-                onClick={() => setActiveView("orders")}
-              >
-                <span className="nav-icon">O</span>Orders
-              </button>
-            )}
-          {enabledServices.includes("INVENTORY") &&
-            session.membership.permissions.includes("INVENTORY_VIEW") && (
-              <button
-                className={activeView === "inventory" ? "active" : ""}
-                onClick={() => setActiveView("inventory")}
-              >
-                <span className="nav-icon">I</span>Inventory
-              </button>
-            )}
-          {enabledServices.includes("MARKETING") &&
-            session.membership.permissions.includes("MARKETING_VIEW") && (
-              <button
-                className={activeView === "marketing" ? "active" : ""}
-                onClick={() => setActiveView("marketing")}
-              >
-                <span className="nav-icon">M</span>Marketing
-              </button>
-            )}
-          {enabledServices.includes("SUPPORT") &&
-            session.membership.permissions.includes("SUPPORT_VIEW") && (
-              <button
-                className={activeView === "support" ? "active" : ""}
-                onClick={() => setActiveView("support")}
-              >
-                <span className="nav-icon">U</span>Support
-              </button>
-            )}
-          {enabledServices.includes("WEBSITES") &&
-            session.membership.permissions.includes("WEBSITE_VIEW") && (
-              <button
-                className={activeView === "websites" ? "active" : ""}
-                onClick={() => setActiveView("websites")}
-              >
-                <span className="nav-icon">W</span>Websites
-              </button>
-            )}
-          {enabledServices.includes("PROCUREMENT") &&
-            session.membership.permissions.includes("PROCUREMENT_VIEW") && (
-              <button
-                className={activeView === "procurement" ? "active" : ""}
-                onClick={() => setActiveView("procurement")}
-              >
-                <span className="nav-icon">V</span>Procurement
-              </button>
-            )}
-          {enabledServices.includes("CALENDAR") &&
-            session.membership.permissions.includes("CALENDAR_VIEW") && (
-              <button
-                className={activeView === "calendar" ? "active" : ""}
-                onClick={() => setActiveView("calendar")}
-              >
-                <span className="nav-icon">K</span>Calendar
-              </button>
-            )}
-          {enabledServices.includes("BUSINESS_ANALYSIS") &&
-            session.membership.permissions.includes("ANALYSIS_VIEW") && (
-              <button
-                className={activeView === "analysis" ? "active" : ""}
-                onClick={() => setActiveView("analysis")}
-              >
-                <span className="nav-icon">B</span>Analysis
-              </button>
-            )}
-          {enabledServices.includes("SALES") &&
-            session.membership.permissions.includes("DEAL_VIEW") && (
-              <button
-                className={activeView === "sales" ? "active" : ""}
-                onClick={() => setActiveView("sales")}
-              >
-                <span className="nav-icon">S</span>Sales
-              </button>
-            )}
-          {enabledServices.includes("FINANCE") &&
-            session.membership.permissions.includes("FINANCE_VIEW") && (
-              <button
-                className={activeView === "finance" ? "active" : ""}
-                onClick={() => setActiveView("finance")}
-              >
-                <span className="nav-icon">F</span>Finance
-              </button>
-            )}
-          {enabledServices.includes("PROJECTS") &&
-            session.membership.permissions.includes("PROJECT_VIEW") && (
-              <button
-                className={activeView === "projects" ? "active" : ""}
-                onClick={() => setActiveView("projects")}
-              >
-                <span className="nav-icon">P</span>Projects
-              </button>
-            )}
-          {enabledServices.includes("PEOPLE") &&
-            session.membership.permissions.includes("EMPLOYEE_VIEW") && (
-              <button
-                className={activeView === "employees" ? "active" : ""}
-                onClick={() => setActiveView("employees")}
-              >
-                <span className="nav-icon">E</span>Employees
-              </button>
-            )}
-          {enabledServices.includes("AUTOMATION") &&
-            session.membership.permissions.includes("AUTOMATION_VIEW") && (
-              <button
-                className={activeView === "automation" ? "active" : ""}
-                onClick={() => setActiveView("automation")}
-              >
-                <span className="nav-icon">A</span>Automation
-              </button>
-            )}
-          {session.user.isPlatformAdmin && (
-            <button onClick={() => router.push("/super-admin")}>
-              <span className="nav-icon">↔</span>Switch to Super Admin
-            </button>
-          )}
-        </nav>
-        <div className="sidebar-security">
-          <span>✓</span>
-          <div>
-            <strong>Organization isolated</strong>
-            <small>Verified tenant context</small>
-          </div>
-        </div>
-        <div className="sidebar-account">
-          <div className="avatar">{initials}</div>
-          <div>
-            <strong>
-              {session.user.firstName} {session.user.lastName}
-            </strong>
-            <small>{session.membership.role.name}</small>
-          </div>
-          <button
-            onClick={() => void logout().then(() => router.replace("/login"))}
-            title="Sign out"
-          >
-            ↗
-          </button>
-        </div>
-      </aside>
+      <DashboardSidebar
+        activeView={activeView}
+        enabledServices={enabledServices}
+        isOpen={mobileNavOpen}
+        session={session}
+        onClose={() => setMobileNavOpen(false)}
+        onSelect={setActiveView}
+        onSignOut={() => void logout().then(() => router.replace("/login"))}
+        onSuperAdmin={() => router.push("/super-admin")}
+      />
       {mobileNavOpen && (
         <button
           type="button"
