@@ -4,29 +4,12 @@ import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { PaymentCollectionManager } from "./payment-collection-manager";
 import { FinanceLedger } from "./finance-ledger";
-interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  status: string;
-  total: string;
-  dueDate: string;
-  paid: number;
-  outstanding: number;
-  daysOverdue: number;
-  customer: { id: string; displayName: string };
-  payments: { amount: string }[];
-  collectionFollowUps: { id: string; title: string; description: string | null; dueAt: string; status: string; assignedTo: { id: string; firstName: string; lastName: string | null } }[];
-}
-interface Expense {
-  id: string;
-  title: string;
-  category: string;
-  amount: string;
-  expenseDate: string;
-  vendor: string | null;
-  notes: string | null;
-  status: "RECORDED" | "VOIDED";
-}
+import {
+  FinanceRecords,
+  formatMoney as money,
+  type FinanceExpense as Expense,
+  type FinanceInvoice as Invoice,
+} from "./finance-records";
 interface FinanceResponse {
   success: true;
   data: {
@@ -46,12 +29,6 @@ interface CustomerResponse {
   success: true;
   data: { customers: { id: string; displayName: string }[] };
 }
-const money = (value: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
 const blankInvoice = {
   customerId: "",
   invoiceNumber: "",
@@ -213,76 +190,41 @@ export function FinanceWorkspace() {
       </section>
       <FinanceLedger />
       <PaymentCollectionManager />
-      <div className="finance-columns">
-        <section>
-          <h3>Customer invoices</h3>
-          {data.invoices.length === 0 ? (
-            <div className="finance-empty">
-              <strong>No invoices yet</strong>
-              <p>Create the first real customer invoice when you are ready.</p>
-            </div>
-          ) : (
-            data.invoices.map((item) => (
-              <article
-                key={item.id}
-                className={item.status === "OVERDUE" ? "invoice-overdue" : ""}
-              >
-                <div>
-                  <strong>{item.invoiceNumber}</strong>
-                  <small>
-                    {item.customer.displayName} · {item.status}
-                    {item.daysOverdue
-                      ? ` · ${item.daysOverdue} days overdue`
-                      : ""}
-                  </small>
-                  <small>
-                    Due{" "}
-                    {new Intl.DateTimeFormat("en", {
-                      dateStyle: "medium",
-                    }).format(new Date(item.dueDate))}
-                  </small>
-                </div>
-                <div className="invoice-balance">
-                  <small>Total {money(Number(item.total))}</small>
-                  <strong>{money(item.outstanding)} due</strong>
-                  <small>{money(item.paid)} received</small>
-                </div>
-                {canManage &&
-                  item.outstanding > 0 &&
-                  !["DRAFT", "CANCELED"].includes(item.status) && (
-                    <div className="invoice-actions">
-                      <button onClick={() => openPayment(item)}>
-                        Record payment
-                      </button>
-                      {item.collectionFollowUps[0] ? <button onClick={() => setExpandedFollowUpId(expandedFollowUpId === item.collectionFollowUps[0]!.id ? null : item.collectionFollowUps[0]!.id)}>View existing follow-up</button> : <button disabled={saving} onClick={() => void ensureCollectionFollowUp(item)}>Create follow-up</button>}
-                    </div>
-                  )}
-                {item.collectionFollowUps[0] && expandedFollowUpId === item.collectionFollowUps[0].id && <div className="invoice-follow-up-detail"><strong>{item.collectionFollowUps[0].title}</strong><span>{item.collectionFollowUps[0].status} · Due {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.collectionFollowUps[0].dueAt))}</span><span>Assigned to {item.collectionFollowUps[0].assignedTo.firstName} {item.collectionFollowUps[0].assignedTo.lastName ?? ""}</span>{item.collectionFollowUps[0].description && <p>{item.collectionFollowUps[0].description}</p>}</div>}
-              </article>
-            ))
-          )}
-        </section>
-        <section>
-          <h3>Expenses</h3>
-          {data.expenses.length === 0 ? (
-            <div className="finance-empty">
-              <strong>No expenses yet</strong>
-              <p>Recorded business expenses will appear here.</p>
-            </div>
-          ) : (
-            data.expenses.map((item) => (
-              <article key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <small>{item.category}</small>
-                </div>
-                <strong>{money(Number(item.amount))}</strong>
-                {canManage && <div className="invoice-actions"><button onClick={() => { setEditingExpenseId(item.id); setExpense({ title: item.title, category: item.category, vendor: item.vendor ?? "", amount: Number(item.amount), expenseDate: item.expenseDate.slice(0,10), notes: item.notes ?? "" }); setMode("expense"); }}>Edit</button><button onClick={() => void action(() => authorizedRequest(`/finance/expenses/${item.id}`, { method: "DELETE" }).then(() => undefined), "Expense archived.")}>Archive</button></div>}
-              </article>
-            ))
-          )}
-        </section>
-      </div>
+      <FinanceRecords
+        invoices={data.invoices}
+        expenses={data.expenses}
+        canManage={canManage}
+        saving={saving}
+        expandedFollowUpId={expandedFollowUpId}
+        onRecordPayment={openPayment}
+        onCreateFollowUp={(item) => void ensureCollectionFollowUp(item)}
+        onToggleFollowUp={(followUpId) =>
+          setExpandedFollowUpId(
+            expandedFollowUpId === followUpId ? null : followUpId,
+          )
+        }
+        onEditExpense={(item) => {
+          setEditingExpenseId(item.id);
+          setExpense({
+            title: item.title,
+            category: item.category,
+            vendor: item.vendor ?? "",
+            amount: Number(item.amount),
+            expenseDate: item.expenseDate.slice(0, 10),
+            notes: item.notes ?? "",
+          });
+          setMode("expense");
+        }}
+        onArchiveExpense={(expenseId) =>
+          void action(
+            () =>
+              authorizedRequest(`/finance/expenses/${expenseId}`, {
+                method: "DELETE",
+              }).then(() => undefined),
+            "Expense archived.",
+          )
+        }
+      />
       {mode && (
         <div className="agent-modal">
           <div className="agent-dialog finance-dialog">
