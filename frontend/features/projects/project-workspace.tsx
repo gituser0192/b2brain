@@ -3,37 +3,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
+import { ProjectDialog } from "./project-dialog";
+import { ProjectList } from "./project-list";
+import { ProjectTaskPanel } from "./project-task-panel";
 import { ProjectTeam } from "./project-team";
-
-type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELED";
-type TaskStatus = "TODO" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "CANCELED";
-type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-
-interface Project {
-  id: string; name: string; code: string; description: string | null;
-  status: ProjectStatus; priority: Priority; startDate: string | null;
-  dueDate: string | null; deletedAt: string | null;
-  customer: { id: string; displayName: string } | null;
-  _count: { tasks: number };
-}
-interface Task {
-  id: string; title: string; description: string | null; status: TaskStatus;
-  priority: Priority; dueDate: string | null;
-}
+import type { Project, ProjectForm, ProjectTask, TaskForm, TaskStatus } from "./project-types";
 interface ProjectsResponse { success: true; data: Project[] }
-interface TasksResponse { success: true; data: Task[] }
+interface TasksResponse { success: true; data: ProjectTask[] }
 interface CustomersResponse {
   success: true; data: { customers: { id: string; displayName: string }[] };
 }
 
-const emptyProject = {
-  name: "", code: "", description: "", customerId: null as string | null,
-  status: "PLANNING" as ProjectStatus, priority: "MEDIUM" as Priority,
+const emptyProject: ProjectForm = {
+  name: "", code: "", description: "", customerId: null,
+  status: "PLANNING", priority: "MEDIUM",
   startDate: "", dueDate: "",
 };
-const emptyTask = {
-  title: "", description: "", status: "TODO" as TaskStatus,
-  priority: "MEDIUM" as Priority, dueDate: "",
+const emptyTask: TaskForm = {
+  title: "", description: "", status: "TODO",
+  priority: "MEDIUM", dueDate: "",
 };
 const apiDate = (value: string) =>
   value ? new Date(`${value}T00:00:00`).toISOString() : null;
@@ -43,7 +31,7 @@ export function ProjectWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [customers, setCustomers] = useState<{ id: string; displayName: string }[]>([]);
   const [selected, setSelected] = useState<Project | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [form, setForm] = useState(emptyProject);
   const [task, setTask] = useState(emptyTask);
   const [editing, setEditing] = useState<Project | null>(null);
@@ -120,7 +108,7 @@ export function ProjectWorkspace() {
     await loadTasks(selected);
     await load();
   }
-  async function taskStatus(current: Task, status: TaskStatus) {
+  async function taskStatus(current: ProjectTask, status: TaskStatus) {
     if (!selected) return;
     await authorizedRequest(`/projects/${selected.id}/tasks/${current.id}`, {
       method: "PUT",
@@ -145,60 +133,14 @@ export function ProjectWorkspace() {
         </button>
         <span>{projects.length} projects</span>
       </div>
-      {projects.length === 0 ? (
-        <section className="project-empty">
-          <span>◇</span><h3>{archived ? "No archived projects" : "No projects yet"}</h3>
-          <p>This organization begins with zero project and task data.</p>
-          {canCreate && !archived && <button onClick={() => show()}>Create first project</button>}
-        </section>
-      ) : (
+      {!projects.length ? <ProjectList projects={projects} archived={archived} canCreate={canCreate} onSelect={(project) => void loadTasks(project)} onCreate={() => show()} /> : (
         <div className="project-layout">
-          <section className="project-cards">
-            {projects.map((project) => (
-              <article key={project.id} className={selected?.id === project.id ? "selected" : ""} onClick={() => void loadTasks(project)}>
-                <div><span className={`project-priority ${project.priority.toLowerCase()}`}>{project.priority}</span><small>{project.code}</small></div>
-                <h3>{project.name}</h3><p>{project.description || "No description"}</p>
-                <footer><span>{project.status.replace("_", " ")}</span><span>{project._count.tasks} tasks</span><span>{project.dueDate ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(project.dueDate)) : "No deadline"}</span></footer>
-              </article>
-            ))}
-          </section>
-          {selected && (
-            <aside className="task-panel">
-              <header><div><small>{selected.code}</small><h3>{selected.name}</h3></div><div>{canUpdate && <button onClick={() => show(selected)}>Edit</button>}{canArchive && <button onClick={() => void archive(selected)}>{selected.deletedAt ? "Restore" : "Archive"}</button>}</div></header>
-              {canTasks && !selected.deletedAt && (
-                <div className="task-create">
-                  <input value={task.title} onChange={(event) => setTask({ ...task, title: event.target.value })} placeholder="Add a task" />
-                  <select value={task.priority} onChange={(event) => setTask({ ...task, priority: event.target.value as Priority })}><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option></select>
-                  <input type="date" value={task.dueDate} onChange={(event) => setTask({ ...task, dueDate: event.target.value })} />
-                  <button disabled={!task.title.trim()} onClick={() => void addTask()}>Add</button>
-                </div>
-              )}
-              <div className="task-list">
-                {tasks.length === 0 ? <p>No tasks in this project.</p> : tasks.map((current) => (
-                  <article key={current.id}><span className={`task-dot ${current.status.toLowerCase()}`} /><div><strong>{current.title}</strong><small>{current.priority} · {current.dueDate ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(current.dueDate)) : "No deadline"}</small></div>{canTasks && <select value={current.status} onChange={(event) => void taskStatus(current, event.target.value as TaskStatus)}><option value="TODO">To do</option><option value="IN_PROGRESS">In progress</option><option value="BLOCKED">Blocked</option><option value="COMPLETED">Completed</option><option value="CANCELED">Canceled</option></select>}</article>
-                ))}
-              </div>
-            </aside>
-          )}
+          <ProjectList projects={projects} selectedId={selected?.id} archived={archived} canCreate={canCreate} onSelect={(project) => void loadTasks(project)} onCreate={() => show()} />
+          {selected && <ProjectTaskPanel project={selected} tasks={tasks} form={task} canUpdate={canUpdate} canArchive={canArchive} canTasks={canTasks} onFormChange={setTask} onAdd={() => void addTask()} onStatus={(current, status) => void taskStatus(current, status)} onEdit={() => show(selected)} onArchive={() => void archive(selected)} />}
         </div>
       )}
       {selected && <ProjectTeam projectId={selected.id} />}
-      {open && (
-        <div className="agent-modal"><div className="agent-dialog">
-          <header><div><p>Project record</p><h3>{editing ? "Update project" : "Create project"}</h3></div><button onClick={() => setOpen(false)}>×</button></header>
-          <label><span>Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-          <label><span>Project code</span><input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} placeholder="PRJ-001" /></label>
-          {canReadCrm && <label><span>Customer (optional)</span><select value={form.customerId ?? ""} onChange={(event) => setForm({ ...form, customerId: event.target.value || null })}><option value="">Internal project / no customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName}</option>)}</select></label>}
-          <label><span>Description</span><textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
-          <div className="agent-form-grid">
-            <label><span>Status</span><select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as ProjectStatus })}><option value="PLANNING">Planning</option><option value="ACTIVE">Active</option><option value="ON_HOLD">On hold</option><option value="COMPLETED">Completed</option><option value="CANCELED">Canceled</option></select></label>
-            <label><span>Priority</span><select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value as Priority })}><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option></select></label>
-            <label><span>Start</span><input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
-            <label><span>Due</span><input type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} /></label>
-          </div>
-          <footer><button onClick={() => setOpen(false)}>Cancel</button><button disabled={form.name.trim().length < 2 || form.code.trim().length < 2} onClick={() => void save()}>Save project</button></footer>
-        </div></div>
-      )}
+      {open && <ProjectDialog editing={editing} form={form} customers={customers} canReadCrm={canReadCrm} onChange={setForm} onClose={() => setOpen(false)} onSave={() => void save()} />}
     </div>
   );
 }
