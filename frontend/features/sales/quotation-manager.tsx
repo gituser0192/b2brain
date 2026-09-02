@@ -3,45 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
-
-type Status =
-  | "DRAFT"
-  | "SENT"
-  | "ACCEPTED"
-  | "REJECTED"
-  | "EXPIRED"
-  | "CONVERTED"
-  | "CANCELED";
+import { QuotationList, type Quotation } from "./quotation-list";
 interface Item {
   id?: string;
   description: string;
   quantity: number;
   unitPrice: number;
-}
-interface Quotation {
-  id: string;
-  quotationNumber: string;
-  status: Status;
-  issueDate: string;
-  validUntil: string;
-  currency: string;
-  subtotal: string;
-  discount: string;
-  tax: string;
-  total: string;
-  notes: string | null;
-  terms: string | null;
-  nextFollowUpAt: string | null;
-  customer: { id: string; displayName: string };
-  inquiry: { id: string; subject: string } | null;
-  deal: { id: string; name: string } | null;
-  invoice: { id: string; invoiceNumber: string; status: string } | null;
-  items: {
-    id: string;
-    description: string;
-    quantity: string;
-    unitPrice: string;
-  }[];
 }
 interface Payload {
   success: true;
@@ -307,107 +274,19 @@ export function QuotationManager() {
       </header>
       {notice && <div className="dashboard-notice success">{notice}</div>}
       {error && <div className="dashboard-notice error">{error}</div>}
-      <div className="quotation-metrics">
-        <article>
-          <span>Open value</span>
-          <strong>
-            {money(data.metrics.openValue, session?.organization.currency)}
-          </strong>
-        </article>
-        <article>
-          <span>Awaiting decision</span>
-          <strong>{data.metrics.awaitingDecision}</strong>
-        </article>
-        <article>
-          <span>Accepted value</span>
-          <strong>
-            {money(data.metrics.acceptedValue, session?.organization.currency)}
-          </strong>
-        </article>
-        <article className={data.metrics.expiringSoon ? "warning" : ""}>
-          <span>Expiring in 3 days</span>
-          <strong>{data.metrics.expiringSoon}</strong>
-        </article>
-      </div>
-      {data.quotations.length === 0 ? (
-        <div className="quotation-empty">
-          <strong>No quotations yet</strong>
-          <span>
-            Create the first quotation from a real CRM customer. Nothing is
-            pre-filled or seeded.
-          </span>
-        </div>
-      ) : (
-        <div className="quotation-list">
-          {data.quotations.map((item) => (
-            <article
-              key={item.id}
-              className={`status-${item.status.toLowerCase()}`}
-            >
-              <div>
-                <span>{item.status}</span>
-                <h3>{item.quotationNumber}</h3>
-                <p>
-                  {item.customer.displayName}
-                  {item.deal ? ` · ${item.deal.name}` : ""}
-                </p>
-                <small>
-                  Valid until{" "}
-                  {new Intl.DateTimeFormat("en", {
-                    dateStyle: "medium",
-                  }).format(new Date(item.validUntil))}
-                </small>
-              </div>
-              <div className="quotation-value">
-                <strong>{money(Number(item.total), item.currency)}</strong>
-                <small>
-                  {item.items.length} line item
-                  {item.items.length === 1 ? "" : "s"}
-                </small>
-                {item.invoice && <b>Invoice {item.invoice.invoiceNumber}</b>}
-              </div>
-              {canManage && (
-                <footer>
-                  <button onClick={() => void share(item, "LINK")}>Preview / PDF</button>
-                  <button onClick={() => void share(item, "EMAIL")}>Email</button>
-                  <button onClick={() => void share(item, "WHATSAPP")}>WhatsApp draft</button>
-                      {["DRAFT", "SENT", "EXPIRED"].includes(item.status) && (
-                    <button onClick={() => show(item)}>Edit</button>
-                  )}
-                  {["DRAFT", "EXPIRED"].includes(item.status) && (
-                    <button onClick={() => void status(item, "SENT")}>
-                      Mark sent
-                    </button>
-                  )}
-                  {item.status === "SENT" && (
-                    <>
-                      <button onClick={() => void status(item, "ACCEPTED")}>
-                        Accept
-                      </button>
-                      <button onClick={() => void status(item, "REJECTED")}>
-                        Reject
-                      </button>
-                    </>
-                  )}
-                  {["DRAFT", "SENT", "EXPIRED"].includes(item.status) && (
-                    <button onClick={() => void followUp(item)}>
-                      Follow-up
-                    </button>
-                  )}
-                  {item.status === "ACCEPTED" && canConvert && (
-                    <button
-                      className="convert"
-                      onClick={() => void convert(item)}
-                    >
-                      Create invoice
-                    </button>
-                  )}
-                </footer>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
+      <QuotationList
+        quotations={data.quotations}
+        metrics={data.metrics}
+        organizationCurrency={session?.organization.currency}
+        canManage={canManage}
+        canConvert={canConvert}
+        money={money}
+        onShare={(item, channel) => void share(item, channel)}
+        onEdit={show}
+        onStatus={(item, target) => void status(item, target)}
+        onFollowUp={(item) => void followUp(item)}
+        onConvert={(item) => void convert(item)}
+      />
       {open && (
         <div className="agent-modal">
           <div className="agent-dialog quotation-dialog">
