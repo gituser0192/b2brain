@@ -2,29 +2,45 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError } from "@/services/api-client";
-import { apiRequest } from "@/services/api-client";
+
+import { ApiError, apiRequest } from "@/services/api-client";
+
 import { useAuth } from "./auth-context";
 import { FieldIcon } from "./auth-shell";
+
+type RegistrationInvitation = {
+  email: string;
+  organizationName: string;
+  expiresAt: string;
+  type: "NEW_ORGANIZATION" | "REACTIVATE_ORGANIZATION";
+};
 
 export function SignupForm() {
   const router = useRouter();
   const { register, session, isLoading } = useAuth();
   const [values, setValues] = useState({ firstName: "", lastName: "", password: "" });
   const [invitationToken] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("token") ?? "");
-  const [invitation, setInvitation] = useState<{ email: string; organizationName: string; expiresAt: string; type: "NEW_ORGANIZATION" | "REACTIVATE_ORGANIZATION" } | null>(null);
+  const [invitation, setInvitation] = useState<RegistrationInvitation | null>(null);
   const [checkingInvitation, setCheckingInvitation] = useState(true);
   const [submittedForApproval, setSubmittedForApproval] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
   const change = (field: keyof typeof values, value: string) => setValues((current) => ({ ...current, [field]: value }));
 
-  useEffect(() => { if (!isLoading && session) router.replace("/dashboard"); }, [isLoading, session, router]);
+  useEffect(() => {
+    if (!isLoading && session) router.replace("/dashboard");
+  }, [isLoading, session, router]);
+
   useEffect(() => {
     const task = window.setTimeout(() => {
-      if (!invitationToken) { setError("Registration is invitation-only. Ask the B² Brain administrator for an invitation."); setCheckingInvitation(false); return; }
-      void apiRequest<{ success: true; data: { email: string; organizationName: string; expiresAt: string; type: "NEW_ORGANIZATION" | "REACTIVATE_ORGANIZATION" } }>(`/auth/registration-invitations/${encodeURIComponent(invitationToken)}`)
+      if (!invitationToken) {
+        setError("Registration is invitation-only. Ask the B² Brain administrator for an invitation.");
+        setCheckingInvitation(false);
+        return;
+      }
+      void apiRequest<{ success: true; data: RegistrationInvitation }>(`/auth/registration-invitations/${encodeURIComponent(invitationToken)}`)
         .then((response) => setInvitation(response.data))
         .catch((reason) => setError(reason instanceof ApiError ? reason.message : "This registration invitation is invalid."))
         .finally(() => setCheckingInvitation(false));
@@ -40,10 +56,10 @@ export function SignupForm() {
       await register({ ...values, invitationToken, lastName: values.lastName || undefined });
       setSubmittedForApproval(true);
     } catch (reason) {
-      if (reason instanceof ApiError) {
-        setError(reason.message);
-      } else setError("Unable to create your workspace right now.");
-    } finally { setSubmitting(false); }
+      setError(reason instanceof ApiError ? reason.message : "Unable to create your workspace right now.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (checkingInvitation) return <div className="invitation-check"><span className="spinner dark" /><p>Checking your invitation…</p></div>;
