@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AppProviders } from "@/components/shared/app-providers";
 import "./globals.css";
+import "./styles/knowledge-management.css";
+import "./styles/dashboard-mobile.css";
 
 export const metadata: Metadata = {
   title: { default: "B² Brain", template: "%s · B² Brain" },
