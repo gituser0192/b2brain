@@ -4,9 +4,9 @@ import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import {
   LeadAssignmentControl,
-  LeadAssignmentManager,
   type AssignmentEmployee,
-} from "./lead-assignment-manager";
+} from "./lead-assignment-control";
+import { LeadAssignmentManager } from "./lead-assignment-manager";
 type Item = {
   id: string;
   source: string;
