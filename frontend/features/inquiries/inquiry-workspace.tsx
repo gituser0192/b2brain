@@ -3,49 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { DealConversionDialog } from "./deal-conversion-dialog";
+import { InquiryInbox, type InquiryItem } from "./inquiry-inbox";
 import {
   InquiryFormDialog,
   type DuplicateInquiry,
 } from "./inquiry-form-dialog";
-import {
-  LeadAssignmentControl,
-  type AssignmentEmployee,
-} from "./lead-assignment-control";
+import type { AssignmentEmployee } from "./lead-assignment-control";
 import { LeadAssignmentManager } from "./lead-assignment-manager";
-type Item = {
-  id: string;
-  source: string;
-  type: string;
-  status: string;
-  priority: string;
-  contactName: string;
-  email: string | null;
-  phone: string | null;
-  companyName: string | null;
-  subject: string;
-  message: string;
-  campaignId: string | null;
-  assignedEmployeeId: string | null;
-  responseDueAt: string | null;
-  disqualifiedReason: string | null;
-  nextFollowUpAt: string | null;
-  followUpNote: string | null;
-  followUpCompletedAt: string | null;
-  createdAt: string;
-  customer: {
-    displayName: string;
-    email: string | null;
-    phone: string | null;
-  } | null;
-  assignedEmployee: { firstName: string; lastName: string | null } | null;
-  timeline: {
-    id: string;
-    summary: string;
-    details: string | null;
-    createdAt: string;
-    createdBy: { firstName: string };
-  }[];
-};
 type Ref = {
   id: string;
   firstName?: string;
@@ -55,7 +19,7 @@ type Ref = {
 type Payload = {
   success: true;
   data: {
-    inquiries: Item[];
+    inquiries: InquiryItem[];
     employees: Ref[];
     campaigns: Ref[];
     metrics: Record<string, number>;
@@ -85,11 +49,11 @@ export function InquiryWorkspace({
   selectedInquiryId?: string | null;
 }) {
   const { session, authorizedRequest } = useAuth(),
-    [items, setItems] = useState<Item[]>([]),
+    [items, setItems] = useState<InquiryItem[]>([]),
     [employees, setEmployees] = useState<Ref[]>([]),
     [campaigns, setCampaigns] = useState<Ref[]>([]),
     [metrics, setMetrics] = useState<Record<string, number>>({}),
-    [chosen, setChosen] = useState<Item | null>(null),
+    [chosen, setChosen] = useState<InquiryItem | null>(null),
     [form, setForm] = useState(blank()),
     [open, setOpen] = useState(false),
     [showRules, setShowRules] = useState(false),
@@ -133,7 +97,7 @@ export function InquiryWorkspace({
     const selected = items.find((item) => item.id === selectedInquiryId);
     if (selected) show(selected);
   }, [items, selectedInquiryId]);
-  function show(i?: Item) {
+  function show(i?: InquiryItem) {
     setDuplicate(null);
     setChosen(i ?? null);
     setForm(
@@ -378,159 +342,22 @@ export function InquiryWorkspace({
       </header>
       {error && <div className="dashboard-notice error">{error}</div>}
       {showRules && <LeadAssignmentManager onChanged={load} />}
-      <section className="inquiry-metrics">
-        {Object.entries(metrics).map(([k, v]) => (
-          <article key={k}>
-            <span>{k}</span>
-            <strong>{k === "conversionRate" ? `${v.toFixed(0)}%` : v}</strong>
-          </article>
-        ))}
-      </section>
-      {!items.length ? (
-        <section className="project-empty">
-          <span>◇</span>
-          <h3>No inquiries yet</h3>
-          <p>
-            Your workspace starts empty. Capture the first real inquiry when it
-            arrives.
-          </p>
-        </section>
-      ) : (
-        <div className="inquiry-layout">
-          <section className="inquiry-list">
-            {items.map((i) => (
-              <button
-                key={i.id}
-                className={chosen?.id === i.id ? "active" : ""}
-                onClick={() => setChosen(i)}
-              >
-                <span>
-                  {i.source} · {i.priority}
-                </span>
-                <strong>{i.subject}</strong>
-                <p>{i.contactName}</p>
-                <b>
-                  {i.type.replaceAll("_", " ")} · {i.status}
-                </b>
-              </button>
-            ))}
-          </section>
-          {chosen && (
-            <section className="inquiry-detail">
-              <header>
-                <div>
-                  <p>
-                    {chosen.source} ·{" "}
-                    {new Date(chosen.createdAt).toLocaleString()}
-                  </p>
-                  <h3>{chosen.subject}</h3>
-                  <span>
-                    {chosen.contactName} · {chosen.email || chosen.phone}
-                  </span>
-                </div>
-                {manage && chosen.status !== "CONVERTED" && (
-                  <button onClick={() => show(chosen)}>Edit</button>
-                )}
-              </header>
-              {chosen.customer && (
-                <div className="duplicate-match">
-                  <strong>Existing CRM match</strong>
-                  <span>{chosen.customer.displayName}</span>
-                </div>
-              )}
-              <div className="ticket-description">
-                <p>{chosen.message}</p>
-              </div>
-              {manage &&
-                !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(
-                  chosen.status,
-                ) && (
-                  <LeadAssignmentControl
-                    key={`${chosen.id}:${chosen.assignedEmployeeId ?? "unassigned"}`}
-                    inquiryId={chosen.id}
-                    assignedEmployeeId={chosen.assignedEmployeeId}
-                    employees={employees as AssignmentEmployee[]}
-                    onChanged={load}
-                  />
-                )}
-              {manage &&
-                !["CONVERTED", "DISQUALIFIED", "SPAM"].includes(
-                  chosen.status,
-                ) && (
-                  <div className="lead-action-bar">
-                    <button onClick={() => void logContact()}>
-                      Log contact
-                    </button>
-                    <button onClick={() => void scheduleFollowUp()}>
-                      {chosen.nextFollowUpAt && !chosen.followUpCompletedAt
-                        ? "Reschedule follow-up"
-                        : "Schedule follow-up"}
-                    </button>
-                  </div>
-                )}
-              {chosen.nextFollowUpAt && (
-                <div
-                  className={`lead-follow-up ${!chosen.followUpCompletedAt && new Date(chosen.nextFollowUpAt) < new Date() ? "overdue" : ""}`}
-                >
-                  <div>
-                    <strong>
-                      {chosen.followUpCompletedAt
-                        ? "Follow-up completed"
-                        : "Next follow-up"}
-                    </strong>
-                    <p>{chosen.followUpNote}</p>
-                    <small>
-                      {new Intl.DateTimeFormat("en", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(new Date(chosen.nextFollowUpAt))}
-                    </small>
-                  </div>
-                  {manage && !chosen.followUpCompletedAt && (
-                    <button onClick={() => void completeFollowUp()}>
-                      Complete
-                    </button>
-                  )}
-                </div>
-              )}
-              {canConvert && chosen.status === "QUALIFIED" && (
-                <div className="inquiry-convert">
-                  <strong>Explicit conversion</strong>
-                  <button onClick={() => void convert("CUSTOMER")}>
-                    Customer
-                  </button>
-                  <button onClick={() => void convert("DEAL")}>
-                    Sales deal
-                  </button>
-                  <button onClick={() => void convert("SUPPORT")}>
-                    Support ticket
-                  </button>
-                </div>
-              )}
-              <section className="inquiry-timeline">
-                <header>
-                  <strong>Activity</strong>
-                  {manage && (
-                    <button onClick={() => void note()}>+ Note</button>
-                  )}
-                </header>
-                {chosen.timeline.map((t) => (
-                  <article key={t.id}>
-                    <div>
-                      <strong>{t.summary}</strong>
-                      {t.details && <p>{t.details}</p>}
-                      <small>
-                        {t.createdBy.firstName} ·{" "}
-                        {new Date(t.createdAt).toLocaleString()}
-                      </small>
-                    </div>
-                  </article>
-                ))}
-              </section>
-            </section>
-          )}
-        </div>
-      )}
+      <InquiryInbox
+        items={items}
+        chosen={chosen}
+        metrics={metrics}
+        employees={employees as AssignmentEmployee[]}
+        canManage={manage}
+        canConvert={canConvert}
+        onChoose={setChosen}
+        onEdit={show}
+        onChanged={load}
+        onLogContact={() => void logContact()}
+        onScheduleFollowUp={() => void scheduleFollowUp()}
+        onCompleteFollowUp={() => void completeFollowUp()}
+        onConvert={(target) => void convert(target)}
+        onAddNote={() => void note()}
+      />
       {open && (
         <InquiryFormDialog
           isEditing={Boolean(chosen)}
