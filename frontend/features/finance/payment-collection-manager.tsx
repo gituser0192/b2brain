@@ -9,6 +9,10 @@ import {
   type PaymentAccount as Account,
   type PaymentRefund as Refund,
 } from "./payment-collection-records";
+import {
+  PaymentCollectionDialog,
+  type CollectionDialogMode,
+} from "./payment-collection-dialog";
 interface P {
   success: true;
   data: {
@@ -64,7 +68,7 @@ export function PaymentCollectionManager() {
       },
     }),
     [invoices, setInvoices] = useState<F["data"]["invoices"]>([]),
-    [mode, setMode] = useState<"account" | "incoming" | null>(null),
+    [mode, setMode] = useState<CollectionDialogMode | null>(null),
     [account, setAccount] = useState(ab),
     [incoming, setIncoming] = useState(ib),
     [error, setError] = useState(""),
@@ -148,6 +152,16 @@ export function PaymentCollectionManager() {
       await load();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to capture incoming payment."); }
   }
+  async function saveAccount() {
+    await run(
+      () =>
+        authorizedRequest("/payment-collection/accounts", {
+          method: "POST",
+          body: JSON.stringify(account),
+        }),
+      "Payment account added.",
+    );
+  }
   async function requestRefund(
     p: F["data"]["invoices"][number]["payments"][number],
   ) {
@@ -229,199 +243,17 @@ export function PaymentCollectionManager() {
         onCompleteRefund={(refund) => void complete(refund)}
       />
       {mode && (
-        <div className="agent-modal">
-          <div className="agent-dialog collection-dialog">
-            <header>
-              <h3>
-                {mode === "account"
-                  ? "Add payment account"
-                  : "Capture incoming payment"}
-              </h3>
-              <button onClick={() => setMode(null)}>×</button>
-            </header>
-            {mode === "account" ? (
-              <>
-                <div className="agent-form-grid">
-                  <label>
-                    <span>Name</span>
-                    <input
-                      value={account.name}
-                      onChange={(e) =>
-                        setAccount({ ...account, name: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Type</span>
-                    <select
-                      value={account.type}
-                      onChange={(e) =>
-                        setAccount({ ...account, type: e.target.value })
-                      }
-                    >
-                      {["BANK", "UPI", "CASH", "PAYMENT_GATEWAY", "OTHER"].map(
-                        (v) => (
-                          <option key={v}>{v}</option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Account identifier (UPI ID / bank account)</span>
-                    <input placeholder="Example: harsh@upi or account ending 1234"
-                      value={account.identifier}
-                      onChange={(e) =>
-                        setAccount({ ...account, identifier: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Bank</span>
-                    <input
-                      value={account.bankName}
-                      onChange={(e) =>
-                        setAccount({ ...account, bankName: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Last 4 digits</span>
-                    <input
-                      maxLength={4}
-                      value={account.accountLast4}
-                      onChange={(e) =>
-                        setAccount({
-                          ...account,
-                          accountLast4: e.target.value.replace(/\D/g, ""),
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-                <footer>
-                  <button onClick={() => setMode(null)}>Cancel</button>
-                  <button
-                    disabled={!account.name || !account.identifier}
-                    onClick={() =>
-                      void run(
-                        () =>
-                          authorizedRequest("/payment-collection/accounts", {
-                            method: "POST",
-                            body: JSON.stringify(account),
-                          }),
-                        "Payment account added.",
-                      )
-                    }
-                  >
-                    Save
-                  </button>
-                </footer>
-              </>
-            ) : (
-              <>
-                <div className="agent-form-grid">
-                  <label>
-                    <span>Account</span>
-                    <select
-                      value={incoming.paymentAccountId}
-                      onChange={(e) =>
-                        setIncoming({
-                          ...incoming,
-                          paymentAccountId: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Select</option>
-                      {data.accounts
-                        .filter((a) => a.isActive)
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Bank UTR / transaction reference</span>
-                    <input
-                      placeholder="Include invoice number when available"
-                      value={incoming.externalReference}
-                      onChange={(e) =>
-                        setIncoming({
-                          ...incoming,
-                          externalReference: e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Payer email or phone</span>
-                    <input placeholder="Customer contact used for matching" value={incoming.payerContact} onChange={(e) => setIncoming({ ...incoming, payerContact: e.target.value })} />
-                  </label>
-                  <label>
-                    <span>Payer</span>
-                    <input
-                      value={incoming.payerName}
-                      onChange={(e) =>
-                        setIncoming({ ...incoming, payerName: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Amount</span>
-                    <input
-                      type="number"
-                      min=".01"
-                      value={incoming.amount}
-                      onChange={(e) =>
-                        setIncoming({
-                          ...incoming,
-                          amount: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Currency</span>
-                    <input
-                      maxLength={3}
-                      value={incoming.currency}
-                      onChange={(e) =>
-                        setIncoming({
-                          ...incoming,
-                          currency: e.target.value.toUpperCase(),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Received</span>
-                    <input
-                      type="datetime-local"
-                      value={incoming.receivedAt}
-                      onChange={(e) =>
-                        setIncoming({ ...incoming, receivedAt: e.target.value })
-                      }
-                    />
-                  </label>
-                </div>
-                <footer>
-                  <button onClick={() => setMode(null)}>Cancel</button>
-                  <button
-                    disabled={
-                      !incoming.paymentAccountId ||
-                      !incoming.externalReference ||
-                      incoming.amount <= 0
-                    }
-                    onClick={() => void captureIncoming()}
-                  >
-                    Capture
-                  </button>
-                </footer>
-              </>
-            )}
-          </div>
-        </div>
+        <PaymentCollectionDialog
+          mode={mode}
+          account={account}
+          setAccount={setAccount}
+          incoming={incoming}
+          setIncoming={setIncoming}
+          accounts={data.accounts}
+          onClose={() => setMode(null)}
+          onSaveAccount={() => void saveAccount()}
+          onCaptureIncoming={() => void captureIncoming()}
+        />
       )}
     </section>
   );
