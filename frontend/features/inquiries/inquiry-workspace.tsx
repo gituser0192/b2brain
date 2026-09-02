@@ -4,6 +4,10 @@ import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { DealConversionDialog } from "./deal-conversion-dialog";
 import {
+  InquiryFormDialog,
+  type DuplicateInquiry,
+} from "./inquiry-form-dialog";
+import {
   LeadAssignmentControl,
   type AssignmentEmployee,
 } from "./lead-assignment-control";
@@ -57,7 +61,6 @@ type Payload = {
     metrics: Record<string, number>;
   };
 };
-type Duplicate = { inquiryId: string; contactName: string; subject: string };
 const blank = () => ({
   source: "MANUAL",
   type: "UNCLASSIFIED",
@@ -98,7 +101,7 @@ export function InquiryWorkspace({
       probability: 50,
       expectedCloseDate: "",
     }),
-    [duplicate, setDuplicate] = useState<Duplicate | null>(null),
+    [duplicate, setDuplicate] = useState<DuplicateInquiry | null>(null),
     [error, setError] = useState("");
   const manage =
       session?.membership.permissions.includes("INQUIRY_MANAGE") ?? false,
@@ -529,177 +532,18 @@ export function InquiryWorkspace({
         </div>
       )}
       {open && (
-        <div className="agent-modal">
-          <div className="agent-dialog inquiry-dialog">
-            <header>
-              <h3>{chosen ? "Update" : "Capture"} inquiry</h3>
-              <button onClick={() => setOpen(false)}>×</button>
-            </header>
-            <div className="agent-form-grid">
-              {(["source", "type", "status", "priority"] as const).map(
-                (key) => (
-                  <label key={key}>
-                    <span>{key}</span>
-                    <select
-                      value={form[key]}
-                      onChange={(e) =>
-                        setForm({ ...form, [key]: e.target.value })
-                      }
-                    >
-                      {{
-                        source: [
-                          "MANUAL",
-                          "WEBSITE",
-                          "WHATSAPP",
-                          "EMAIL",
-                          "PHONE",
-                          "SOCIAL",
-                          "REFERRAL",
-                          "STORE",
-                          "OTHER",
-                        ],
-                        type: [
-                          "UNCLASSIFIED",
-                          "SALES",
-                          "PRODUCT_QUESTION",
-                          "SUPPORT",
-                          "COMPLAINT",
-                          "ORDER_REQUEST",
-                          "PARTNERSHIP",
-                          "SPAM",
-                          "OTHER",
-                        ],
-                        status: [
-                          "NEW",
-                          "REVIEWING",
-                          "QUALIFIED",
-                          "DISQUALIFIED",
-                          "SPAM",
-                        ],
-                        priority: ["LOW", "MEDIUM", "HIGH", "URGENT"],
-                      }[key].map((x) => (
-                        <option key={x}>{x}</option>
-                      ))}
-                    </select>
-                  </label>
-                ),
-              )}
-              {(["contactName", "companyName", "email", "phone"] as const).map(
-                (key) => (
-                  <label key={key}>
-                    <span>{key}</span>
-                    <input
-                      value={form[key]}
-                      onChange={(e) =>
-                        setForm({ ...form, [key]: e.target.value })
-                      }
-                    />
-                  </label>
-                ),
-              )}
-              <label>
-                <span>Assigned employee</span>
-                <select
-                  value={form.assignedEmployeeId}
-                  onChange={(e) =>
-                    setForm({ ...form, assignedEmployeeId: e.target.value })
-                  }
-                >
-                  <option value="">Unassigned</option>
-                  {employees.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.firstName} {x.lastName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Campaign</span>
-                <select
-                  value={form.campaignId}
-                  onChange={(e) =>
-                    setForm({ ...form, campaignId: e.target.value })
-                  }
-                >
-                  <option value="">None</option>
-                  {campaigns.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Response due</span>
-                <input
-                  type="datetime-local"
-                  value={form.responseDueAt}
-                  onChange={(e) =>
-                    setForm({ ...form, responseDueAt: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <label>
-              <span>Subject</span>
-              <input
-                value={form.subject}
-                onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              />
-            </label>
-            <label>
-              <span>Message</span>
-              <textarea
-                rows={4}
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-              />
-            </label>
-            {form.status === "DISQUALIFIED" && (
-              <label>
-                <span>Reason</span>
-                <textarea
-                  value={form.disqualifiedReason}
-                  onChange={(e) =>
-                    setForm({ ...form, disqualifiedReason: e.target.value })
-                  }
-                />
-              </label>
-            )}
-            {duplicate && (
-              <section className="inquiry-duplicate-warning">
-                <strong>Possible duplicate inquiry</strong>
-                <p>
-                  {duplicate.contactName} already has an open “
-                  {duplicate.subject}” inquiry.
-                </p>
-                <div>
-                  <button onClick={openDuplicate}>Open existing</button>
-                  <button onClick={() => void mergeDuplicate()}>
-                    Attach this message
-                  </button>
-                  <button onClick={() => void save(true)}>
-                    Create separately
-                  </button>
-                </div>
-              </section>
-            )}
-            <footer>
-              <button onClick={() => setOpen(false)}>Cancel</button>
-              <button
-                disabled={
-                  !form.contactName ||
-                  !form.subject ||
-                  !form.message ||
-                  (!form.email && !form.phone)
-                }
-                onClick={() => void save()}
-              >
-                Save
-              </button>
-            </footer>
-          </div>
-        </div>
+        <InquiryFormDialog
+          isEditing={Boolean(chosen)}
+          form={form}
+          setForm={setForm}
+          employees={employees}
+          campaigns={campaigns}
+          duplicate={duplicate}
+          onClose={() => setOpen(false)}
+          onOpenDuplicate={openDuplicate}
+          onMergeDuplicate={() => void mergeDuplicate()}
+          onSave={(allowDuplicate) => void save(allowDuplicate)}
+        />
       )}
       {dealConversionOpen && chosen && (
         <DealConversionDialog
