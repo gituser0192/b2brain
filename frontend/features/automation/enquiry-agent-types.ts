@@ -1,0 +1,10 @@
+export type Usage = { inputTokens: number; outputTokens: number; totalTokens: number };
+export type KnowledgeSource = { id: string; title: string; category: string; updatedAt: string | null };
+export type Provider = { name?: string; model?: string | null; source?: "REAL_AI" | "DETERMINISTIC_FALLBACK"; usage?: Usage; usageLimitReached?: boolean };
+export type Analysis = { intent?: string; confidence?: number; language?: string; promptInjectionDetected?: boolean; missingInformation?: string[]; escalationReason?: string | null };
+export type Result = { duplicate: boolean; customer?: { id: string; displayName: string } | null; inquiryId?: string; analysis?: Analysis; response?: string; draftId?: string | null };
+export type AgentStatus = { provider: string; realAiConfigured: boolean; killSwitchActive: boolean; mode: "REAL_AI" | "DETERMINISTIC_FALLBACK"; dailyRequestLimit: number };
+export type ConversationStatus = "NEW" | "WAITING_APPROVAL" | "HUMAN_TAKEOVER" | "RESOLVED" | "FAILED";
+export type Conversation = { conversationId: string; customerName: string; phone: string | null; lastMessage: string; intent: string; status: ConversationStatus; unreadCount: number; updatedAt: string; customerId: string | null; inquiryId: string | null; followUpId: string | null };
+export type HistoryMessage = { eventId: string; externalMessageId: string; customerMessage: string; analysis?: Analysis; provider?: Provider; knowledgeSources?: KnowledgeSource[]; response: string | null; draftId: string | null; draftStatus: string | null; failureMessage: string | null; approvedBy: string | null; createdAt: string };
+export type History = { humanTakeover: boolean; messages: HistoryMessage[] };

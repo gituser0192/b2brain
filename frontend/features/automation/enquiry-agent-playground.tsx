@@ -5,83 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { queryKeys } from "@/services/query-keys";
-
-type Usage = { inputTokens: number; outputTokens: number; totalTokens: number };
-type KnowledgeSource = {
-  id: string;
-  title: string;
-  category: string;
-  updatedAt: string | null;
-};
-type Provider = {
-  name?: string;
-  model?: string | null;
-  source?: "REAL_AI" | "DETERMINISTIC_FALLBACK";
-  usage?: Usage;
-  usageLimitReached?: boolean;
-};
-type Analysis = {
-  intent?: string;
-  confidence?: number;
-  language?: string;
-  promptInjectionDetected?: boolean;
-  missingInformation?: string[];
-  escalationReason?: string | null;
-};
-type Result = {
-  duplicate: boolean;
-  customer?: { id: string; displayName: string } | null;
-  inquiryId?: string;
-  analysis?: Analysis;
-  response?: string;
-  draftId?: string | null;
-};
-type AgentStatus = {
-  provider: string;
-  realAiConfigured: boolean;
-  killSwitchActive: boolean;
-  mode: "REAL_AI" | "DETERMINISTIC_FALLBACK";
-  dailyRequestLimit: number;
-};
-type ConversationStatus =
-  "NEW" | "WAITING_APPROVAL" | "HUMAN_TAKEOVER" | "RESOLVED" | "FAILED";
-type Conversation = {
-  conversationId: string;
-  customerName: string;
-  phone: string | null;
-  lastMessage: string;
-  intent: string;
-  status: ConversationStatus;
-  unreadCount: number;
-  updatedAt: string;
-  customerId: string | null;
-  inquiryId: string | null;
-  followUpId: string | null;
-};
-type HistoryMessage = {
-  eventId: string;
-  externalMessageId: string;
-  customerMessage: string;
-  analysis?: Analysis;
-  provider?: Provider;
-  knowledgeSources?: KnowledgeSource[];
-  response: string | null;
-  draftId: string | null;
-  draftStatus: string | null;
-  failureMessage: string | null;
-  approvedBy: string | null;
-  createdAt: string;
-};
-type History = { humanTakeover: boolean; messages: HistoryMessage[] };
-
-const filters: { key: "ALL" | ConversationStatus; label: string }[] = [
-  { key: "ALL", label: "All" },
-  { key: "NEW", label: "New" },
-  { key: "WAITING_APPROVAL", label: "Waiting for approval" },
-  { key: "HUMAN_TAKEOVER", label: "Human takeover" },
-  { key: "RESOLVED", label: "Resolved" },
-  { key: "FAILED", label: "Failed" },
-];
+import { EnquiryPlaygroundHeader } from "./enquiry-playground-header";
+import { ResponseReviewDialog } from "./response-review-dialog";
+import type { AgentStatus, Conversation, ConversationStatus, History, HistoryMessage, Result } from "./enquiry-agent-types";
 const samples = [
   "Hello, what services do you provide?",
   "Mujhe apne business ke liye CRM chahiye, demo batao",
@@ -374,24 +300,7 @@ export function EnquiryAgentPlayground({
       className="agent-playground enquiry-inbox"
       id="customer-enquiry-agent-playground"
     >
-      <header>
-        <div>
-          <p>Customer enquiry workspace</p>
-          <h3>Agent Playground</h3>
-          <span>
-            Test customer conversations safely using approved knowledge. Meta
-            inbound and outbound remain disabled.
-          </span>
-        </div>
-        <div>
-          <span
-            className={`agent-mode ${status?.mode === "REAL_AI" ? "ai" : "fallback"}`}
-          >
-            {status?.mode === "REAL_AI" ? "AI available" : "Fallback mode"}
-          </span>
-          <button onClick={newConversation}>+ New conversation</button>
-        </div>
-      </header>
+      <EnquiryPlaygroundHeader status={status} conversations={conversations} filter={filter} onFilter={setFilter} onNew={newConversation} />
       {error && (
         <div className="dashboard-notice error" role="alert">
           {error}
@@ -402,24 +311,6 @@ export function EnquiryAgentPlayground({
           {notice}
         </div>
       )}
-      <div className="conversation-filters" aria-label="Conversation filters">
-        {filters.map((item) => (
-          <button
-            key={item.key}
-            className={filter === item.key ? "active" : ""}
-            onClick={() => setFilter(item.key)}
-          >
-            {item.label}
-            <span>
-              {item.key === "ALL"
-                ? conversations.length
-                : conversations.filter(
-                    (conversation) => conversation.status === item.key,
-                  ).length}
-            </span>
-          </button>
-        ))}
-      </div>
       <div className="enquiry-inbox-grid">
         <aside
           className="conversation-list"
@@ -803,48 +694,7 @@ export function EnquiryAgentPlayground({
           </footer>
         </main>
       </div>
-      {review && (
-        <div className="agent-modal">
-          <div className="agent-dialog response-review">
-            <header>
-              <div>
-                <p>Human review</p>
-                <h3>Review customer response</h3>
-              </div>
-              <button onClick={() => setReview(null)} aria-label="Close">
-                ×
-              </button>
-            </header>
-            <p>
-              Edit the response before approval. Approval does not send an
-              external message.
-            </p>
-            <textarea
-              rows={8}
-              value={reviewBody}
-              onChange={(event) => setReviewBody(event.target.value)}
-              maxLength={4096}
-            />
-            <footer>
-              <button onClick={() => setReview(null)}>Cancel</button>
-              <button
-                className="reject"
-                onClick={() => void decide(review, "REJECT")}
-                disabled={sending}
-              >
-                Reject
-              </button>
-              <button
-                className="approve"
-                onClick={() => void decide(review, "APPROVE")}
-                disabled={sending || !reviewBody.trim()}
-              >
-                {sending ? "Saving…" : "Approve response"}
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
+      {review && <ResponseReviewDialog body={reviewBody} saving={sending} onBody={setReviewBody} onClose={() => setReview(null)} onDecide={(decision) => void decide(review, decision)} />}
     </section>
   );
 }
