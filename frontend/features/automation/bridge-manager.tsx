@@ -5,52 +5,8 @@ import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { queryKeys } from "@/services/query-keys";
 import { WhatsappFollowUpWorkspace } from "./whatsapp-follow-up-workspace";
-type Connector = {
-  id: string;
-  name: string;
-  type: string;
-  provider: string;
-  status: string;
-  mode: string;
-  webhookKey: string;
-  lastReceivedAt: string | null;
-  credentialsConfiguredAt: string | null;
-  whatsappPhoneNumberId: string | null;
-  _count: { events: number; messageDrafts: number };
-};
-type Event = {
-  id: string;
-  externalEventId: string;
-  eventName: string;
-  kind: string;
-  status: string;
-  traceId: string;
-  failureMessage: string | null;
-  resultType: string | null;
-  createdAt: string;
-  connector: { name: string };
-  attempts: { id: string; status: string; errorMessage: string | null }[];
-  payload: { phone?: string | null };
-};
-type Draft = {
-  id: string;
-  connectorId: string;
-  eventId: string | null;
-  recipient: string;
-  body: string;
-  status: string;
-  failureMessage: string | null;
-  createdAt: string;
-  connector: { name: string; provider: string };
-};
-type Payload = {
-  success: true;
-  data: {
-    connectors: Connector[];
-    events: Event[];
-    metrics: Record<string, number>;
-  };
-};
+import { BridgeOverview } from "./bridge-overview";
+import type { BridgeConnector, BridgeDraft, BridgeEvent, BridgePayload } from "./bridge-types";
 const connectorBlank = {
     name: "",
     type: "WHATSAPP",
@@ -73,9 +29,9 @@ const connectorBlank = {
 export function BridgeManager() {
   const { authorizedRequest, session } = useAuth(),
     queryClient = useQueryClient(),
-    [connectors, setConnectors] = useState<Connector[]>([]),
-    [events, setEvents] = useState<Event[]>([]),
-    [drafts, setDrafts] = useState<Draft[]>([]),
+    [connectors, setConnectors] = useState<BridgeConnector[]>([]),
+    [events, setEvents] = useState<BridgeEvent[]>([]),
+    [drafts, setDrafts] = useState<BridgeDraft[]>([]),
     [metrics, setMetrics] = useState<Record<string, number>>({}),
     [connector, setConnector] = useState(connectorBlank),
     [event, setEvent] = useState(eventBlank),
@@ -104,8 +60,8 @@ export function BridgeManager() {
     [simulatorResult, setSimulatorResult] = useState("");
   const load = useCallback(async () => {
     const [r, d] = await Promise.all([
-      authorizedRequest<Payload>("/automation-bridge"),
-      authorizedRequest<{ success: true; data: Draft[] }>(
+      authorizedRequest<BridgePayload>("/automation-bridge"),
+      authorizedRequest<{ success: true; data: BridgeDraft[] }>(
         "/automation-bridge/message-drafts",
       ),
     ]);
@@ -214,7 +170,7 @@ export function BridgeManager() {
       setError(e instanceof ApiError ? e.message : "Unable to simulate WhatsApp intake.");
     }
   }
-  async function createReply(item: Event) {
+  async function createReply(item: BridgeEvent) {
     const connector = connectors.find((c) => c.name === item.connector.name),
       body = prompt("Reply text");
     if (!connector || !item.payload.phone || !body) return;
@@ -323,132 +279,19 @@ export function BridgeManager() {
           <button onClick={() => setSecret("")}>I stored it securely</button>
         </div>
       )}
-      <section className="bridge-metrics">
-        {Object.entries(metrics).map(([k, v]) => (
-          <article key={k}>
-            <span>{k}</span>
-            <strong>{v}</strong>
-          </article>
-        ))}
-      </section>
-      <div className="bridge-columns">
-        <section>
-          <header>
-            <strong>Connectors</strong>
-            <span>{connectors.length}</span>
-          </header>
-          {connectors.length === 0 ? (
-            <p className="bridge-empty">No connectors configured.</p>
-          ) : (
-            connectors.map((c) => (
-              <article className="connector-card" key={c.id}>
-                <div>
-                  <strong>{c.name}</strong>
-                  <i>{c.status}</i>
-                </div>
-                <p>
-                  {c.type} · {c.provider}
-                </p>
-                <small>
-                  {c.mode.replaceAll("_", " ")} · {c._count.events} events
-                </small>
-                {c.type === "WHATSAPP" && (
-                  <>
-                    <small>
-                      {c.credentialsConfiguredAt
-                        ? "Credentials encrypted"
-                        : "Credentials required"}
-                    </small>
-                    <code>/api/v1/webhooks/whatsapp/{c.webhookKey}</code>
-                  </>
-                )}
-                {c.type !== "WHATSAPP" && (
-                  <>
-                    <small>POST signed events to</small>
-                    <code>/api/v1/webhooks/intake/{c.webhookKey}</code>
-                  </>
-                )}
-                {c.type === "WEBSITE" && (
-                  <footer>
-                    <button onClick={() => { setSelected(c.id); setOpen("website-form"); }}>Configure lead form</button>
-                    <button onClick={() => window.open(`/forms/${c.webhookKey}`, "_blank")}>Preview</button>
-                  </footer>
-                )}
-              </article>
-            ))
-          )}
-        </section>
-        <section>
-          <header>
-            <strong>Integration event inbox</strong>
-            <span>{events.length}</span>
-          </header>
-          {events.length === 0 ? (
-            <p className="bridge-empty">No external events received.</p>
-          ) : (
-            events.map((e) => (
-              <article className="bridge-event" key={e.id}>
-                <div>
-                  <span>
-                    {e.connector.name} · {e.kind}
-                  </span>
-                  <i className={e.status.toLowerCase()}>{e.status}</i>
-                </div>
-                <strong>{e.eventName}</strong>
-                <p>Trace {e.traceId}</p>
-                {e.failureMessage && <small>{e.failureMessage}</small>}
-                {e.status === "AWAITING_APPROVAL" && (
-                  <footer>
-                    <button onClick={() => void decide(e.id, "APPROVE")}>
-                      Approve & route
-                    </button>
-                    <button onClick={() => void decide(e.id, "IGNORE")}>
-                      Ignore
-                    </button>
-                    <button onClick={() => void decide(e.id, "QUARANTINE")}>
-                      Quarantine
-                    </button>
-                  </footer>
-                )}
-                {e.payload.phone && (
-                  <footer>
-                    <button onClick={() => void createReply(e)}>
-                      Draft WhatsApp reply
-                    </button>
-                  </footer>
-                )}
-              </article>
-            ))
-          )}
-        </section>
-      </div>
-      <section className="bridge-drafts">
-        <header>
-          <strong>WhatsApp reply approvals</strong>
-          <span>{drafts.length}</span>
-        </header>
-        {drafts.length === 0 ? (
-          <p className="bridge-empty">No reply drafts.</p>
-        ) : (
-          drafts.map((d) => (
-            <article key={d.id}>
-              <div>
-                <strong>
-                  {d.connector.name} → {d.recipient}
-                </strong>
-                <i>{d.status}</i>
-              </div>
-              <p>{d.body}</p>
-              {d.failureMessage && <small>{d.failureMessage}</small>}
-              {d.status === "PENDING_APPROVAL" && (
-                d.connector.provider.toUpperCase() === "B2BRAIN_SIMULATOR"
-                  ? <small>Simulator preview only — external sending is disabled.</small>
-                  : <button onClick={() => void sendDraft(d.id)}>Approve & send</button>
-              )}
-            </article>
-          ))
-        )}
-      </section>
+      <BridgeOverview
+        connectors={connectors}
+        events={events}
+        drafts={drafts}
+        metrics={metrics}
+        onWebsiteForm={(id) => {
+          setSelected(id);
+          setOpen("website-form");
+        }}
+        onDecision={(id, decision) => void decide(id, decision)}
+        onReply={(item) => void createReply(item)}
+        onSendDraft={(id) => void sendDraft(id)}
+      />
       <WhatsappFollowUpWorkspace />
       {open && (
         <div className="agent-modal">
