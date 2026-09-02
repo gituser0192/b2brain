@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
+import { DealConversionDialog } from "./deal-conversion-dialog";
 import {
   LeadAssignmentControl,
   type AssignmentEmployee,
@@ -701,105 +702,12 @@ export function InquiryWorkspace({
         </div>
       )}
       {dealConversionOpen && chosen && (
-        <div className="agent-modal">
-          <div className="agent-dialog">
-            <header>
-              <div>
-                <p>Qualified inquiry</p>
-                <h3>Convert to sales deal</h3>
-              </div>
-              <button onClick={() => setDealConversionOpen(false)}>×</button>
-            </header>
-            <div className="dashboard-notice">
-              The CRM customer will be linked or created automatically. Existing
-              inquiry follow-ups will stop after conversion.
-            </div>
-            <label>
-              <span>Deal name</span>
-              <input
-                value={dealConversion.name}
-                onChange={(event) =>
-                  setDealConversion({
-                    ...dealConversion,
-                    name: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <div className="agent-form-grid">
-              <label>
-                <span>Expected value</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={dealConversion.amount}
-                  onChange={(event) =>
-                    setDealConversion({
-                      ...dealConversion,
-                      amount: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span>Currency</span>
-                <input
-                  maxLength={3}
-                  value={dealConversion.currency}
-                  onChange={(event) =>
-                    setDealConversion({
-                      ...dealConversion,
-                      currency: event.target.value.toUpperCase(),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span>Probability %</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={dealConversion.probability}
-                  onChange={(event) =>
-                    setDealConversion({
-                      ...dealConversion,
-                      probability: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span>Expected closing date</span>
-                <input
-                  type="date"
-                  value={dealConversion.expectedCloseDate}
-                  onChange={(event) =>
-                    setDealConversion({
-                      ...dealConversion,
-                      expectedCloseDate: event.target.value,
-                    })
-                  }
-                />
-              </label>
-            </div>
-            <footer>
-              <button onClick={() => setDealConversionOpen(false)}>
-                Cancel
-              </button>
-              <button
-                disabled={
-                  dealConversion.name.trim().length < 2 ||
-                  dealConversion.amount < 0 ||
-                  dealConversion.currency.length !== 3
-                }
-                onClick={() => void convertToDeal()}
-              >
-                Convert inquiry
-              </button>
-            </footer>
-          </div>
-        </div>
+        <DealConversionDialog
+          value={dealConversion}
+          onChange={setDealConversion}
+          onClose={() => setDealConversionOpen(false)}
+          onConvert={() => void convertToDeal()}
+        />
       )}
     </div>
   );
