@@ -2,36 +2,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
-type Account = {
-  id: string;
-  name: string;
-  type: string;
-  identifier: string;
-  isActive: boolean;
-};
-type Tx = {
-  id: string;
-  externalReference: string;
-  payerName: string | null;
-  amount: string;
-  currency: string;
-  receivedAt: string;
-  status: string;
-  notes?: string | null;
-  paymentAccount: { name: string };
-  payment: { receiptNumber: string; invoice: { invoiceNumber: string } } | null;
-};
-type Refund = {
-  id: string;
-  amount: string;
-  reason: string;
-  status: string;
-  payment: {
-    receiptNumber: string;
-    currency: string;
-    invoice: { invoiceNumber: string };
-  };
-};
+import {
+  PaymentCollectionRecords,
+  type CollectionInvoice,
+  type IncomingTransaction as Tx,
+  type PaymentAccount as Account,
+  type PaymentRefund as Refund,
+} from "./payment-collection-records";
 interface P {
   success: true;
   data: {
@@ -50,21 +27,7 @@ interface P {
 interface F {
   success: true;
   data: {
-    invoices: {
-      id: string;
-      invoiceNumber: string;
-      status: string;
-      outstanding: number;
-      currency: string;
-      customer: { displayName: string };
-      payments: {
-        id: string;
-        receiptNumber: string;
-        amount: string;
-        refundedAmount: string;
-        paidAt: string;
-      }[];
-    }[];
+    invoices: CollectionInvoice[];
   };
 }
 const ab = {
@@ -252,117 +215,19 @@ export function PaymentCollectionManager() {
       </header>
       {notice && <div className="dashboard-notice success">{notice}</div>}
       {error && <div className="dashboard-notice error">{error}</div>}
-      <div className="collection-metrics">
-        <article>
-          <span>Active accounts</span>
-          <strong>{data.metrics.activeAccounts}</strong>
-        </article>
-        <article className={data.metrics.unmatchedCount ? "warning" : ""}>
-          <span>Unmatched</span>
-          <strong>{data.metrics.unmatchedCount}</strong>
-          <small>{money(data.metrics.unmatchedValue)}</small>
-        </article>
-        <article>
-          <span>Reconciled</span>
-          <strong>{money(data.metrics.matchedValue)}</strong>
-        </article>
-        <article>
-          <span>Refund approvals</span>
-          <strong>{data.metrics.pendingRefunds}</strong>
-        </article>
-      </div>
-      <div className="collection-columns">
-        <section>
-          <h3>Incoming transactions</h3>
-          {data.transactions.length ? (
-            data.transactions.map((t) => (
-              <article key={t.id}>
-                <div>
-                  <small>
-                    {t.paymentAccount.name} · {t.externalReference}
-                  </small>
-                  <strong>{t.payerName || "Payer not specified"}</strong>
-                  <span>{new Date(t.receivedAt).toLocaleString()}</span>
-                  {t.payment && (
-                    <b>
-                      {t.payment.receiptNumber} ·{" "}
-                      {t.payment.invoice.invoiceNumber}
-                    </b>
-                  )}
-                </div>
-                <strong>{money(Number(t.amount), t.currency)}</strong>
-                <i>{t.status}</i>
-                {canManage && t.status === "UNMATCHED" && (
-                  <div><button onClick={() => void reconcile(t)}>Match invoice</button><button onClick={() => void ignoreIncoming(t)}>Mark duplicate / Ignore</button></div>
-                )}
-              </article>
-            ))
-          ) : (
-            <p>No incoming payments captured.</p>
-          )}
-        </section>
-        <section>
-          <h3>Payment accounts</h3>
-          {data.accounts.length ? (
-            data.accounts.map((a) => (
-              <article key={a.id}>
-                <div>
-                  <small>{a.type}</small>
-                  <strong>{a.name}</strong>
-                  <span>{a.identifier}</span>
-                </div>
-                <i>{a.isActive ? "ACTIVE" : "INACTIVE"}</i>
-              </article>
-            ))
-          ) : (
-            <p>Add a bank, UPI, cash, or gateway account.</p>
-          )}
-        </section>
-      </div>
-      <section className="receipt-register">
-        <header>
-          <h3>Receipts & refunds</h3>
-          <span>Refunds require approval by a different authorized user.</span>
-        </header>
-        {invoices
-          .flatMap((i) => i.payments.map((p) => ({ i, p })))
-          .map(({ i, p }) => (
-            <article key={p.id}>
-              <div>
-                <strong>{p.receiptNumber}</strong>
-                <small>
-                  {i.invoiceNumber} · {i.customer.displayName}
-                </small>
-              </div>
-              <span>{money(Number(p.amount), i.currency)}</span>
-              <span>
-                {Number(p.refundedAmount)
-                  ? `${money(Number(p.refundedAmount), i.currency)} refunded`
-                  : "No refunds"}
-              </span>
-              {canManage && Number(p.amount) > Number(p.refundedAmount) && (
-                <button onClick={() => void requestRefund(p)}>
-                  Request refund
-                </button>
-              )}
-            </article>
-          ))}
-        {data.refunds.map((r) => (
-          <article key={r.id}>
-            <div>
-              <strong>Refund · {r.payment.receiptNumber}</strong>
-              <small>
-                {r.payment.invoice.invoiceNumber} · {r.reason}
-              </small>
-            </div>
-            <span>{money(Number(r.amount), r.payment.currency)}</span>
-            <i>{r.status.replaceAll("_", " ")}</i>
-            {canManage && r.status === "APPROVED" && (
-              <button onClick={() => void complete(r)}>Mark completed</button>
-            )}
-          </article>
-        ))}
-      </section>
+      <PaymentCollectionRecords
+        metrics={data.metrics}
+        transactions={data.transactions}
+        accounts={data.accounts}
+        invoices={invoices}
+        refunds={data.refunds}
+        canManage={canManage}
+        money={money}
+        onReconcile={(transaction) => void reconcile(transaction)}
+        onIgnore={(transaction) => void ignoreIncoming(transaction)}
+        onRequestRefund={(payment) => void requestRefund(payment)}
+        onCompleteRefund={(refund) => void complete(refund)}
+      />
       {mode && (
         <div className="agent-modal">
           <div className="agent-dialog collection-dialog">
