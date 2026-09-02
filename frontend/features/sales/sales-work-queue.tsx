@@ -3,42 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
-
-type WorkView = "inquiries" | "crm" | "automation" | "sales" | "calendar";
-interface WorkItem {
-  id: string;
-  sourceId: string;
-  type:
-    | "INQUIRY"
-    | "CRM_FOLLOW_UP"
-    | "AUTOMATED_FOLLOW_UP"
-    | "PIPELINE_ALERT"
-    | "DEAL"
-    | "APPOINTMENT";
-  title: string;
-  contact: string;
-  detail: string | null;
-  dueAt: string | null;
-  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  owner: string | null;
-  value: number | null;
-  currency: string | null;
-  view: WorkView;
-  canComplete: boolean;
-  email: string | null;
-  phone: string | null;
-}
+import {
+  SalesWorkQueueView,
+  type SalesQueueMetrics,
+  type SalesWorkItem,
+  type WorkView,
+} from "./sales-work-queue-view";
 interface QueueResponse {
   success: true;
   data: {
-    items: WorkItem[];
-    metrics: {
-      total: number;
-      overdue: number;
-      dueToday: number;
-      unassigned: number;
-      forecastAtRisk: number;
-    };
+    items: SalesWorkItem[];
+    metrics: SalesQueueMetrics;
     scope: {
       requested: "MINE" | "TEAM";
       effective: "MINE" | "TEAM";
@@ -59,8 +34,8 @@ export function SalesWorkQueue({
   const [scope, setScope] = useState<"MINE" | "TEAM">(
     canViewTeam ? "TEAM" : "MINE",
   );
-  const [type, setType] = useState<"ALL" | WorkItem["type"]>("ALL");
-  const [items, setItems] = useState<WorkItem[]>([]);
+  const [type, setType] = useState<"ALL" | SalesWorkItem["type"]>("ALL");
+  const [items, setItems] = useState<SalesWorkItem[]>([]);
   const [metrics, setMetrics] = useState({
     total: 0,
     overdue: 0,
@@ -97,7 +72,7 @@ export function SalesWorkQueue({
     () => (type === "ALL" ? items : items.filter((item) => item.type === type)),
     [items, type],
   );
-  async function complete(item: WorkItem) {
+  async function complete(item: SalesWorkItem) {
     try {
       const path =
         item.type === "CRM_FOLLOW_UP"
@@ -116,7 +91,7 @@ export function SalesWorkQueue({
     }
   }
   async function decideAlert(
-    item: WorkItem,
+    item: SalesWorkItem,
     decision: "EXECUTE" | "DISMISS" | "SNOOZE",
   ) {
     try {
@@ -143,183 +118,21 @@ export function SalesWorkQueue({
       );
     }
   }
-  const money = (value: number, currency = "INR") =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(value);
-  const dueLabel = (value: string | null) => {
-    if (!value) return "No deadline";
-    const due = new Date(value);
-    const now = new Date();
-    if (due < now)
-      return `Overdue · ${new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(due)}`;
-    return new Intl.DateTimeFormat("en", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(due);
-  };
-
   return (
-    <section className="sales-queue">
-      <header>
-        <div>
-          <p>Daily execution</p>
-          <h3>Unified sales work queue</h3>
-          <span>
-            Prioritized from real leads, CRM follow-ups, deals, and
-            appointments.
-          </span>
-        </div>
-        <div className="sales-queue-scope">
-          <button
-            className={scope === "MINE" ? "active" : ""}
-            onClick={() => setScope("MINE")}
-          >
-            My work
-          </button>
-          {canViewTeam && (
-            <button
-              className={scope === "TEAM" ? "active" : ""}
-              onClick={() => setScope("TEAM")}
-            >
-              Team
-            </button>
-          )}
-        </div>
-      </header>
-      {error && <div className="dashboard-notice error">{error}</div>}
-      <div className="sales-queue-metrics">
-        <article>
-          <span>Open work</span>
-          <strong>{metrics.total}</strong>
-        </article>
-        <article className={metrics.overdue ? "danger" : ""}>
-          <span>Overdue</span>
-          <strong>{metrics.overdue}</strong>
-        </article>
-        <article>
-          <span>Due today</span>
-          <strong>{metrics.dueToday}</strong>
-        </article>
-        <article>
-          <span>Unassigned leads</span>
-          <strong>{metrics.unassigned}</strong>
-        </article>
-        <article>
-          <span>Forecast at risk</span>
-          <strong>{money(metrics.forecastAtRisk)}</strong>
-        </article>
-      </div>
-      <div className="sales-queue-filters">
-        {(
-          [
-            "ALL",
-            "PIPELINE_ALERT",
-            "INQUIRY",
-            "CRM_FOLLOW_UP",
-            "AUTOMATED_FOLLOW_UP",
-            "DEAL",
-            "APPOINTMENT",
-          ] as const
-        ).map((filter) => (
-          <button
-            key={filter}
-            className={type === filter ? "active" : ""}
-            onClick={() => setType(filter)}
-          >
-            {filter.replaceAll("_", " ")}
-          </button>
-        ))}
-      </div>
-      {loading ? (
-        <div className="sales-queue-empty">
-          <span className="spinner dark" /> Loading work queue…
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="sales-queue-empty">
-          <strong>No sales work is due.</strong>
-          <span>
-            New organizations stay empty until real inquiries, follow-ups,
-            deals, or appointments are created.
-          </span>
-        </div>
-      ) : (
-        <div className="sales-queue-list">
-          {visible.map((item, index) => {
-            const overdue = Boolean(
-              item.dueAt && new Date(item.dueAt) < new Date(),
-            );
-            return (
-              <article key={item.id}>
-                <span className="queue-rank">{index + 1}</span>
-                <div className="queue-main">
-                  <header>
-                    <i className={item.type.toLowerCase()}>
-                      {item.type.replaceAll("_", " ")}
-                    </i>
-                    <em className={item.priority.toLowerCase()}>
-                      {item.priority}
-                    </em>
-                  </header>
-                  <button onClick={() => onNavigate(item.view)}>
-                    <strong>{item.title}</strong>
-                    <span>{item.contact}</span>
-                  </button>
-                  <p>
-                    {item.detail ?? "Open the source record for full context."}
-                  </p>
-                </div>
-                <div className="queue-context">
-                  <strong className={overdue ? "overdue" : ""}>
-                    {dueLabel(item.dueAt)}
-                  </strong>
-                  <span>{item.owner ?? "Unassigned"}</span>
-                  {item.value !== null && (
-                    <b>{money(item.value, item.currency ?? "INR")}</b>
-                  )}
-                </div>
-                <div className="queue-actions">
-                  {item.phone && <a href={`tel:${item.phone}`}>Call</a>}
-                  {item.email && <a href={`mailto:${item.email}`}>Email</a>}
-                  {item.phone && (
-                    <a
-                      href={`https://wa.me/${item.phone.replace(/\D/g, "")}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      WhatsApp
-                    </a>
-                  )}
-                  <button onClick={() => onNavigate(item.view)}>Open</button>
-                  {item.type === "PIPELINE_ALERT" && canManageDeals && (
-                    <>
-                      <button onClick={() => void decideAlert(item, "EXECUTE")}>
-                        Create next action
-                      </button>
-                      <button onClick={() => void decideAlert(item, "SNOOZE")}>
-                        Snooze 1 day
-                      </button>
-                      <button onClick={() => void decideAlert(item, "DISMISS")}>
-                        Resolve
-                      </button>
-                    </>
-                  )}
-                  {item.canComplete && (
-                    <button
-                      className="complete"
-                      onClick={() => void complete(item)}
-                    >
-                      Complete
-                    </button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-    </section>
+    <SalesWorkQueueView
+      scope={scope}
+      filter={type}
+      items={visible}
+      metrics={metrics}
+      loading={loading}
+      error={error}
+      canViewTeam={canViewTeam}
+      canManageDeals={canManageDeals}
+      onScopeChange={setScope}
+      onFilterChange={setType}
+      onNavigate={onNavigate}
+      onComplete={(item) => void complete(item)}
+      onDecideAlert={(item, decision) => void decideAlert(item, decision)}
+    />
   );
 }
