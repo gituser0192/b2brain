@@ -7,6 +7,7 @@ import { ApiError } from "@/services/api-client";
 import { queryKeys } from "@/services/query-keys";
 import { EnquiryPlaygroundHeader } from "./enquiry-playground-header";
 import { ResponseReviewDialog } from "./response-review-dialog";
+import { ChatComposer, ConversationList, ConversationPanelHeader } from "./enquiry-conversation-controls";
 import type { AgentStatus, Conversation, ConversationStatus, History, HistoryMessage, Result } from "./enquiry-agent-types";
 const samples = [
   "Hello, what services do you provide?",
@@ -22,13 +23,6 @@ const friendlyIntent = (value?: string) =>
         .toLowerCase()
         .replace(/^./, (letter) => letter.toUpperCase())
     : "Unclassified";
-const friendlyStatus: Record<ConversationStatus, string> = {
-  NEW: "New",
-  WAITING_APPROVAL: "Waiting for approval",
-  HUMAN_TAKEOVER: "Human takeover",
-  RESOLVED: "Resolved",
-  FAILED: "Failed",
-};
 
 export function EnquiryAgentPlayground({
   onNavigate,
@@ -312,124 +306,9 @@ export function EnquiryAgentPlayground({
         </div>
       )}
       <div className="enquiry-inbox-grid">
-        <aside
-          className="conversation-list"
-          aria-label="Customer conversations"
-        >
-          {loading && conversations.length === 0 ? (
-            <div className="conversation-state">
-              <span className="spinner dark" />
-              Loading conversations…
-            </div>
-          ) : visibleConversations.length === 0 ? (
-            <div className="conversation-state">
-              <strong>No conversations here</strong>
-              <span>Start a test conversation or choose another filter.</span>
-            </div>
-          ) : (
-            visibleConversations.map((item) => (
-              <button
-                key={item.conversationId}
-                className={
-                  item.conversationId === conversationId ? "active" : ""
-                }
-                onClick={() => setConversationId(item.conversationId)}
-              >
-                <div>
-                  <strong>{item.customerName}</strong>
-                  <time>
-                    {new Date(item.updatedAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </time>
-                </div>
-                <p>{item.lastMessage}</p>
-                <footer>
-                  <span>{friendlyIntent(item.intent)}</span>
-                  <i
-                    className={`conversation-status ${item.status.toLowerCase()}`}
-                  >
-                    {friendlyStatus[item.status]}
-                  </i>
-                  {item.unreadCount > 0 && (
-                    <b aria-label={`${item.unreadCount} unread messages`}>
-                      {item.unreadCount}
-                    </b>
-                  )}
-                </footer>
-              </button>
-            ))
-          )}
-        </aside>
+        <ConversationList conversations={visibleConversations} selectedId={conversationId} loading={loading && conversations.length === 0} onSelect={setConversationId} />
         <main className="conversation-panel">
-          <header>
-            <div>
-              <strong>
-                {selected?.customerName ?? "New test conversation"}
-              </strong>
-              <span>
-                {selected?.phone ??
-                  "Internal playground · no external delivery"}
-              </span>
-            </div>
-            {selected && (
-              <div>
-                {selected.customerId && (
-                  <button
-                    onClick={() =>
-                      onNavigate?.({ view: "crm", id: selected.customerId! })
-                    }
-                  >
-                    Open customer
-                  </button>
-                )}
-                {selected.inquiryId && (
-                  <button
-                    onClick={() =>
-                      onNavigate?.({
-                        view: "inquiries",
-                        id: selected.inquiryId!,
-                      })
-                    }
-                  >
-                    Open enquiry
-                  </button>
-                )}
-                {selected.followUpId && selected.customerId && (
-                  <button
-                    onClick={() =>
-                      onNavigate?.({
-                        view: "crm",
-                        id: selected.customerId!,
-                        followUpId: selected.followUpId!,
-                      })
-                    }
-                  >
-                    Open follow-up
-                  </button>
-                )}
-                <button
-                  className={
-                    history.humanTakeover ? "takeover active" : "takeover"
-                  }
-                  onClick={() => void toggleTakeover()}
-                  disabled={sending}
-                >
-                  {history.humanTakeover ? "Resume agent" : "Take over"}
-                </button>
-              </div>
-            )}
-          </header>
-          {history.humanTakeover && (
-            <div className="takeover-banner">
-              <strong>Human takeover active</strong>
-              <span>
-                Automatic replies are stopped until an authorized employee
-                resumes the agent.
-              </span>
-            </div>
-          )}
+          <ConversationPanelHeader conversation={selected} takeover={history.humanTakeover} sending={sending} onNavigate={onNavigate} onTakeover={() => void toggleTakeover()} />
           <div className="conversation-thread" aria-live="polite">
             {loading && conversationId ? (
               <div className="conversation-state">
@@ -646,52 +525,7 @@ export function EnquiryAgentPlayground({
               })
             )}
           </div>
-          <footer className="chat-composer">
-            <div className="test-contact">
-              <input
-                aria-label="Test customer name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Customer name (optional)"
-              />
-              <input
-                aria-label="Test customer phone"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="Phone, e.g. 919876543210"
-              />
-            </div>
-            <textarea
-              rows={2}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              maxLength={4096}
-              placeholder={
-                history.humanTakeover
-                  ? "Automatic replies are paused during human takeover."
-                  : "Type a customer message…"
-              }
-              disabled={history.humanTakeover}
-            />
-            <div>
-              <small>No message leaves B² Brain.</small>
-              {error && lastRequest && (
-                <button
-                  onClick={() => void send(true)}
-                  disabled={sending || history.humanTakeover}
-                >
-                  Retry safely
-                </button>
-              )}
-              <button
-                className="send"
-                onClick={() => void send()}
-                disabled={sending || !message.trim() || history.humanTakeover}
-              >
-                {sending ? "Processing…" : "Send test message"}
-              </button>
-            </div>
-          </footer>
+          <ChatComposer name={name} phone={phone} message={message} sending={sending} takeover={history.humanTakeover} canRetry={Boolean(error && lastRequest)} onName={setName} onPhone={setPhone} onMessage={setMessage} onSend={() => void send()} onRetry={() => void send(true)} />
         </main>
       </div>
       {review && <ResponseReviewDialog body={reviewBody} saving={sending} onBody={setReviewBody} onClose={() => setReview(null)} onDecide={(decision) => void decide(review, decision)} />}
