@@ -20,4 +20,5 @@ export type BusinessBrief = {
   recommendations: { title: string; reason: string; view: string }[];
 };
 export type BusinessGoal = { id: string; type: string; title: string; targetValue: number; currentValue: number | null; progress: number | null; requiredPace: number | null; risk: string; periodEnd: string };
+export type GoalDraft = { type: string; title: string; targetValue: number; periodStart: string; periodEnd: string };
 export type AgentSection = "brief" | "goals" | "conversation";

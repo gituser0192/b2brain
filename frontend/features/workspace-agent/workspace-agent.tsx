@@ -4,7 +4,8 @@ import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { WorkspaceAgentHeader } from "./workspace-agent-header";
 import { BusinessBriefView } from "./business-brief-view";
-import type { AgentItem, AgentOutput, AgentSection, BusinessBrief, BusinessGoal } from "./workspace-agent-types";
+import { BusinessGoalsView } from "./business-goals-view";
+import type { AgentItem, AgentOutput, AgentSection, BusinessBrief, BusinessGoal, GoalDraft } from "./workspace-agent-types";
 const prompts = [
   "Check my business health",
   "Summarize revenue, expenses and profit",
@@ -18,7 +19,7 @@ const cash = (value: number, currency = "INR") =>
     currency,
     maximumFractionDigits: 0,
   }).format(value);
-const initialGoal = () => {
+const initialGoal = (): GoalDraft => {
   const now = new Date();
   return {
     type: "MONTHLY_REVENUE",
@@ -174,137 +175,7 @@ export function WorkspaceAgent({
     <section className={`workspace-agent ${compact ? "compact" : "full"}`}>
       {!compact && <WorkspaceAgentHeader section={section} onSection={setSection} />}
       {!compact && section === "brief" && brief && <BusinessBriefView brief={brief} onNavigate={onNavigate} />}
-      {!compact && section === "goals" && (
-        <section className="agent-management-view">
-          <header>
-            <div>
-              <p>Measurable goals</p>
-              <h3>Goals and progress</h3>
-              <span>
-                Progress is calculated from real organization records.
-              </span>
-            </div>
-            <button onClick={() => setGoalOpen((value) => !value)}>
-              + New goal
-            </button>
-          </header>
-          {goalOpen && (
-            <div className="agent-goal-form">
-              <label>
-                <span>Goal type</span>
-                <select
-                  value={goal.type}
-                  onChange={(event) =>
-                    setGoal({ ...goal, type: event.target.value })
-                  }
-                >
-                  {[
-                    "MONTHLY_REVENUE",
-                    "NEW_LEADS",
-                    "CUSTOMER_CONVERSION",
-                    "EXPENSE_LIMIT",
-                    "PROJECT_COMPLETION",
-                    "FOLLOW_UP_RESPONSE",
-                  ].map((type) => (
-                    <option key={type}>{type}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Title</span>
-                <input
-                  value={goal.title}
-                  onChange={(event) =>
-                    setGoal({ ...goal, title: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span>Target</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  value={goal.targetValue}
-                  onChange={(event) =>
-                    setGoal({
-                      ...goal,
-                      targetValue: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span>Starts</span>
-                <input
-                  type="date"
-                  value={goal.periodStart}
-                  onChange={(event) =>
-                    setGoal({ ...goal, periodStart: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span>Ends</span>
-                <input
-                  type="date"
-                  value={goal.periodEnd}
-                  onChange={(event) =>
-                    setGoal({ ...goal, periodEnd: event.target.value })
-                  }
-                />
-              </label>
-              <button
-                disabled={loading || goal.targetValue <= 0}
-                onClick={() => void createGoal()}
-              >
-                Create goal
-              </button>
-            </div>
-          )}
-          <div className="agent-goal-list">
-            {goals.length ? (
-              goals.map((item) => (
-                <article key={item.id}>
-                  <header>
-                    <div>
-                      <small>{item.type.replaceAll("_", " ")}</small>
-                      <strong>{item.title}</strong>
-                    </div>
-                    <span className={item.risk === "HIGH" ? "risk" : "track"}>
-                      {item.risk.replaceAll("_", " ")}
-                    </span>
-                  </header>
-                  <div className="goal-progress">
-                    <i
-                      style={{ width: `${Math.min(100, item.progress ?? 0)}%` }}
-                    />
-                  </div>
-                  <footer>
-                    <span>
-                      {item.currentValue === null
-                        ? "Restricted"
-                        : item.currentValue.toLocaleString("en-IN")}{" "}
-                      / {item.targetValue.toLocaleString("en-IN")}
-                    </span>
-                    <span>
-                      {item.progress === null
-                        ? "—"
-                        : `${Math.round(item.progress)}%`}{" "}
-                      · ends{" "}
-                      {new Date(item.periodEnd).toLocaleDateString("en-IN")}
-                    </span>
-                  </footer>
-                </article>
-              ))
-            ) : (
-              <p className="agent-empty-copy">
-                No goals have been created. Add the first measurable business
-                goal.
-              </p>
-            )}
-          </div>
-        </section>
-      )}
+      {!compact && section === "goals" && <BusinessGoalsView goals={goals} goal={goal} open={goalOpen} loading={loading} onToggle={() => setGoalOpen((value) => !value)} onGoal={setGoal} onCreate={() => void createGoal()} />}
       {(compact || section === "conversation") && (
         <div className="workspace-agent-thread">
           {items.length === 0 && !loading ? (
