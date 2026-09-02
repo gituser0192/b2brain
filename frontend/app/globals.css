@@ -714,6 +714,17 @@ a {
   letter-spacing: -0.03em;
   margin: 0;
 }
+.dashboard-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.mobile-menu-button,
+.mobile-nav-close,
+.mobile-nav-backdrop {
+  display: none;
+}
 .status-pill {
   background: #eaf8ef;
   border-radius: 2rem;
@@ -2313,34 +2324,71 @@ a {
   }
   .dashboard-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
   }
   .dashboard-sidebar {
+    bottom: 0;
+    display: flex;
+    height: 100dvh;
+    left: 0;
+    max-width: 86vw;
+    position: fixed;
+    top: 0;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+    width: 19rem;
+    z-index: 102;
+  }
+  .dashboard-sidebar.mobile-open {
+    box-shadow: 1.5rem 0 4rem rgba(7, 12, 35, 0.3);
+    transform: translateX(0);
+  }
+  .mobile-nav-close {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    border: 0;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    font-size: 1.4rem;
+    height: 2.25rem;
+    justify-content: center;
+    position: absolute;
+    right: 0.8rem;
+    top: 0.8rem;
+    width: 2.25rem;
+  }
+  .mobile-nav-backdrop {
+    background: rgba(7, 12, 35, 0.48);
+    border: 0;
     display: block;
-    height: auto;
-    min-width: 0;
-    padding: 0.65rem;
+    inset: 0;
+    position: fixed;
+    z-index: 101;
   }
-  .dashboard-sidebar .dashboard-logo,
-  .dashboard-sidebar .sidebar-security,
-  .dashboard-sidebar .sidebar-account {
-    display: none;
-  }
-  .dashboard-sidebar nav {
-    flex-direction: row;
-    gap: 0.35rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0.15rem;
-    scrollbar-width: thin;
-  }
-  .dashboard-sidebar nav button {
+  .mobile-menu-button {
+    align-items: center;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 0.65rem;
+    cursor: pointer;
+    display: flex;
     flex: 0 0 auto;
-    min-height: 2.65rem;
-    white-space: nowrap;
+    flex-direction: column;
+    gap: 0.23rem;
+    height: 2.55rem;
+    justify-content: center;
+    width: 2.55rem;
+  }
+  .mobile-menu-button span {
+    background: #18213b;
+    border-radius: 1rem;
+    display: block;
+    height: 2px;
+    width: 1rem;
   }
   .dashboard-main {
     height: 100%;
@@ -2720,17 +2768,18 @@ a {
     padding: 1.4rem 1rem 3rem;
   }
   .dashboard-header {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
     gap: 0.8rem;
     margin-bottom: 1.25rem;
   }
   .header-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
+    margin-left: auto;
     max-width: 100%;
-    overflow-x: auto;
-    padding-bottom: 0.2rem;
-    width: 100%;
+    overflow: visible;
+    padding-bottom: 0;
+    width: auto;
   }
   .header-actions > * {
     flex: 0 0 auto;

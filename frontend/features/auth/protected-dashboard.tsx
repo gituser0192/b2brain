@@ -295,9 +295,11 @@ export function ProtectedDashboard() {
   const [navigationReady, setNavigationReady] = useState(false);
   const [enabledServices, setEnabledServices] = useState<string[]>([]);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   function setActiveView(view: ActiveView) {
     setActiveViewState(view);
+    setMobileNavOpen(false);
     const url = new URL(window.location.href);
     if (view === "overview") url.searchParams.delete("view");
     else url.searchParams.set("view", view);
@@ -394,7 +396,7 @@ export function ProtectedDashboard() {
 
   return (
     <div className="dashboard-shell">
-      <aside className="dashboard-sidebar">
+      <aside className={`dashboard-sidebar${mobileNavOpen ? " mobile-open" : ""}`} id="dashboard-navigation">
         <div className="dashboard-logo">
           <Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} />
           <span>
@@ -402,6 +404,14 @@ export function ProtectedDashboard() {
             <small>Workspace</small>
           </span>
         </div>
+        <button
+          type="button"
+          className="mobile-nav-close"
+          onClick={() => setMobileNavOpen(false)}
+          aria-label="Close service menu"
+        >
+          ×
+        </button>
         <nav aria-label="Primary navigation">
           {visibleNavItems.map((item) =>
             (() => {
@@ -635,18 +645,40 @@ export function ProtectedDashboard() {
           </button>
         </div>
       </aside>
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+          aria-label="Close service menu"
+        />
+      )}
 
       <main className="dashboard-main welcome-dashboard">
         <header className="dashboard-header">
-          <div>
-            <p>
-              {new Intl.DateTimeFormat("en", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              }).format(new Date())}
-            </p>
-            <h1>{session.organization.name}</h1>
+          <div className="dashboard-heading">
+            <button
+              type="button"
+              className="mobile-menu-button"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open service menu"
+              aria-expanded={mobileNavOpen}
+              aria-controls="dashboard-navigation"
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <div>
+              <p>
+                {new Intl.DateTimeFormat("en", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                }).format(new Date())}
+              </p>
+              <h1>{session.organization.name}</h1>
+            </div>
           </div>
           <div className="header-actions">
             {(session.user.isPlatformAdmin ||
