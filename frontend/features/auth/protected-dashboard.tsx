@@ -621,6 +621,11 @@ export function ProtectedDashboard() {
                 <span className="nav-icon">A</span>Automation
               </button>
             )}
+          {session.user.isPlatformAdmin && (
+            <button onClick={() => router.push("/super-admin")}>
+              <span className="nav-icon">↔</span>Switch to Super Admin
+            </button>
+          )}
         </nav>
         <div className="sidebar-security">
           <span>✓</span>
@@ -669,8 +674,8 @@ export function ProtectedDashboard() {
               <span />
               <span />
             </button>
-            <div>
-              <p>
+            <div className="dashboard-organization-identity">
+              <p className="dashboard-date">
                 {new Intl.DateTimeFormat("en", {
                   weekday: "long",
                   month: "long",
@@ -678,6 +683,9 @@ export function ProtectedDashboard() {
                 }).format(new Date())}
               </p>
               <h1>{session.organization.name}</h1>
+              <div className="dashboard-mobile-context">
+                <span><i /> Workspace active</span>
+              </div>
             </div>
           </div>
           <div className="header-actions">
@@ -686,24 +694,19 @@ export function ProtectedDashboard() {
                 session.membership.permissions.includes(
                   "PROVIDER_REQUEST_VIEW",
                 ))) && (
-              <>
-                <button onClick={() => router.push("/operations")}>
-                  Operations
-                </button>
-                <button onClick={() => router.push("/super-admin")}>
-                  Super Admin
-                </button>
-              </>
+              <button className="desktop-header-action" onClick={() => router.push("/operations")}>
+                Operations
+              </button>
+            )}
+            {session.user.isPlatformAdmin && (
+              <button className="desktop-header-action" onClick={() => router.push("/super-admin")}>
+                Super Admin
+              </button>
             )}
             <NotificationCenter />
             <span className="status-pill">
               <i /> Workspace active
             </span>
-            <button
-              onClick={() => void logout().then(() => router.replace("/login"))}
-            >
-              Sign out
-            </button>
           </div>
         </header>
 

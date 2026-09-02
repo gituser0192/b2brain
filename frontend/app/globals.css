@@ -14371,48 +14371,100 @@ a {
 }
 
 /* Authenticated workspace: compact, ordered phone layout. */
+.dashboard-mobile-context {
+  display: none;
+}
+
 @media (max-width: 600px) {
   .dashboard-main {
     padding: 1rem 0.85rem 5rem;
   }
 
   .dashboard-header {
-    align-items: stretch;
-    display: grid;
-    gap: 0.8rem;
-    grid-template-columns: minmax(0, 1fr);
+    align-items: flex-start;
+    display: block;
+    min-height: 3.5rem;
+    position: relative;
   }
 
   .dashboard-heading {
-    align-items: center;
+    align-items: flex-start;
+    justify-content: space-between;
     width: 100%;
   }
 
-  .dashboard-heading > div {
-    min-width: 0;
+  .dashboard-organization-identity {
+    margin-left: auto;
+    max-width: 48vw;
+    min-width: 8rem;
+    text-align: right;
   }
 
   .dashboard-heading h1 {
-    font-size: 1.28rem;
-    overflow-wrap: anywhere;
+    font-size: 1rem;
+    font-weight: 650;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .dashboard-heading p {
+  .dashboard-heading .dashboard-date {
+    display: none;
+  }
+
+  .dashboard-mobile-context {
+    align-items: center;
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+  }
+
+  .dashboard-mobile-context span {
+    align-items: center;
+    color: #16824c;
+    display: inline-flex;
     font-size: 0.62rem;
+    font-weight: 600;
+    gap: 0.35rem;
+  }
+
+  .dashboard-mobile-context i {
+    background: #24ae69;
+    border-radius: 50%;
+    height: 0.4rem;
+    width: 0.4rem;
   }
 
   .header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: flex-start;
-    margin-left: 0;
-    width: 100%;
+    display: block;
+    left: auto;
+    margin: 0;
+    position: absolute;
+    right: calc(48vw - 6rem);
+    top: 0;
+    width: auto;
   }
 
-  .header-actions > button,
-  .status-pill {
-    min-height: 2.4rem;
+  .header-actions .desktop-header-action,
+  .header-actions .status-pill {
+    display: none;
+  }
+
+  .header-actions .notification-center,
+  .header-actions .notification-bell {
+    margin: 0;
+  }
+
+  .header-actions .notification-panel {
+    left: auto;
+    max-height: min(27rem, calc(100dvh - 5.5rem));
+    max-width: 19rem;
+    position: fixed;
+    right: 0.85rem;
+    top: 4.5rem;
+    width: calc(100vw - 1.7rem);
   }
 
   .business-dashboard {
