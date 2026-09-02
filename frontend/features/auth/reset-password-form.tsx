@@ -1,7 +1,70 @@
 "use client";
-import { useState,type FormEvent } from "react";
+
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ApiError,apiRequest } from "@/services/api-client";
+
+import { ApiError, apiRequest } from "@/services/api-client";
+
 import { useAuth } from "./auth-context";
-export function ResetPasswordForm(){const token=useSearchParams().get("token")??"";const{logout}=useAuth();const[password,setPassword]=useState("");const[error,setError]=useState("");const[done,setDone]=useState(false);async function submit(event:FormEvent){event.preventDefault();setError("");try{await apiRequest("/auth/reset-password",{method:"POST",body:JSON.stringify({token,password})});await logout().catch(()=>undefined);setDone(true)}catch(reason){setError(reason instanceof ApiError?reason.message:"Unable to reset the password.")}}if(done)return <div className="approval-waiting"><span>✓</span><h3>Password changed</h3><p>All existing sessions were signed out.</p><Link href="/login">Sign in with the new password →</Link></div>;return <form className="auth-form" onSubmit={submit}>{error&&<div className="form-alert">{error}</div>}<label><span>New password</span><input type="password" value={password} onChange={event=>setPassword(event.target.value)} minLength={8} maxLength={128} required autoComplete="new-password"/><small>At least 8 characters with a letter and number.</small></label><button className="primary-button" disabled={!token}>Change password</button></form>}
+
+export function ResetPasswordForm() {
+  const token = useSearchParams().get("token") ?? "";
+  const { logout } = useAuth();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+
+    try {
+      await apiRequest("/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+      });
+      await logout().catch(() => undefined);
+      setDone(true);
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Unable to reset the password.",
+      );
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="approval-waiting">
+        <span>✓</span>
+        <h3>Password changed</h3>
+        <p>All existing sessions were signed out.</p>
+        <Link href="/login">Sign in with the new password →</Link>
+      </div>
+    );
+  }
+
+  return (
+    <form className="auth-form" onSubmit={submit}>
+      {error && <div className="form-alert">{error}</div>}
+      <label>
+        <span>New password</span>
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          minLength={8}
+          maxLength={128}
+          required
+          autoComplete="new-password"
+        />
+        <small>At least 8 characters with a letter and number.</small>
+      </label>
+      <button className="primary-button" disabled={!token}>
+        Change password
+      </button>
+    </form>
+  );
+}
