@@ -4,6 +4,7 @@ import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { PaymentCollectionManager } from "./payment-collection-manager";
 import { FinanceLedger } from "./finance-ledger";
+import { InvoiceEntryForm } from "./invoice-entry-form";
 import {
   FinanceRecords,
   formatMoney as money,
@@ -142,6 +143,34 @@ export function FinanceWorkspace() {
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to prepare the collection follow-up."); }
     finally { setSaving(false); }
   }
+  function saveInvoice() {
+    void action(
+      () =>
+        authorizedRequest("/finance/invoices", {
+          method: "POST",
+          body: JSON.stringify({
+            customerId: invoice.customerId,
+            projectId: null,
+            invoiceNumber: invoice.invoiceNumber,
+            status: "ISSUED",
+            issueDate: new Date(`${invoice.issueDate}T00:00:00`).toISOString(),
+            dueDate: new Date(`${invoice.dueDate}T00:00:00`).toISOString(),
+            currency: "INR",
+            discount: invoice.discount,
+            tax: invoice.tax,
+            notes: invoice.notes,
+            items: [
+              {
+                description: invoice.description,
+                quantity: invoice.quantity,
+                unitPrice: invoice.unitPrice,
+              },
+            ],
+          }),
+        }).then(() => undefined),
+      "Invoice created.",
+    );
+  }
   return (
     <div className="finance-workspace">
       <header className="project-heading">
@@ -240,149 +269,13 @@ export function FinanceWorkspace() {
             </header>
             {error && <div className="form-alert">{error}</div>}
             {mode === "invoice" ? (
-              <>
-                <label>
-                  <span>Customer</span>
-                  <select
-                    value={invoice.customerId}
-                    onChange={(event) =>
-                      setInvoice({ ...invoice, customerId: event.target.value })
-                    }
-                  >
-                    <option value="">Select customer</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="agent-form-grid">
-                  <label>
-                    <span>Invoice number</span>
-                    <input
-                      value={invoice.invoiceNumber}
-                      onChange={(event) =>
-                        setInvoice({
-                          ...invoice,
-                          invoiceNumber: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Issue date</span>
-                    <input
-                      type="date"
-                      value={invoice.issueDate}
-                      onChange={(event) =>
-                        setInvoice({
-                          ...invoice,
-                          issueDate: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Due date</span>
-                    <input
-                      type="date"
-                      value={invoice.dueDate}
-                      onChange={(event) =>
-                        setInvoice({ ...invoice, dueDate: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Item</span>
-                    <input
-                      value={invoice.description}
-                      onChange={(event) =>
-                        setInvoice({
-                          ...invoice,
-                          description: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Quantity</span>
-                    <input
-                      type="number"
-                      min="0.001"
-                      step="0.001"
-                      value={invoice.quantity}
-                      onChange={(event) =>
-                        setInvoice({
-                          ...invoice,
-                          quantity: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Unit price</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={invoice.unitPrice}
-                      onChange={(event) =>
-                        setInvoice({
-                          ...invoice,
-                          unitPrice: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-                <footer>
-                  <button
-                    disabled={
-                      saving ||
-                      !invoice.customerId ||
-                      !invoice.invoiceNumber ||
-                      !invoice.issueDate ||
-                      !invoice.dueDate ||
-                      !invoice.description
-                    }
-                    onClick={() =>
-                      void action(
-                        () =>
-                          authorizedRequest("/finance/invoices", {
-                            method: "POST",
-                            body: JSON.stringify({
-                              customerId: invoice.customerId,
-                              projectId: null,
-                              invoiceNumber: invoice.invoiceNumber,
-                              status: "ISSUED",
-                              issueDate: new Date(
-                                `${invoice.issueDate}T00:00:00`,
-                              ).toISOString(),
-                              dueDate: new Date(
-                                `${invoice.dueDate}T00:00:00`,
-                              ).toISOString(),
-                              currency: "INR",
-                              discount: invoice.discount,
-                              tax: invoice.tax,
-                              notes: invoice.notes,
-                              items: [
-                                {
-                                  description: invoice.description,
-                                  quantity: invoice.quantity,
-                                  unitPrice: invoice.unitPrice,
-                                },
-                              ],
-                            }),
-                          }).then(() => undefined),
-                        "Invoice created.",
-                      )
-                    }
-                  >
-                    {saving ? "Saving..." : "Create invoice"}
-                  </button>
-                </footer>
-              </>
+              <InvoiceEntryForm
+                value={invoice}
+                setValue={setInvoice}
+                customers={customers}
+                saving={saving}
+                onSave={saveInvoice}
+              />
             ) : mode === "expense" ? (
               <>
                 <div className="agent-form-grid">
