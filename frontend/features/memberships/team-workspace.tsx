@@ -3,35 +3,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
+import { InvitePanel, MemberDirectory, PendingInvitations } from "./team-panels";
+import type { RoleOption, ServiceOption, TeamInvitation, TeamMember } from "./team-types";
 
-interface Member {
-  id: string;
-  status: "ACTIVE" | "SUSPENDED";
-  joinedAt: string;
-  user: { id: string; firstName: string; lastName: string | null; email: string; status: string };
-  role: { code: string; name: string };
-  serviceAccess: { serviceId: string; accessMode: "READ_ONLY" | "READ_WRITE" }[];
-}
-interface Invitation {
-  id: string;
-  email: string;
-  status: string;
-  expiresAt: string;
-  createdAt: string;
-  role: { code: string; name: string };
-  invitedBy: { firstName: string; lastName: string | null };
-}
-interface ListResponse { success: true; data: { members: Member[]; invitations: Invitation[] }; }
-interface InviteResponse { success: true; message: string; data: { invitation: Invitation; acceptPath: string; emailDelivered: boolean }; }
-interface RoleOption { code: string; name: string; isSystem: boolean; }
+interface ListResponse { success: true; data: { members: TeamMember[]; invitations: TeamInvitation[] }; }
+interface InviteResponse { success: true; message: string; data: { invitation: TeamInvitation; acceptPath: string; emailDelivered: boolean }; }
 interface RolesResponse { success: true; data: { roles: RoleOption[] }; }
-interface ServiceOption { id: string; code: string; name: string; }
 interface ServicesResponse { success: true; data: ServiceOption[]; }
 
 export function TeamWorkspace() {
   const { session, authorizedRequest } = useAuth();
-  const [members, setMembers] = useState<Member[]>([]);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +77,7 @@ export function TeamWorkspace() {
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to remove this member."); }
   }
 
-  async function toggleMemberService(member: Member, serviceId: string, enabled: boolean) {
+  async function toggleMemberService(member: TeamMember, serviceId: string, enabled: boolean) {
     const services = enabled ? [...member.serviceAccess, { serviceId, accessMode: "READ_ONLY" as const }] : member.serviceAccess.filter((item) => item.serviceId !== serviceId);
     setError("");
     try {
@@ -104,7 +87,7 @@ export function TeamWorkspace() {
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update service access."); }
   }
 
-  async function changeServiceMode(member: Member, serviceId: string, accessMode: "READ_ONLY" | "READ_WRITE") {
+  async function changeServiceMode(member: TeamMember, serviceId: string, accessMode: "READ_ONLY" | "READ_WRITE") {
     const services = member.serviceAccess.map((item) => item.serviceId === serviceId ? { ...item, accessMode } : item);
     setError("");
     try {
@@ -128,39 +111,9 @@ export function TeamWorkspace() {
       {notice && <div className="dashboard-notice success">{notice}</div>}
       {error && <div className="dashboard-notice error">{error}</div>}
 
-      {canManage && (
-        <section className="invite-panel">
-          <div><p>Invite someone</p><h3>Add a trusted teammate</h3><span>An invitation creates no account until the recipient accepts it.</span></div>
-          <form onSubmit={invite}>
-            <label><span>Work email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" required /></label>
-            <label><span>Starting role</span><select value={roleCode} onChange={(event) => setRoleCode(event.target.value)}>{roleOptions.map((role) => <option value={role.code} key={role.code}>{role.name}</option>)}</select></label>
-            <button disabled={inviting}>{inviting ? "Creating…" : "Create invitation"}</button>
-          </form>
-          {inviteUrl && <div className="invite-link"><div><span>Secure invitation link</span><code>{inviteUrl}</code></div><button onClick={() => void navigator.clipboard.writeText(inviteUrl).then(() => setNotice("Invitation link copied."))}>Copy link</button></div>}
-        </section>
-      )}
-
-      <section className="members-panel">
-        <div className="panel-title"><div><p>Active directory</p><h3>Members</h3></div><span>{loading ? "Loading…" : `${members.length} total`}</span></div>
-        {!loading && members.length === 0 ? <div className="team-empty"><span>◇</span><h3>No members yet</h3><p>Invited people will appear after accepting their secure invitation.</p></div> : (
-          <div className="member-list">
-            {members.map((member) => {
-              const protectedOwner = member.role.code === "ORGANIZATION_OWNER";
-              const initials = `${member.user.firstName[0] ?? ""}${member.user.lastName?.[0] ?? ""}`.toUpperCase();
-              return <article className="member-row" key={member.id}>
-                <div className="avatar">{initials}</div>
-                <div className="member-identity"><strong>{member.user.firstName} {member.user.lastName}</strong><span>{member.user.email}</span></div>
-                <span className={`member-status ${member.status.toLowerCase()}`}><i />{member.status === "ACTIVE" ? "Active" : "Suspended"}</span>
-                {canManage && !protectedOwner ? <select value={member.role.code} onChange={(event) => void updateMember(member.id, { roleCode: event.target.value })}>{roleOptions.map((role) => <option value={role.code} key={role.code}>{role.name}</option>)}</select> : <span className="role-label">{member.role.name}</span>}
-                {canManage && !protectedOwner ? <div className="member-actions"><button onClick={() => void updateMember(member.id, { status: member.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" })}>{member.status === "ACTIVE" ? "Suspend" : "Restore"}</button><button className="danger" onClick={() => void removeMember(member.id)}>Remove</button></div> : <span className="owner-lock">Protected owner</span>}
-                {!protectedOwner && <div className="member-service-access"><strong>Assigned services</strong>{serviceOptions.length === 0 ? <span>No organization services enabled.</span> : <div>{serviceOptions.map((service) => { const access = member.serviceAccess.find((item) => item.serviceId === service.id); return <div className={access ? "service-access-item assigned" : "service-access-item"} key={service.id}><label><input type="checkbox" checked={Boolean(access)} disabled={!canManage || member.status !== "ACTIVE"} onChange={(event) => void toggleMemberService(member, service.id, event.target.checked)} /><span>{service.name}</span></label>{access && <select value={access.accessMode} disabled={!canManage || member.status !== "ACTIVE"} onChange={(event) => void changeServiceMode(member, service.id, event.target.value as "READ_ONLY" | "READ_WRITE")}><option value="READ_ONLY">Read only</option><option value="READ_WRITE">Read & write</option></select>}</div>})}</div>}</div>}
-              </article>;
-            })}
-          </div>
-        )}
-      </section>
-
-      {invitations.length > 0 && <section className="members-panel pending-panel"><div className="panel-title"><div><p>Awaiting response</p><h3>Pending invitations</h3></div><span>{invitations.length}</span></div><div className="member-list">{invitations.map((invitation) => <article className="member-row invitation-row" key={invitation.id}><div className="avatar invited">@</div><div className="member-identity"><strong>{invitation.email}</strong><span>Expires {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invitation.expiresAt))}</span></div><span className="role-label">{invitation.role.name}</span>{canManage && <button className="revoke-button" onClick={() => void revokeInvitation(invitation.id)}>Revoke</button>}</article>)}</div></section>}
+      {canManage && <InvitePanel email={email} roleCode={roleCode} roles={roleOptions} inviting={inviting} inviteUrl={inviteUrl} onEmail={setEmail} onRole={setRoleCode} onSubmit={invite} onCopy={() => void navigator.clipboard.writeText(inviteUrl).then(() => setNotice("Invitation link copied."))} />}
+      <MemberDirectory members={members} roles={roleOptions} services={serviceOptions} loading={loading} canManage={canManage} onUpdate={(id, update) => void updateMember(id, update)} onRemove={(id) => void removeMember(id)} onToggleService={(member, serviceId, enabled) => void toggleMemberService(member, serviceId, enabled)} onMode={(member, serviceId, mode) => void changeServiceMode(member, serviceId, mode)} />
+      <PendingInvitations invitations={invitations} canManage={canManage} onRevoke={(id) => void revokeInvitation(id)} />
     </div>
   );
 }
