@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { ApiError } from "@/services/api-client";
 import type { AuthOrganization } from "./auth.types";
 import { useAuth } from "./auth-context";
-import { NotificationCenter } from "@/features/notifications/notification-center";
 import { BusinessDashboard } from "@/features/dashboard/business-dashboard";
+import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import {
   ActionCentreWorkspace,
@@ -202,55 +202,13 @@ export function ProtectedDashboard() {
       )}
 
       <main className="dashboard-main welcome-dashboard">
-        <header className="dashboard-header">
-          <div className="dashboard-heading">
-            <button
-              type="button"
-              className="mobile-menu-button"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Open service menu"
-              aria-expanded={mobileNavOpen}
-              aria-controls="dashboard-navigation"
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-            <div className="dashboard-organization-identity">
-              <p className="dashboard-date">
-                {new Intl.DateTimeFormat("en", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                }).format(new Date())}
-              </p>
-              <h1>{session.organization.name}</h1>
-              <div className="dashboard-mobile-context">
-                <span><i /> Workspace active</span>
-              </div>
-            </div>
-          </div>
-          <div className="header-actions">
-            {(session.user.isPlatformAdmin ||
-              (session.organization.isServiceProvider &&
-                session.membership.permissions.includes(
-                  "PROVIDER_REQUEST_VIEW",
-                ))) && (
-              <button className="desktop-header-action" onClick={() => router.push("/operations")}>
-                Operations
-              </button>
-            )}
-            {session.user.isPlatformAdmin && (
-              <button className="desktop-header-action" onClick={() => router.push("/super-admin")}>
-                Super Admin
-              </button>
-            )}
-            <NotificationCenter />
-            <span className="status-pill">
-              <i /> Workspace active
-            </span>
-          </div>
-        </header>
+        <DashboardHeader
+          isMobileNavigationOpen={mobileNavOpen}
+          session={session}
+          onOpenMobileNavigation={() => setMobileNavOpen(true)}
+          onOpenOperations={() => router.push("/operations")}
+          onOpenSuperAdmin={() => router.push("/super-admin")}
+        />
 
         {notice && <div className="dashboard-notice success">{notice}</div>}
         {error && <div className="dashboard-notice error">{error}</div>}
