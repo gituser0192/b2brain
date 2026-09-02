@@ -14369,3 +14369,122 @@ a {
     flex-direction: column;
   }
 }
+
+/* Authenticated workspace: compact, ordered phone layout. */
+@media (max-width: 600px) {
+  .dashboard-main {
+    padding: 1rem 0.85rem 5rem;
+  }
+
+  .dashboard-header {
+    align-items: stretch;
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-heading {
+    align-items: center;
+    width: 100%;
+  }
+
+  .dashboard-heading > div {
+    min-width: 0;
+  }
+
+  .dashboard-heading h1 {
+    font-size: 1.28rem;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-heading p {
+    font-size: 0.62rem;
+  }
+
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .header-actions > button,
+  .status-pill {
+    min-height: 2.4rem;
+  }
+
+  .business-dashboard {
+    margin: 0;
+    padding: 0;
+  }
+
+  .business-dashboard-head {
+    gap: 1rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .business-dashboard-head h2 {
+    font-size: 1.7rem;
+    line-height: 1.15;
+    margin: 0.35rem 0 0.55rem;
+  }
+
+  .business-dashboard-head > div > span {
+    display: block;
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+
+  .business-dashboard-head label,
+  .business-dashboard-head select {
+    width: 100%;
+  }
+
+  .executive-metrics {
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .executive-metrics article {
+    min-height: 9.25rem;
+    padding: 1.15rem;
+  }
+
+  .executive-metrics strong {
+    font-size: 1.55rem;
+  }
+
+  .business-dashboard-grid {
+    gap: 0.75rem;
+  }
+
+  .dashboard-panel {
+    min-width: 0;
+    padding: 1rem;
+  }
+
+  .dashboard-panel > header {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .dashboard-panel header h3 {
+    font-size: 1rem;
+  }
+
+  .finance-snapshot dl > div {
+    gap: 0.75rem;
+    padding-inline: 0;
+  }
+
+  .panel-empty {
+    padding: 2rem 1rem;
+  }
+
+  .b2brain-floating-agent {
+    bottom: 0.75rem;
+    right: 0.75rem;
+  }
+}
