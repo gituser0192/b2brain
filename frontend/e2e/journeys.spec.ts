@@ -64,6 +64,18 @@ test("restricted employee cannot see owner controls or mutate CRM", async ({ pag
   await expect(page.getByText("Synthetic Retail Co").first()).toBeVisible();
 });
 
+test("CRM search, status filter and row actions remain operable", async ({ syntheticPage: page }) => {
+  await page.goto("/crm");
+  const search = page.getByPlaceholder("Search name, email, phone or company");
+  await search.fill("Synthetic");
+  await expect(search).toHaveValue("Synthetic");
+  await page.getByRole("combobox").selectOption("ACTIVE");
+  await expect(page.getByRole("link", { name: "Call" })).toHaveAttribute("href", "tel:+919999900001");
+  await expect(page.getByRole("link", { name: "Email" })).toHaveAttribute("href", "mailto:hello@example.test");
+  await page.getByRole("button", { name: "View" }).click();
+  await expect(page.getByRole("heading", { name: "Synthetic Retail Co" })).toBeVisible();
+});
+
 test("sign-out clears the session and protected routes redirect", async ({ syntheticPage: page }) => {
   await page.goto("/dashboard?view=settings");
   await page.getByRole("button", { name: "Sign out this browser" }).click();

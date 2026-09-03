@@ -14,6 +14,7 @@ const project = { id: "prj-e2e-001", name: "Synthetic Store Launch", code: "E2E-
 const task = { id: "tsk-e2e-001", title: "Review launch checklist", description: null, status: "TODO", priority: "HIGH", dueDate: "2026-09-10T00:00:00.000Z" };
 const invoice = { id: "inv-e2e-001", invoiceNumber: "E2E-INV-001", status: "ISSUED", total: "25000", dueDate: "2026-09-15T00:00:00.000Z", paid: 10000, outstanding: 15000, daysOverdue: 0, customer: { id: customer.id, displayName: customer.displayName }, payments: [{ amount: "10000" }], collectionFollowUps: [] };
 const expense = { id: "exp-e2e-001", title: "Synthetic ad spend", category: "MARKETING", amount: "5000", expenseDate: "2026-09-01T00:00:00.000Z", vendor: "Example Ads", notes: "Fixture only", status: "RECORDED" };
+const followUp = { id: "fup-e2e-001", title: "Confirm annual plan", description: "Synthetic follow-up fixture", status: "PENDING", dueAt: "2026-09-01T09:00:00.000Z", customer: { id: customer.id, displayName: customer.displayName, email: customer.email, phone: customer.phone }, assignedTo: { id: ownerSession.user.id, firstName: ownerSession.user.firstName, lastName: ownerSession.user.lastName } };
 function json(route: Route, data: unknown, status = 200) { return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) }); }
 
 function fixture(path: string, method: string, session: typeof ownerSession) {
@@ -28,7 +29,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   if (clean.endsWith("/engagement")) return { success: true, data: { activities: [], followUps: [] } };
   if (clean === `/customers/${customer.id}`) return { success: true, data: customer };
   if (clean === "/customers") return { success: true, data: { customers: [customer], pagination: { page: 1, pageSize: 50, total: 1, pages: 1 } } };
-  if (clean === "/crm/follow-ups") return { success: true, data: { items: [], metrics: { pending: 0, overdue: 0, dueToday: 0, completed: 0 } } };
+  if (clean === "/crm/follow-ups") return { success: true, data: { items: [followUp], metrics: { pending: 1, overdue: 1, dueToday: 0, completed: 0 } } };
   if (clean === "/projects" && method === "GET") return { success: true, data: [project] };
   if (clean === `/projects/${project.id}/tasks`) return { success: true, data: [task] };
   if (clean === `/projects/${project.id}/members`) return { success: true, data: [] };
@@ -51,7 +52,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const session = options.restricted ? employeeSession : ownerSession;
   await page.route("**/api/v1/**", async (route) => {
@@ -61,6 +62,9 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     if (clean === "/auth/refresh" && !authenticated) return json(route, { message: "Authentication required." }, 401);
     if (clean === "/dashboard/summary" && options.delayDashboard) await new Promise((resolve) => setTimeout(resolve, options.delayDashboard));
     if (clean === "/dashboard/summary" && options.failDashboard) return json(route, { message: "Synthetic dashboard failure." }, 503);
+    if (clean === "/customers" && options.delayCustomers) await new Promise((resolve) => setTimeout(resolve, options.delayCustomers));
+    if (clean === "/customers" && options.failCustomers) return json(route, { message: "Synthetic CRM failure." }, 503);
+    if (clean === "/customers" && options.emptyCustomers) return json(route, { success: true, data: { customers: [], pagination: { page: 1, pageSize: 50, total: 0, pages: 0 } } });
     return json(route, fixture(path, route.request().method(), session));
   });
 }

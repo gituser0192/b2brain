@@ -34,6 +34,36 @@ test("important customer form modal visual baseline", async ({ page }) => {
   await expect(page).toHaveScreenshot("customer-form-modal.png");
 });
 
+test("CRM follow-up centre visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/crm");
+  await page.getByRole("button", { name: "Follow-ups" }).click();
+  await expect(page.getByRole("heading", { name: "Follow-up center" })).toBeVisible();
+  await expect(page.getByText("Confirm annual plan")).toBeVisible();
+  await expect(page).toHaveScreenshot("crm-follow-up-centre.png");
+});
+
+test("CRM empty state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { emptyCustomers: true });
+  await page.goto("/crm");
+  await expect(page.getByRole("heading", { name: "Your CRM is ready" })).toBeVisible();
+  await expect(page).toHaveScreenshot("crm-empty.png");
+});
+
+test("CRM loading state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { delayCustomers: 1200 });
+  await page.goto("/crm");
+  await expect(page.getByText("Loading customers…")).toBeVisible();
+  await expect(page).toHaveScreenshot("crm-loading.png");
+});
+
+test("CRM error state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { failCustomers: true });
+  await page.goto("/crm");
+  await expect(page.getByText("Synthetic CRM failure.")).toBeVisible();
+  await expect(page).toHaveScreenshot("crm-error.png");
+});
+
 test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");
