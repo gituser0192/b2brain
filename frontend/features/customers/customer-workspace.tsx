@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   keepPreviousData,
   useQuery,
@@ -99,6 +100,7 @@ export function CustomerWorkspace({
   selectedFollowUpId?: string | null;
 }) {
   const { session, authorizedRequest } = useAuth();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -174,20 +176,6 @@ export function CustomerWorkspace({
         ? "Unable to load CRM data."
         : "");
   useEffect(() => {
-    if (!selectedCustomerId) return;
-    void authorizedRequest<{ success: true; data: Customer }>(
-      `/customers/${selectedCustomerId}`,
-    )
-      .then((response) => openEdit(response.data))
-      .catch((reason) =>
-        setError(
-          reason instanceof ApiError
-            ? reason.message
-            : "Unable to open the linked customer.",
-        ),
-      );
-  }, [selectedCustomerId, authorizedRequest]);
-  useEffect(() => {
     if (!selectedFollowUpId) return;
     const task = window.setTimeout(() => setView("followups"), 0);
     return () => window.clearTimeout(task);
@@ -231,6 +219,15 @@ export function CustomerWorkspace({
     setEditorOpen(true);
     setError("");
   }
+  function openCustomer(customer: Customer) {
+    router.push(`/crm/customers/${customer.id}`);
+  }
+  useEffect(() => {
+    if (!selectedCustomerId) return;
+    void authorizedRequest<{ success: true; data: Customer }>(`/customers/${selectedCustomerId}`)
+      .then((response) => openEdit(response.data))
+      .catch((reason) => setError(reason instanceof ApiError ? reason.message : "Unable to open the linked customer."));
+  }, [selectedCustomerId, authorizedRequest]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -530,7 +527,7 @@ export function CustomerWorkspace({
                 <article key={customer.id}>
                   <button
                     className="customer-main"
-                    onClick={() => openEdit(customer)}
+                    onClick={() => openCustomer(customer)}
                   >
                     <span>
                       {customer.displayName.slice(0, 2).toUpperCase()}
@@ -577,7 +574,7 @@ export function CustomerWorkspace({
                     )}
                     <button
                       className="row-action"
-                      onClick={() => openEdit(customer)}
+                      onClick={() => openCustomer(customer)}
                     >
                       View
                     </button>

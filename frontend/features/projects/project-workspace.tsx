@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { ProjectDialog } from "./project-dialog";
@@ -26,8 +27,9 @@ const emptyTask: TaskForm = {
 const apiDate = (value: string) =>
   value ? new Date(`${value}T00:00:00`).toISOString() : null;
 
-export function ProjectWorkspace() {
+export function ProjectWorkspace({ selectedProjectId = null }: Readonly<{ selectedProjectId?: string | null }>) {
   const { session, authorizedRequest } = useAuth();
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [customers, setCustomers] = useState<{ id: string; displayName: string }[]>([]);
   const [selected, setSelected] = useState<Project | null>(null);
@@ -48,10 +50,18 @@ export function ProjectWorkspace() {
     try {
       const response = await authorizedRequest<ProjectsResponse>(`/projects?archived=${archived}`);
       setProjects(response.data);
+      if (selectedProjectId) {
+        const project = response.data.find((item) => item.id === selectedProjectId);
+        if (project) {
+          setSelected(project);
+          const taskResponse = await authorizedRequest<TasksResponse>(`/projects/${project.id}/tasks`);
+          setTasks(taskResponse.data);
+        }
+      }
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Unable to load projects.");
     }
-  }, [authorizedRequest, archived]);
+  }, [authorizedRequest, archived, selectedProjectId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -70,6 +80,7 @@ export function ProjectWorkspace() {
     const response = await authorizedRequest<TasksResponse>(`/projects/${project.id}/tasks`);
     setTasks(response.data);
   }
+  function openProject(project: Project) { router.push(`/projects/${project.id}`); }
   function show(project?: Project) {
     setEditing(project ?? null);
     setForm(project ? {
@@ -133,9 +144,9 @@ export function ProjectWorkspace() {
         </button>
         <span>{projects.length} projects</span>
       </div>
-      {!projects.length ? <ProjectList projects={projects} archived={archived} canCreate={canCreate} onSelect={(project) => void loadTasks(project)} onCreate={() => show()} /> : (
+      {!projects.length ? <ProjectList projects={projects} archived={archived} canCreate={canCreate} onSelect={openProject} onCreate={() => show()} /> : (
         <div className="project-layout">
-          <ProjectList projects={projects} selectedId={selected?.id} archived={archived} canCreate={canCreate} onSelect={(project) => void loadTasks(project)} onCreate={() => show()} />
+          <ProjectList projects={projects} selectedId={selected?.id} archived={archived} canCreate={canCreate} onSelect={openProject} onCreate={() => show()} />
           {selected && <ProjectTaskPanel project={selected} tasks={tasks} form={task} canUpdate={canUpdate} canArchive={canArchive} canTasks={canTasks} onFormChange={setTask} onAdd={() => void addTask()} onStatus={(current, status) => void taskStatus(current, status)} onEdit={() => show(selected)} onArchive={() => void archive(selected)} />}
         </div>
       )}

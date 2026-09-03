@@ -626,7 +626,8 @@ a {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.dashboard-sidebar nav button {
+.dashboard-sidebar nav button,
+.dashboard-sidebar nav a {
   align-items: center;
   background: transparent;
   border: 0;
@@ -636,12 +637,15 @@ a {
   gap: 0.75rem;
   padding: 0.75rem 0.8rem;
   text-align: left;
+  text-decoration: none;
 }
-.dashboard-sidebar nav button.active {
+.dashboard-sidebar nav button.active,
+.dashboard-sidebar nav a.active {
   background: rgba(108, 94, 236, 0.18);
   color: #dcd9ff;
 }
-.dashboard-sidebar nav button small {
+.dashboard-sidebar nav button small,
+.dashboard-sidebar nav a small {
   background: rgba(255, 255, 255, 0.07);
   border-radius: 1rem;
   font-size: 0.55rem;

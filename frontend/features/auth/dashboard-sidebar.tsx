@@ -1,8 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import type { AuthSession } from "./auth.types";
 import type { ActiveView } from "./dashboard-workspaces";
+import { routeForView } from "./workspace-routes";
 
 interface NavigationItem {
   key: ActiveView;
@@ -57,7 +59,7 @@ interface DashboardSidebarProps {
   isOpen: boolean;
   session: AuthSession;
   onClose: () => void;
-  onSelect: (view: ActiveView) => void;
+  onNavigate: () => void;
   onSignOut: () => void;
   onSuperAdmin: () => void;
 }
@@ -68,7 +70,7 @@ export function DashboardSidebar({
   isOpen,
   session,
   onClose,
-  onSelect,
+  onNavigate,
   onSignOut,
   onSuperAdmin,
 }: DashboardSidebarProps) {
@@ -95,15 +97,12 @@ export function DashboardSidebar({
         {primaryNavigation.map((item) => {
           const enabled = !item.permission || session.membership.permissions.includes(item.permission);
           return (
-            <button key={item.key} className={activeView === item.key ? "active" : ""} disabled={!enabled} onClick={() => enabled && onSelect(item.key)}>
-              <span className="nav-icon">{item.icon}</span>{item.label}
-            </button>
+            enabled ? <Link key={item.key} className={activeView === item.key ? "active" : ""} href={routeForView(item.key)} onClick={onNavigate}><span className="nav-icon">{item.icon}</span>{item.label}</Link>
+              : <button key={item.key} disabled><span className="nav-icon">{item.icon}</span>{item.label}</button>
           );
         })}
         {enabledNavigation.map((item) => (
-          <button key={item.key} className={activeView === item.key ? "active" : ""} onClick={() => onSelect(item.key)}>
-            <span className="nav-icon">{item.icon}</span>{item.label}
-          </button>
+          <Link key={item.key} className={activeView === item.key ? "active" : ""} href={routeForView(item.key)} onClick={onNavigate}><span className="nav-icon">{item.icon}</span>{item.label}</Link>
         ))}
         {session.user.isPlatformAdmin && (
           <button onClick={onSuperAdmin}><span className="nav-icon">↔</span>Switch to Super Admin</button>

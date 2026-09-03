@@ -21,32 +21,37 @@ test("invitation registration and sign-in use controlled synthetic data", async 
 test("dashboard navigation, history, refresh, CRM details, projects and tasks", async ({ syntheticPage: page }) => {
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Aarav/ })).toBeVisible();
-  await page.locator('nav button').filter({ hasText: "CRM" }).click();
-  await expect(page).toHaveURL(/view=crm/);
+  await page.getByRole("link", { name: /CRM$/ }).click();
+  await expect(page).toHaveURL(/\/crm$/);
   await expect(page.getByText("Synthetic Retail Co").first()).toBeVisible();
   await page.getByText("Synthetic Retail Co").first().click();
+  await expect(page).toHaveURL(/\/crm\/customers\/cus-e2e-001$/);
   await expect(page.getByRole("heading", { name: "Synthetic Retail Co" })).toBeVisible();
   await page.reload();
-  await expect(page).toHaveURL(/view=crm/);
-  await page.locator('nav button').filter({ hasText: "Projects" }).click();
+  await expect(page).toHaveURL(/\/crm\/customers\/cus-e2e-001$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/crm$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/crm$/);
+  await page.getByRole("link", { name: /Projects$/ }).click();
   await expect(page.getByText("Synthetic Store Launch").first()).toBeVisible();
   await page.getByText("Synthetic Store Launch").first().click();
+  await expect(page).toHaveURL(/\/projects\/prj-e2e-001$/);
   await expect(page.getByText("Review launch checklist")).toBeVisible();
-  await page.goBack();
-  await expect(page).toHaveURL(/view=crm/);
-  await page.goForward();
-  await expect(page).toHaveURL(/view=projects/);
 });
 
 test("finance, automation, operating agent and settings load", async ({ syntheticPage: page }) => {
   await page.goto("/dashboard?view=finance");
   await expect(page.getByRole("heading", { name: "Accounts receivable" })).toBeVisible();
   await expect(page.getByText("E2E-INV-001", { exact: true })).toBeVisible();
-  await page.locator('nav button').filter({ hasText: "Automation" }).click();
+  await expect(page).toHaveURL(/\/finance$/);
+  await page.getByRole("link", { name: /Automation$/ }).click();
   await expect(page.getByRole("heading", { name: "Build intelligence on a controlled frame." })).toBeVisible();
-  await page.locator('nav button').filter({ hasText: "Ask B² Brain" }).click();
+  await page.getByRole("link", { name: /Ask B² Brain$/ }).click();
   await expect(page.getByText("Business Operating Agent").first()).toBeVisible();
-  await page.locator('nav button').filter({ hasText: "Settings" }).click();
+  await page.getByRole("link", { name: /Settings$/ }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Business name" })).toHaveValue("E2E Safety Works");
 });
@@ -67,4 +72,43 @@ test("sign-out clears the session and protected routes redirect", async ({ synth
   await installSyntheticApi(anonymous, { authenticated: false });
   await anonymous.goto("/dashboard?view=crm");
   await expect(anonymous).toHaveURL(/\/login/);
+});
+
+test("migrated deep links, legacy links, active state and auth restoration remain stable", async ({ page }) => {
+  let refreshRequests = 0;
+  await installSyntheticApi(page);
+  page.on("request", (request) => { if (request.url().endsWith("/auth/refresh")) refreshRequests += 1; });
+  for (const [route, heading] of [["/crm", "Customers"], ["/projects", "Projects & tasks"], ["/finance", "Accounts receivable"], ["/automation", "Build intelligence on a controlled frame."], ["/agent", "Ask B² Brain"], ["/settings", "Settings"]] as const) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
+    await page.reload();
+    await expect(page).toHaveURL(new RegExp(`${route}$`));
+  }
+  await page.goto("/dashboard?view=crm");
+  await expect(page).toHaveURL(/\/crm$/);
+  await expect(page.getByRole("link", { name: /CRM$/ })).toHaveClass(/active/);
+  await page.goto("/dashboard?view=projects");
+  await expect(page).toHaveURL(/\/projects$/);
+  expect(refreshRequests).toBe(14);
+});
+
+test("direct restricted route shows the safe access experience", async ({ page }) => {
+  await installSyntheticApi(page, { restricted: true });
+  await page.goto("/automation");
+  await expect(page.getByText("Access unavailable", { exact: true })).toBeVisible();
+});
+
+test("primary client navigation preserves the shell and does not repeat auth restoration", async ({ page }) => {
+  const counts = new Map<string, number>();
+  await installSyntheticApi(page);
+  page.on("request", (request) => { const path = new URL(request.url()).pathname; if (path.startsWith("/api/v1/")) counts.set(path, (counts.get(path) ?? 0) + 1); });
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Aarav/ })).toBeVisible();
+  await page.getByRole("link", { name: /CRM$/ }).click();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  await page.getByRole("link", { name: /Projects$/ }).click();
+  await expect(page.getByRole("heading", { name: "Projects & tasks" })).toBeVisible();
+  expect(counts.get("/api/v1/auth/refresh")).toBe(1);
+  expect(counts.get("/api/v1/services/enabled")).toBe(1);
+  expect(counts.get("/api/v1/projects")).toBe(1);
 });
