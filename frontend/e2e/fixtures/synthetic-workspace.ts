@@ -19,6 +19,7 @@ const expense = { id: "exp-e2e-001", title: "Synthetic ad spend", category: "MAR
 const ledger = { records: [{ id: payment.id, type: "REVENUE", date: NOW, description: invoice.invoiceNumber, category: "INVOICE_PAYMENT", method: "BANK_TRANSFER", amount: 10000, currency: "INR" }, { id: expense.id, type: "EXPENSE", date: expense.expenseDate, description: expense.title, category: expense.category, method: null, amount: 5000, currency: "INR" }], metrics: { revenue: 10000, expenses: 5000, profit: 5000 }, monthly: [{ month: "2026-08", revenue: 8000, expenses: 3500, profit: 4500 }, { month: "2026-09", revenue: 10000, expenses: 5000, profit: 5000 }], categories: ["MARKETING"] };
 const collection = { accounts: [{ id: "acc-e2e-001", name: "Synthetic Current Account", type: "BANK", identifier: "ending 001", isActive: true }], transactions: [{ id: "txn-e2e-001", externalReference: "UTR-E2E-001", payerName: "Synthetic Retail Co", amount: "10000", currency: "INR", receivedAt: NOW, status: "MATCHED", paymentAccount: { name: "Synthetic Current Account" }, payment: { receiptNumber: payment.receiptNumber, invoice: { invoiceNumber: invoice.invoiceNumber } } }], refunds: [], metrics: { activeAccounts: 1, unmatchedCount: 0, unmatchedValue: 0, matchedValue: 10000, pendingRefunds: 0 } };
 const followUp = { id: "fup-e2e-001", title: "Confirm annual plan", description: "Synthetic follow-up fixture", status: "PENDING", dueAt: "2026-09-01T09:00:00.000Z", customer: { id: customer.id, displayName: customer.displayName, email: customer.email, phone: customer.phone }, assignedTo: { id: ownerSession.user.id, firstName: ownerSession.user.firstName, lastName: ownerSession.user.lastName } };
+const automationConnector = { id: "con-e2e-whatsapp", name: "Synthetic WhatsApp Simulator", type: "WHATSAPP", provider: "B2BRAIN_SIMULATOR", status: "ACTIVE", mode: "MANUAL_APPROVAL", webhookKey: "synthetic-webhook", lastReceivedAt: null, credentialsConfiguredAt: null, whatsappPhoneNumberId: null, _count: { events: 0, messageDrafts: 0 } };
 function json(route: Route, data: unknown, status = 200) { return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) }); }
 
 function fixture(path: string, method: string, session: typeof ownerSession) {
@@ -56,7 +57,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const session = options.restricted ? employeeSession : ownerSession;
   await page.route("**/api/v1/**", async (route) => {
@@ -79,6 +80,7 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     if (clean === "/payment-collection" && options.emptyFinance) return json(route, { success: true, data: { accounts: [], transactions: [], refunds: [], metrics: { activeAccounts: 0, unmatchedCount: 0, unmatchedValue: 0, matchedValue: 0, pendingRefunds: 0 } } });
     if (clean === "/finance/ledger" && options.richFinance) return json(route, { success: true, data: ledger });
     if (clean === "/payment-collection" && options.richFinance) return json(route, { success: true, data: collection });
+    if (clean === "/automation-bridge" && options.richAutomation) return json(route, { success: true, data: { connectors: [automationConnector], events: [], metrics: { received: 0, processed: 0, failed: 0, quarantined: 0 } } });
     return json(route, fixture(path, route.request().method(), session));
   });
 }

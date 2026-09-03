@@ -8,10 +8,11 @@ Global styles are imported only by the root App Router layout in this order:
 4. `layouts/auth.css`
 5. `layouts/dashboard-shell.css`
 6. `../globals.css`
-7. `features/finance.css`
-8. `features/projects.css`
-9. `features/crm.css`
-10. Existing feature stylesheets
+7. `features/automation.css`
+8. `features/finance.css`
+9. `features/projects.css`
+10. `features/crm.css`
+11. Existing feature stylesheets
 
 `globals.css` temporarily retains feature-specific and interdependent responsive rules until their owning roadmap phase. Shared component styles should live beside the shared component or in a clearly named shared stylesheet. Feature styles belong with their feature rather than returning to `globals.css`; page-specific rules belong with the owning page or feature.
 

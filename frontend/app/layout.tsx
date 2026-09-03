@@ -7,6 +7,7 @@ import "./styles/foundations/typography.css";
 import "./styles/layouts/auth.css";
 import "./styles/layouts/dashboard-shell.css";
 import "./globals.css";
+import "./styles/features/automation.css";
 import "./styles/features/finance.css";
 import "./styles/features/projects.css";
 import "./styles/features/crm.css";

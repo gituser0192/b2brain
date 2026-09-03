@@ -156,6 +156,63 @@ test("Finance error state visual baseline", async ({ page }) => {
   await expect(page).toHaveScreenshot("finance-error.png", { mask: [page.locator(".dashboard-date")] });
 });
 
+test("Automation bridge and connector configuration visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/automation");
+  await expect(page.getByRole("heading", { name: "B² Automation Bridge" })).toBeVisible();
+  await page.getByRole("button", { name: "New connector" }).click();
+  await expect(page.getByRole("heading", { name: "Create connector" })).toBeVisible();
+  await expect(page).toHaveScreenshot("automation-connector-dialog.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Automation WhatsApp simulator configuration visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { richAutomation: true });
+  await page.goto("/automation");
+  await page.getByRole("button", { name: "Simulate WhatsApp" }).click();
+  await expect(page.getByRole("heading", { name: "WhatsApp CRM Intake Simulator" })).toBeVisible();
+  await expect(page.locator(".agent-dialog")).toHaveScreenshot("automation-whatsapp-simulator-dialog.png", { mask: [page.getByLabel("External WhatsApp message ID")] });
+});
+
+test("Automation follow-up and policy empty states visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/automation");
+  const followUps = page.locator(".follow-up-automation");
+  const policies = page.locator(".policy-manager");
+  await expect(followUps.getByText("No sequences configured")).toBeVisible();
+  await expect(policies.getByText("No automation policies yet")).toBeVisible();
+  await expect(followUps).toHaveScreenshot("automation-follow-up-empty.png");
+  await expect(policies).toHaveScreenshot("automation-policy-empty.png");
+});
+
+test("Automation collection schedule empty state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/automation");
+  const schedule = page.locator(".collection-schedule-manager");
+  await expect(schedule.getByText("No Finance agent found")).toBeVisible();
+  await expect(schedule).toHaveScreenshot("automation-collection-schedule-empty.png");
+});
+
+test("Automation loading state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.route("**/api/v1/agents/runs/centre", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { items: [], metrics: { total: 0, awaitingApproval: 0, completed: 0, failed: 0, safeRuns: 0 } } }) });
+  });
+  await page.goto("/automation");
+  const runCentre = page.locator(".agent-run-centre");
+  await expect(runCentre.getByText("Loading verified agent history…")).toBeVisible();
+  await expect(runCentre).toHaveScreenshot("automation-loading.png");
+});
+
+test("Automation error state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.route("**/api/v1/automation-policies", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Synthetic automation failure." }) }));
+  await page.goto("/automation");
+  const policies = page.locator(".policy-manager");
+  await expect(policies.getByText("Unable to load automation policies.")).toBeVisible();
+  await expect(policies).toHaveScreenshot("automation-error.png");
+});
+
 test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");
