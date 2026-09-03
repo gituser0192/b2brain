@@ -120,7 +120,7 @@ export function PaymentCollectionRecords({
       <section className="receipt-register">
         <header><h3>Receipts & refunds</h3><span>Refunds require approval by a different authorized user.</span></header>
         {invoices.flatMap((invoice) => invoice.payments.map((payment) => ({ invoice, payment }))).map(({ invoice, payment }) => (
-          <article key={payment.id}>
+          <article key={`${invoice.id}:${payment.id || payment.receiptNumber}`}>
             <div><strong>{payment.receiptNumber}</strong><small>{invoice.invoiceNumber} · {invoice.customer.displayName}</small></div>
             <span>{money(Number(payment.amount), invoice.currency)}</span>
             <span>{Number(payment.refundedAmount) ? `${money(Number(payment.refundedAmount), invoice.currency)} refunded` : "No refunds"}</span>
