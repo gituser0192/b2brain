@@ -12,6 +12,7 @@ export const employeeSession = { ...ownerSession, user: { ...ownerSession.user, 
 const customer = { id: "cus-e2e-001", type: "COMPANY", displayName: "Synthetic Retail Co", firstName: null, lastName: null, companyName: "Synthetic Retail Co", email: "hello@example.test", phone: "+919999900001", website: "https://example.test", addressLine1: "Test Road", addressLine2: null, city: "Delhi", state: "Delhi", postalCode: "110001", country: "India", status: "ACTIVE", notes: "Synthetic Playwright fixture", createdAt: NOW, updatedAt: NOW, deletedAt: null };
 const project = { id: "prj-e2e-001", name: "Synthetic Store Launch", code: "E2E-001", description: "Controlled browser-test project", status: "ACTIVE", priority: "HIGH", startDate: NOW, dueDate: "2026-09-30T00:00:00.000Z", deletedAt: null, customer: { id: customer.id, displayName: customer.displayName }, _count: { tasks: 1 } };
 const task = { id: "tsk-e2e-001", title: "Review launch checklist", description: null, status: "TODO", priority: "HIGH", dueDate: "2026-09-10T00:00:00.000Z" };
+const overdueTask = { id: "tsk-e2e-002", title: "Resolve blocked supplier handoff", description: null, status: "BLOCKED", priority: "URGENT", dueDate: "2026-08-28T00:00:00.000Z" };
 const invoice = { id: "inv-e2e-001", invoiceNumber: "E2E-INV-001", status: "ISSUED", total: "25000", dueDate: "2026-09-15T00:00:00.000Z", paid: 10000, outstanding: 15000, daysOverdue: 0, customer: { id: customer.id, displayName: customer.displayName }, payments: [{ amount: "10000" }], collectionFollowUps: [] };
 const expense = { id: "exp-e2e-001", title: "Synthetic ad spend", category: "MARKETING", amount: "5000", expenseDate: "2026-09-01T00:00:00.000Z", vendor: "Example Ads", notes: "Fixture only", status: "RECORDED" };
 const followUp = { id: "fup-e2e-001", title: "Confirm annual plan", description: "Synthetic follow-up fixture", status: "PENDING", dueAt: "2026-09-01T09:00:00.000Z", customer: { id: customer.id, displayName: customer.displayName, email: customer.email, phone: customer.phone }, assignedTo: { id: ownerSession.user.id, firstName: ownerSession.user.firstName, lastName: ownerSession.user.lastName } };
@@ -31,7 +32,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   if (clean === "/customers") return { success: true, data: { customers: [customer], pagination: { page: 1, pageSize: 50, total: 1, pages: 1 } } };
   if (clean === "/crm/follow-ups") return { success: true, data: { items: [followUp], metrics: { pending: 1, overdue: 1, dueToday: 0, completed: 0 } } };
   if (clean === "/projects" && method === "GET") return { success: true, data: [project] };
-  if (clean === `/projects/${project.id}/tasks`) return { success: true, data: [task] };
+  if (clean === `/projects/${project.id}/tasks`) return { success: true, data: [task, overdueTask] };
   if (clean === `/projects/${project.id}/members`) return { success: true, data: [] };
   if (clean.startsWith("/projects")) return { success: true, data: project };
   if (clean === "/finance") return { success: true, data: { invoices: [invoice], expenses: [expense], metrics: { invoiced: 25000, received: 10000, outstanding: 15000, overdue: 0, expenses: 5000, netCash: 5000 } } };
@@ -52,7 +53,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const session = options.restricted ? employeeSession : ownerSession;
   await page.route("**/api/v1/**", async (route) => {
@@ -65,6 +66,9 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     if (clean === "/customers" && options.delayCustomers) await new Promise((resolve) => setTimeout(resolve, options.delayCustomers));
     if (clean === "/customers" && options.failCustomers) return json(route, { message: "Synthetic CRM failure." }, 503);
     if (clean === "/customers" && options.emptyCustomers) return json(route, { success: true, data: { customers: [], pagination: { page: 1, pageSize: 50, total: 0, pages: 0 } } });
+    if (clean === "/projects" && options.delayProjects) await new Promise((resolve) => setTimeout(resolve, options.delayProjects));
+    if (clean === "/projects" && options.failProjects) return json(route, { message: "Synthetic projects failure." }, 503);
+    if (clean === "/projects" && options.emptyProjects) return json(route, { success: true, data: [] });
     return json(route, fixture(path, route.request().method(), session));
   });
 }

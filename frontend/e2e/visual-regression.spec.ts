@@ -64,6 +64,43 @@ test("CRM error state visual baseline", async ({ page }) => {
   await expect(page).toHaveScreenshot("crm-error.png");
 });
 
+test("new project modal visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "New project" }).click();
+  await expect(page.getByRole("heading", { name: "Create project" })).toBeVisible();
+  await expect(page).toHaveScreenshot("project-form-modal.png");
+});
+
+test("project details and tasks visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/projects/prj-e2e-001");
+  await expect(page.getByRole("heading", { name: "Synthetic Store Launch" }).first()).toBeVisible();
+  await expect(page.getByText("Resolve blocked supplier handoff")).toBeVisible();
+  await expect(page).toHaveScreenshot("project-details-tasks.png");
+});
+
+test("projects empty state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { emptyProjects: true });
+  await page.goto("/projects");
+  await expect(page.getByRole("heading", { name: "No projects yet" })).toBeVisible();
+  await expect(page).toHaveScreenshot("projects-empty.png");
+});
+
+test("projects delayed-load characterization baseline", async ({ page }) => {
+  await installSyntheticApi(page, { delayProjects: 1200 });
+  await page.goto("/projects");
+  await expect(page.getByRole("heading", { name: "No projects yet" })).toBeVisible();
+  await expect(page).toHaveScreenshot("projects-delayed-load.png");
+});
+
+test("projects error state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { failProjects: true });
+  await page.goto("/projects");
+  await expect(page.getByText("Synthetic projects failure.")).toBeVisible();
+  await expect(page).toHaveScreenshot("projects-error.png");
+});
+
 test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");
