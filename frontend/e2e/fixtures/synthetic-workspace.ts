@@ -13,8 +13,11 @@ const customer = { id: "cus-e2e-001", type: "COMPANY", displayName: "Synthetic R
 const project = { id: "prj-e2e-001", name: "Synthetic Store Launch", code: "E2E-001", description: "Controlled browser-test project", status: "ACTIVE", priority: "HIGH", startDate: NOW, dueDate: "2026-09-30T00:00:00.000Z", deletedAt: null, customer: { id: customer.id, displayName: customer.displayName }, _count: { tasks: 1 } };
 const task = { id: "tsk-e2e-001", title: "Review launch checklist", description: null, status: "TODO", priority: "HIGH", dueDate: "2026-09-10T00:00:00.000Z" };
 const overdueTask = { id: "tsk-e2e-002", title: "Resolve blocked supplier handoff", description: null, status: "BLOCKED", priority: "URGENT", dueDate: "2026-08-28T00:00:00.000Z" };
-const invoice = { id: "inv-e2e-001", invoiceNumber: "E2E-INV-001", status: "ISSUED", total: "25000", dueDate: "2026-09-15T00:00:00.000Z", paid: 10000, outstanding: 15000, daysOverdue: 0, customer: { id: customer.id, displayName: customer.displayName }, payments: [{ amount: "10000" }], collectionFollowUps: [] };
+const payment = { id: "pay-e2e-001", receiptNumber: "E2E-RCT-001", amount: "10000", refundedAmount: "0", paidAt: NOW };
+const invoice = { id: "inv-e2e-001", invoiceNumber: "E2E-INV-001", status: "ISSUED", total: "25000", dueDate: "2026-09-15T00:00:00.000Z", paid: 10000, outstanding: 15000, daysOverdue: 0, currency: "INR", customer: { id: customer.id, displayName: customer.displayName }, payments: [payment], collectionFollowUps: [] };
 const expense = { id: "exp-e2e-001", title: "Synthetic ad spend", category: "MARKETING", amount: "5000", expenseDate: "2026-09-01T00:00:00.000Z", vendor: "Example Ads", notes: "Fixture only", status: "RECORDED" };
+const ledger = { records: [{ id: payment.id, type: "REVENUE", date: NOW, description: invoice.invoiceNumber, category: "INVOICE_PAYMENT", method: "BANK_TRANSFER", amount: 10000, currency: "INR" }, { id: expense.id, type: "EXPENSE", date: expense.expenseDate, description: expense.title, category: expense.category, method: null, amount: 5000, currency: "INR" }], metrics: { revenue: 10000, expenses: 5000, profit: 5000 }, monthly: [{ month: "2026-08", revenue: 8000, expenses: 3500, profit: 4500 }, { month: "2026-09", revenue: 10000, expenses: 5000, profit: 5000 }], categories: ["MARKETING"] };
+const collection = { accounts: [{ id: "acc-e2e-001", name: "Synthetic Current Account", type: "BANK", identifier: "ending 001", isActive: true }], transactions: [{ id: "txn-e2e-001", externalReference: "UTR-E2E-001", payerName: "Synthetic Retail Co", amount: "10000", currency: "INR", receivedAt: NOW, status: "MATCHED", paymentAccount: { name: "Synthetic Current Account" }, payment: { receiptNumber: payment.receiptNumber, invoice: { invoiceNumber: invoice.invoiceNumber } } }], refunds: [], metrics: { activeAccounts: 1, unmatchedCount: 0, unmatchedValue: 0, matchedValue: 10000, pendingRefunds: 0 } };
 const followUp = { id: "fup-e2e-001", title: "Confirm annual plan", description: "Synthetic follow-up fixture", status: "PENDING", dueAt: "2026-09-01T09:00:00.000Z", customer: { id: customer.id, displayName: customer.displayName, email: customer.email, phone: customer.phone }, assignedTo: { id: ownerSession.user.id, firstName: ownerSession.user.firstName, lastName: ownerSession.user.lastName } };
 function json(route: Route, data: unknown, status = 200) { return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) }); }
 
@@ -53,7 +56,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const session = options.restricted ? employeeSession : ownerSession;
   await page.route("**/api/v1/**", async (route) => {
@@ -69,6 +72,13 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     if (clean === "/projects" && options.delayProjects) await new Promise((resolve) => setTimeout(resolve, options.delayProjects));
     if (clean === "/projects" && options.failProjects) return json(route, { message: "Synthetic projects failure." }, 503);
     if (clean === "/projects" && options.emptyProjects) return json(route, { success: true, data: [] });
+    if (["/finance", "/finance/ledger", "/payment-collection"].includes(clean) && options.delayFinance) await new Promise((resolve) => setTimeout(resolve, options.delayFinance));
+    if (["/finance", "/finance/ledger", "/payment-collection"].includes(clean) && options.failFinance) return json(route, { message: "Synthetic finance failure." }, 503);
+    if (clean === "/finance" && options.emptyFinance) return json(route, { success: true, data: { invoices: [], expenses: [], metrics: { invoiced: 0, received: 0, outstanding: 0, overdue: 0, expenses: 0, netCash: 0 } } });
+    if (clean === "/finance/ledger" && options.emptyFinance) return json(route, { success: true, data: { records: [], metrics: { revenue: 0, expenses: 0, profit: 0 }, monthly: [], categories: [] } });
+    if (clean === "/payment-collection" && options.emptyFinance) return json(route, { success: true, data: { accounts: [], transactions: [], refunds: [], metrics: { activeAccounts: 0, unmatchedCount: 0, unmatchedValue: 0, matchedValue: 0, pendingRefunds: 0 } } });
+    if (clean === "/finance/ledger" && options.richFinance) return json(route, { success: true, data: ledger });
+    if (clean === "/payment-collection" && options.richFinance) return json(route, { success: true, data: collection });
     return json(route, fixture(path, route.request().method(), session));
   });
 }

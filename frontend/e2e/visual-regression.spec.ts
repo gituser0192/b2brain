@@ -101,6 +101,61 @@ test("projects error state visual baseline", async ({ page }) => {
   await expect(page).toHaveScreenshot("projects-error.png");
 });
 
+test("Finance populated ledger and payment collection visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { richFinance: true });
+  await page.goto("/finance");
+  await expect(page.getByText("UTR-E2E-001")).toBeVisible();
+  await expect(page.getByText("E2E-RCT-001", { exact: true })).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-populated.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Finance invoice form visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/finance");
+  await page.getByRole("button", { name: "+ Invoice" }).click();
+  await expect(page.getByRole("heading", { name: "Create invoice" })).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-invoice-form.png");
+});
+
+test("Finance expense edit form visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/finance");
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByRole("heading", { name: "Record expense" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Update expense" })).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-expense-edit-form.png");
+});
+
+test("Finance payment form and status visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/finance");
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(page.getByRole("heading", { name: /Record payment · E2E-INV-001/ })).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-payment-form.png");
+});
+
+test("Finance empty state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { emptyFinance: true });
+  await page.goto("/finance");
+  await expect(page.getByText("No invoices yet")).toBeVisible();
+  await expect(page.getByText("No expenses yet")).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-empty.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Finance delayed-load characterization baseline", async ({ page }) => {
+  await installSyntheticApi(page, { delayFinance: 1200 });
+  await page.goto("/finance");
+  await expect(page.getByText("No invoices yet")).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-delayed-load.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Finance error state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { failFinance: true });
+  await page.goto("/finance");
+  await expect(page.getByText(/Synthetic finance failure.|Unable to load finance records./).first()).toBeVisible();
+  await expect(page).toHaveScreenshot("finance-error.png", { mask: [page.locator(".dashboard-date")] });
+});
+
 test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");
