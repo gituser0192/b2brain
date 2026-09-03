@@ -213,6 +213,60 @@ test("Automation error state visual baseline", async ({ page }) => {
   await expect(policies).toHaveScreenshot("automation-error.png");
 });
 
+test("Business Operating Agent floating drawer visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
+  await expect(page.locator(".workspace-agent-drawer")).toBeVisible();
+  await expect(page).toHaveScreenshot("workspace-agent-drawer.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Business Operating Agent goals visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.route("**/api/v1/workspace-agent/goals", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [{ id: "goal-e2e-001", type: "MONTHLY_REVENUE", title: "Reach the monthly revenue target", targetValue: 200000, currentValue: 125000, progress: 62.5, requiredPace: 2500, risk: "ON_TRACK", periodEnd: "2026-09-30T23:59:59.999Z" }] }) }));
+  await page.goto("/agent");
+  await page.getByRole("button", { name: "Goals", exact: true }).click();
+  await expect(page.getByText("Reach the monthly revenue target")).toBeVisible();
+  await expect(page).toHaveScreenshot("workspace-agent-goals.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Business Operating Agent rich conversation visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  const output = { answer: "Revenue is improving, but two overdue actions need attention.", metrics: [{ label: "New customers", value: 8 }, { label: "Open follow-ups", value: 2 }], health: { overall: 76, components: [{ name: "Financial health", score: 82, evidence: "Profit remained positive for the selected period." }, { name: "Execution health", score: 68, evidence: "Two follow-ups are overdue." }], warnings: [], recommendations: ["Complete overdue follow-ups today."] }, finance: { currency: "INR", current: { revenue: 125000, expenses: 70000, profit: 55000 }, margin: 44, score: 82 }, forecast: { method: "Recent monthly run rate", dateRange: "Sep 2026", confidence: "MEDIUM", assumptions: ["Current conversion rate remains stable"] }, warnings: ["Two follow-ups require attention."], records: [{ type: "CUSTOMER", id: "cus-e2e-001", label: "Synthetic Retail Co" }], escalation: { id: "req-e2e-001", requestNumber: "B2-E2E-001", status: "OPEN" }, reasoning: { source: "DETERMINISTIC_FALLBACK", confidence: "MEDIUM", evidence: [{ id: "revenue", label: "Current revenue", value: 125000, period: "Sep 2026" }], conclusions: ["Revenue exceeds recorded expenses."], recommendations: [{ action: "Contact overdue customers", reason: "Two follow-ups are overdue", expectedImpact: "Improve collections" }], assumptions: ["Recorded transactions are complete"], missingData: [], proposedToolActions: ["CREATE_FOLLOW_UP"], requiresConfirmation: true, requiresHumanEscalation: true } };
+  const items = Array.from({ length: 4 }, (_, index) => ({ id: `agent-item-${index}`, createdAt: "2026-09-02T09:00:00.000Z", message: index ? `Review business performance update ${index + 1}` : "Review business health, finances and next actions", output }));
+  await page.route("**/api/v1/workspace-agent/conversations/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: items }) }));
+  await page.goto("/agent");
+  await page.getByRole("button", { name: "Conversation", exact: true }).click();
+  await expect(page.getByText("Revenue is improving, but two overdue actions need attention.").first()).toBeVisible();
+  await page.locator(".workspace-agent-answer details").first().evaluate((element: HTMLDetailsElement) => { element.open = true; });
+  await expect(page.locator(".workspace-agent-thread")).toHaveScreenshot("workspace-agent-rich-conversation.png");
+});
+
+test("Business Operating Agent alert visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.route("**/api/v1/workspace-agent/brief", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { calculatedAt: "2026-09-02T09:00:00.000Z", period: "Last 30 days", meaningful: true, health: { score: 64, change: -4, missingData: ["Expense categorization is incomplete."] }, finance: { revenue: 100000, expenses: 72000, profit: 28000, previousRevenue: 110000, previousExpenses: 68000, previousProfit: 42000 }, activity: { newCustomers: 3, newLeads: 5, overdueFollowUps: 2, overdueTasks: 1, atRiskProjects: 1, importantServiceRequests: 1 }, alerts: [{ code: "OVERDUE_FOLLOWUPS", title: "Customer follow-ups are overdue", why: "Delayed responses can reduce conversion.", evidence: "2 follow-ups are overdue", period: "Today", severity: "HIGH", action: "Review follow-ups", view: "crm" }], recommendations: [{ title: "Review overdue follow-ups", reason: "Two customer actions are waiting", view: "crm" }] } }) }));
+  await page.goto("/agent");
+  await expect(page.getByText("Customer follow-ups are overdue")).toBeVisible();
+  await expect(page).toHaveScreenshot("workspace-agent-alerts.png", { mask: [page.locator(".dashboard-date")] });
+});
+
+test("Business Operating Agent loading visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.route("**/api/v1/workspace-agent/conversations/**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 1200)); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) }); });
+  await page.goto("/agent");
+  await page.getByRole("button", { name: "Conversation", exact: true }).click();
+  await expect(page.getByText("Ask B² Brain is checking permitted data…")).toBeVisible();
+  await expect(page.locator(".workspace-agent")).toHaveScreenshot("workspace-agent-loading.png");
+});
+
+test("Business Operating Agent error visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.route("**/api/v1/workspace-agent/brief", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Synthetic agent failure." }) }));
+  await page.goto("/agent");
+  await expect(page.getByText("Synthetic agent failure.")).toBeVisible();
+  await expect(page.locator(".workspace-agent")).toHaveScreenshot("workspace-agent-error.png");
+});
+
 test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");

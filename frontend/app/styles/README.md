@@ -12,8 +12,12 @@ Global styles are imported only by the root App Router layout in this order:
 8. `features/finance.css`
 9. `features/projects.css`
 10. `features/crm.css`
-11. Existing feature stylesheets
+11. `customer-enquiry-agent.css`
+12. `features/workspace-agent.css`
+13. Existing feature stylesheets
 
 `globals.css` temporarily retains feature-specific and interdependent responsive rules until their owning roadmap phase. Shared component styles should live beside the shared component or in a clearly named shared stylesheet. Feature styles belong with their feature rather than returning to `globals.css`; page-specific rules belong with the owning page or feature.
 
 Preserve stylesheet import order when moving rules because the cascade is part of the current UI contract. Verify changes with the full Playwright journey and visual-regression suite at all approved viewports. Screenshot baselines must never be updated merely to make a failing test pass; every intended visual change requires explicit visual review first.
+
+`features/workspace-agent.css` owns only the authenticated internal Business Operating Agent workspace and floating drawer. External Customer Enquiry Agent and Automation styles remain in their existing feature stylesheets.
