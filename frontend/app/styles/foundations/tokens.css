@@ -1,0 +1,10 @@
+/* Global design tokens. Preserve values and source order. */
+:root {
+  color-scheme: light;
+  --ink: #142038;
+  --muted: #677289;
+  --line: #e4e8ef;
+  --accent: #087cf0;
+  --accent-dark: #0755b8;
+  --surface: #f6f7fb;
+}

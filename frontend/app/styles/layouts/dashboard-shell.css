@@ -1,0 +1,164 @@
+/* Authenticated shell, sidebar, navigation, and main-scroll foundations. */
+.screen-loader {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  justify-content: center;
+  min-height: 100vh;
+}
+.screen-loader p {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.dashboard-shell {
+  display: grid;
+  grid-template-columns: 15rem 1fr;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+.dashboard-sidebar {
+  background: #16142f;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  padding: 1.5rem 1rem;
+}
+.dashboard-brand {
+  padding: 0.25rem 0.65rem 2.5rem;
+}
+.dashboard-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 0.35rem;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.dashboard-sidebar nav button,
+.dashboard-sidebar nav a {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0.65rem;
+  color: #8f8ba9;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 0.8rem;
+  text-align: left;
+  text-decoration: none;
+}
+.dashboard-sidebar nav button.active,
+.dashboard-sidebar nav a.active {
+  background: rgba(108, 94, 236, 0.18);
+  color: #dcd9ff;
+}
+.dashboard-sidebar nav button small,
+.dashboard-sidebar nav a small {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  font-size: 0.55rem;
+  margin-left: auto;
+  padding: 0.18rem 0.35rem;
+}
+.sidebar-account {
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: auto 1fr auto;
+  margin-top: auto;
+  padding: 1.2rem 0.3rem 0;
+}
+.avatar {
+  align-items: center;
+  background: #5d51d9;
+  border-radius: 0.62rem;
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 800;
+  height: 2.2rem;
+  justify-content: center;
+  width: 2.2rem;
+}
+.sidebar-account div:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sidebar-account strong {
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-account small {
+  color: #8f8ba9;
+  font-size: 0.59rem;
+}
+.sidebar-account button {
+  background: none;
+  border: 0;
+  color: #aaa6c0;
+  cursor: pointer;
+}
+.dashboard-main {
+  height: 100dvh;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2.2rem clamp(1.5rem, 4vw, 4rem) 4rem;
+}
+.dashboard-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+.dashboard-header p,
+.section-heading p {
+  color: var(--muted);
+  font-size: 0.67rem;
+  margin: 0 0 0.3rem;
+}
+.dashboard-header h1 {
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.dashboard-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.mobile-menu-button,
+.mobile-nav-close,
+.mobile-nav-backdrop {
+  display: none;
+}
+.status-pill {
+  background: #eaf8ef;
+  border-radius: 2rem;
+  color: #27824a;
+  font-size: 0.67rem;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+}
+.status-pill i {
+  background: #38a961;
+  border-radius: 50%;
+  display: inline-block;
+  height: 0.4rem;
+  margin-right: 0.35rem;
+  width: 0.4rem;
+}

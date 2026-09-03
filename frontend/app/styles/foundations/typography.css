@@ -1,0 +1,14 @@
+/* Base document typography and inherited control/link styles. */
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input {
+  font: inherit;
+}
+a {
+  color: inherit;
+}

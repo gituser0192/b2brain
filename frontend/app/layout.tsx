@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AppProviders } from "@/components/shared/app-providers";
+import "./styles/foundations/tokens.css";
+import "./styles/foundations/reset.css";
+import "./styles/foundations/typography.css";
+import "./styles/layouts/auth.css";
+import "./styles/layouts/dashboard-shell.css";
 import "./globals.css";
 import "./styles/customer-enquiry-agent.css";
 import "./styles/knowledge-management.css";
