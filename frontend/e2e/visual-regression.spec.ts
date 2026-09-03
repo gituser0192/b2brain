@@ -1,0 +1,57 @@
+import { expect, installSyntheticApi, test } from "./fixtures/synthetic-workspace";
+
+for (const item of [
+  { name: "login", url: "/login", heading: "Sign in to your workspace" },
+  { name: "dashboard", url: "/dashboard", heading: /Good (morning|afternoon|evening), Aarav/ },
+  { name: "crm-list", url: "/dashboard?view=crm", heading: "Customers" },
+  { name: "projects", url: "/dashboard?view=projects", heading: "Projects & tasks" },
+  { name: "finance", url: "/dashboard?view=finance", heading: "Accounts receivable" },
+  { name: "automation", url: "/dashboard?view=automation", heading: "Build intelligence on a controlled frame." },
+  { name: "business-agent", url: "/dashboard?view=b2agent", heading: "Ask B² Brain" },
+  { name: "settings", url: "/dashboard?view=settings", heading: "Settings" },
+] as const) {
+  test(`${item.name} visual baseline`, async ({ page }) => {
+    await installSyntheticApi(page, { authenticated: item.name !== "login" });
+    await page.goto(item.url);
+    await expect(page.getByRole("heading", { name: item.heading }).first()).toBeVisible();
+    await expect(page).toHaveScreenshot(`${item.name}.png`, { mask: [page.locator(".dashboard-date")] });
+  });
+}
+
+test("customer details visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/dashboard?view=crm");
+  await page.getByText("Synthetic Retail Co").first().click();
+  await expect(page.getByRole("heading", { name: "Synthetic Retail Co" })).toBeVisible();
+  await expect(page).toHaveScreenshot("customer-details.png");
+});
+
+test("important customer form modal visual baseline", async ({ page }) => {
+  await installSyntheticApi(page);
+  await page.goto("/dashboard?view=crm");
+  await page.getByRole("button", { name: /Add customer/i }).click();
+  await expect(page.getByRole("heading", { name: "Add a customer" })).toBeVisible();
+  await expect(page).toHaveScreenshot("customer-form-modal.png");
+});
+
+test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
+  await installSyntheticApi(page);
+  await page.goto("/dashboard");
+  if (testInfo.project.name === "mobile") await page.getByRole("button", { name: "Open service menu" }).click();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  await expect(page).toHaveScreenshot("sidebar-expanded.png");
+});
+
+test("loading state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { delayDashboard: 1200 });
+  await page.goto("/dashboard");
+  await expect(page.getByText("Calculating your business…")).toBeVisible();
+  await expect(page).toHaveScreenshot("dashboard-loading.png");
+});
+
+test("error state visual baseline", async ({ page }) => {
+  await installSyntheticApi(page, { failDashboard: true });
+  await page.goto("/dashboard");
+  await expect(page.getByText("Synthetic dashboard failure.")).toBeVisible();
+  await expect(page).toHaveScreenshot("dashboard-error.png");
+});

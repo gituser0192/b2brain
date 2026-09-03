@@ -20,3 +20,6 @@ Thumbs.db
 desktop.ini
 *.tsbuildinfo
 .codex-artifacts/
+playwright-report/
+test-results/
+blob-report/

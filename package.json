@@ -8,6 +8,10 @@
     "dev:backend": "npm run dev --workspace @b2brain/backend",
     "build:frontend": "npm run build --workspace @b2brain/frontend",
     "build:backend": "npm run build --workspace @b2brain/backend",
+    "test:e2e": "npm run test:e2e --workspace @b2brain/frontend",
+    "test:e2e:headed": "npm run test:e2e:headed --workspace @b2brain/frontend",
+    "test:e2e:debug": "npm run test:e2e:debug --workspace @b2brain/frontend",
+    "test:e2e:update": "npm run test:e2e:update --workspace @b2brain/frontend",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
   },
