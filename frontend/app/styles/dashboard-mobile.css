@@ -9,78 +9,38 @@
   .mobile-menu-button { display: none !important; }
 
   .dashboard-main {
-    padding: 1rem 0.85rem calc(6.4rem + env(safe-area-inset-bottom));
+    --workspace-inline-padding: 0.85rem;
+    padding: 0 var(--workspace-inline-padding) calc(6.4rem + env(safe-area-inset-bottom));
   }
 
   .dashboard-header {
-    align-items: flex-start;
-    display: block;
-    min-height: 3.5rem;
-    position: relative;
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    min-height: 3.8rem;
   }
 
   .dashboard-heading {
-    align-items: flex-start;
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  .dashboard-organization-identity {
-    margin-left: auto;
-    max-width: 48vw;
-    min-width: 8rem;
-    text-align: right;
+    min-width: 0;
   }
 
   .dashboard-heading h1 {
-    font-size: 1rem;
-    font-weight: 650;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 0.92rem;
   }
 
-  .dashboard-heading .dashboard-date {
-    display: none;
-  }
-
-  .dashboard-mobile-context {
-    align-items: center;
-    display: flex;
-    gap: 0.35rem;
-    justify-content: flex-end;
-    margin-top: 0.25rem;
-  }
-
-  .dashboard-mobile-context span {
-    align-items: center;
-    color: #16824c;
-    display: inline-flex;
-    font-size: 0.62rem;
-    font-weight: 600;
-    gap: 0.35rem;
-  }
-
-  .dashboard-mobile-context i {
-    background: #24ae69;
-    border-radius: 50%;
-    height: 0.4rem;
-    width: 0.4rem;
-  }
+  .workspace-page-heading nav { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; }
 
   .header-actions {
-    display: block;
-    left: auto;
+    align-items: center;
+    display: flex;
     margin: 0;
-    position: absolute;
-    right: calc(48vw - 6rem);
-    top: 0;
+    margin-left: auto;
     width: auto;
   }
 
   .header-actions .desktop-header-action,
-  .header-actions .status-pill {
+  .header-actions .status-pill,
+  .header-actions .workspace-quick-add {
     display: none;
   }
 
@@ -95,7 +55,7 @@
     max-width: 19rem;
     position: fixed;
     right: 0.85rem;
-    top: 4.5rem;
+    top: 4rem;
     width: calc(100vw - 1.7rem);
   }
 

@@ -57,9 +57,10 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; permissions?: string[]; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
-  const session = options.restricted ? employeeSession : ownerSession;
+  const baseSession = options.restricted ? employeeSession : ownerSession;
+  const session = options.permissions ? { ...baseSession, membership: { ...baseSession.membership, permissions: options.permissions } } : baseSession;
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = `${url.pathname.replace(/^\/api\/v1/, "")}${url.search}`;

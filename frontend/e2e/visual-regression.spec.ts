@@ -13,7 +13,8 @@ for (const item of [
   test(`${item.name} visual baseline`, async ({ page }) => {
     await installSyntheticApi(page, { authenticated: item.name !== "login" });
     await page.goto(item.url);
-    await expect(page.getByRole("heading", { name: item.heading }).first()).toBeVisible();
+    const content = item.name === "login" ? page : page.locator(".dashboard-main > :not(.dashboard-header)");
+    await expect(content.getByRole("heading", { name: item.heading }).first()).toBeVisible();
     await expect(page).toHaveScreenshot(`${item.name}.png`, { mask: [page.locator(".dashboard-date")] });
   });
 }
@@ -218,6 +219,7 @@ test("Business Operating Agent floating drawer visual baseline", async ({ page }
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
   await expect(page.locator(".workspace-agent-drawer")).toBeVisible();
+  await expect(page.locator(".workspace-agent-drawer").getByRole("heading", { name: "How can I help your business?" })).toBeVisible();
   await expect(page).toHaveScreenshot("workspace-agent-drawer.png", { mask: [page.locator(".dashboard-date")] });
 });
 

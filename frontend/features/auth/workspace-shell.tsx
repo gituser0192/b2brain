@@ -58,7 +58,7 @@ export function WorkspaceShell({ children }: Readonly<{ children: ReactNode }>) 
     <DashboardSidebar activeView={activeView} enabledServices={enabledServices} isOpen={mobileNavOpen} session={session} onClose={() => setMobileNavOpen(false)} onNavigate={() => setMobileNavOpen(false)} onSignOut={() => void logout().then(() => router.replace("/login"))} onSuperAdmin={() => router.push("/super-admin")} />
     {mobileNavOpen && <button type="button" className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} aria-label="Close service menu" />}
     <main className="dashboard-main welcome-dashboard">
-      <DashboardHeader isMobileNavigationOpen={mobileNavOpen} session={session} onOpenMobileNavigation={() => setMobileNavOpen(true)} onOpenOperations={() => router.push("/operations")} onOpenSuperAdmin={() => router.push("/super-admin")} />
+      <DashboardHeader activeView={activeView} enabledServices={enabledServices} isMobileNavigationOpen={mobileNavOpen} session={session} onOpenMobileNavigation={() => setMobileNavOpen(true)} onOpenOperations={() => router.push("/operations")} onOpenSuperAdmin={() => router.push("/super-admin")} />
       {allowed ? children : <section className="dashboard-notice error" role="alert"><strong>Access unavailable</strong><p>You do not have permission to open this service.</p></section>}
     </main>
     {enabledServices.includes("B2BRAIN_AGENT") && <button type="button" className="b2brain-floating-agent" onClick={() => setAgentOpen((value) => !value)} aria-label="Open Ask B² Brain" title="Ask B² Brain"><Image src="/brand/b2brain-logo.png" alt="" width={42} height={42} /><span>Ask B² Brain</span></button>}
