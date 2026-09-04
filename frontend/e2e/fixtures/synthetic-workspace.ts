@@ -57,10 +57,11 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; permissions?: string[]; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; permissions?: string[]; delayDashboard?: number; failDashboard?: boolean; emptyDashboard?: boolean; dashboardAlerts?: { type: string; count: number; label: string; view: string }[]; longIdentity?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const baseSession = options.restricted ? employeeSession : ownerSession;
-  const session = options.permissions ? { ...baseSession, membership: { ...baseSession.membership, permissions: options.permissions } } : baseSession;
+  const permissionSession = options.permissions ? { ...baseSession, membership: { ...baseSession.membership, permissions: options.permissions } } : baseSession;
+  const session = options.longIdentity ? { ...permissionSession, user: { ...permissionSession.user, firstName: "Aarav-With-An-Intentionally-Long-Name" }, organization: { ...permissionSession.organization, name: "E2E Safety Works With An Intentionally Long Organization Name" } } : permissionSession;
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = `${url.pathname.replace(/^\/api\/v1/, "")}${url.search}`;
@@ -83,7 +84,20 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     if (clean === "/finance/ledger" && options.richFinance) return json(route, { success: true, data: ledger });
     if (clean === "/payment-collection" && options.richFinance) return json(route, { success: true, data: collection });
     if (clean === "/automation-bridge" && options.richAutomation) return json(route, { success: true, data: { connectors: [automationConnector], events: [], metrics: { received: 0, processed: 0, failed: 0, quarantined: 0 } } });
-    return json(route, fixture(path, route.request().method(), session));
+    const response = fixture(path, route.request().method(), session);
+    if (clean === "/dashboard/summary" && "data" in response && response.data && typeof response.data === "object") {
+      const data = response.data as ReturnType<typeof fixture> extends { data: infer T } ? T : never;
+      const dashboard = data as unknown as { enabledServices: string[]; alerts: { type: string; count: number; label: string; view: string }[]; metrics: Record<string, number>; monthlyCash: { revenue: number; expenses: number; profit: number }[]; recent: { customers: unknown[]; projects: unknown[]; activities: unknown[] } };
+      if (options.enabledServices) dashboard.enabledServices = options.enabledServices;
+      if (options.dashboardAlerts) dashboard.alerts = options.dashboardAlerts;
+      if (options.emptyDashboard) {
+        Object.keys(dashboard.metrics).forEach((key) => { dashboard.metrics[key] = 0; });
+        dashboard.alerts = [];
+        dashboard.monthlyCash = dashboard.monthlyCash.map((item) => ({ ...item, revenue: 0, expenses: 0, profit: 0 }));
+        dashboard.recent = { customers: [], projects: [], activities: [] };
+      }
+    }
+    return json(route, response);
   });
 }
 
