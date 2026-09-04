@@ -22,9 +22,11 @@ const initialGoal = (): GoalDraft => {
 
 export function WorkspaceAgent({
   compact = false,
+  suggestions,
   onNavigate,
 }: {
   compact?: boolean;
+  suggestions?: string[];
   onNavigate?: (view: string) => void;
 }) {
   const { session, authorizedRequest } = useAuth(),
@@ -164,8 +166,8 @@ export function WorkspaceAgent({
       {!compact && <WorkspaceAgentHeader section={section} onSection={setSection} />}
       {!compact && section === "brief" && brief && <BusinessBriefView brief={brief} onNavigate={onNavigate} />}
       {!compact && section === "goals" && <BusinessGoalsView goals={goals} goal={goal} open={goalOpen} loading={loading} onToggle={() => setGoalOpen((value) => !value)} onGoal={setGoal} onCreate={() => void createGoal()} />}
-      {(compact || section === "conversation") && <WorkspaceAgentConversation items={items} loading={loading} compact={compact} onSend={(text) => void send(text)} onNavigate={onNavigate} onSection={setSection} />}
-      {error && <div className="dashboard-notice error">{error}</div>}
+      {(compact || section === "conversation") && <WorkspaceAgentConversation items={items} loading={loading} compact={compact} prompts={suggestions} onSend={(text) => void send(text)} onNavigate={onNavigate} onSection={setSection} />}
+      {error && <div className="dashboard-notice error" role="alert">{error}</div>}
       {(compact || section === "conversation") && <WorkspaceAgentComposer message={message} loading={loading} compact={compact} onMessage={setMessage} onSend={() => void send()} />}
     </section>
   );

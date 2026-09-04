@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { WorkspaceAgentDrawer } from "@/features/workspace-agent/workspace-agent-drawer";
 import { useAuth } from "./auth-context";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNavigation } from "./mobile-navigation";
-import { WorkspaceAgent, type ActiveView } from "./dashboard-workspaces";
+import { type ActiveView } from "./dashboard-workspaces";
 import { routeForView } from "./workspace-routes";
 
 interface EnabledServicesResponse { success: true; data: { code: string }[] }
@@ -37,6 +38,8 @@ export function WorkspaceShell({ children }: Readonly<{ children: ReactNode }>) 
   const [enabledServices, setEnabledServices] = useState<string[] | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const agentLauncherRef = useRef<HTMLButtonElement>(null);
+  const closeAgent = useCallback(() => setAgentOpen(false), []);
 
   useEffect(() => {
     if (!isLoading && !session) router.replace("/login");
@@ -61,8 +64,8 @@ export function WorkspaceShell({ children }: Readonly<{ children: ReactNode }>) 
       <DashboardHeader activeView={activeView} enabledServices={enabledServices} isMobileNavigationOpen={mobileNavOpen} session={session} onOpenMobileNavigation={() => setMobileNavOpen(true)} onOpenOperations={() => router.push("/operations")} onOpenSuperAdmin={() => router.push("/super-admin")} />
       {allowed ? children : <section className="dashboard-notice error" role="alert"><strong>Access unavailable</strong><p>You do not have permission to open this service.</p></section>}
     </main>
-    {enabledServices.includes("B2BRAIN_AGENT") && <button type="button" className="b2brain-floating-agent" onClick={() => setAgentOpen((value) => !value)} aria-label="Open Ask B² Brain" title="Ask B² Brain"><Image src="/brand/b2brain-logo.png" alt="" width={42} height={42} /><span>Ask B² Brain</span></button>}
-    {enabledServices.includes("B2BRAIN_AGENT") && agentOpen && <aside className="workspace-agent-drawer"><header><div><strong>Ask B² Brain</strong><span>Business Operating Agent</span></div><button onClick={() => setAgentOpen(false)}>×</button></header><WorkspaceAgent compact onNavigate={(view) => { navigate(view as ActiveView); setAgentOpen(false); }} /></aside>}
+    {enabledServices.includes("B2BRAIN_AGENT") && <button ref={agentLauncherRef} type="button" className="workspace-agent-launcher" onClick={() => setAgentOpen(true)} aria-label="Open Ask B² Brain" aria-expanded={agentOpen} aria-controls="workspace-agent-drawer" title="Ask B² Brain"><Image src="/brand/b2brain-logo.png" alt="" width={32} height={32} /><span role="tooltip">Ask B² Brain</span></button>}
+    {enabledServices.includes("B2BRAIN_AGENT") && agentOpen && <WorkspaceAgentDrawer activeView={activeView} launcherRef={agentLauncherRef} onClose={closeAgent} onNavigate={(view) => navigate(view as ActiveView)} />}
     <MobileNavigation activeView={activeView} enabledServices={enabledServices} session={session} />
   </div>;
 }

@@ -52,7 +52,7 @@ test("finance, automation, operating agent and settings load", async ({ syntheti
   await page.getByRole("link", { name: "Business Agent" }).click();
   await expect(page.getByText("Business Operating Agent").first()).toBeVisible();
   await page.getByRole("link", { name: /Settings$/ }).click();
-  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Settings" }).first()).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Business name" })).toHaveValue("E2E Safety Works");
 });
 
