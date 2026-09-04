@@ -3,6 +3,8 @@ export const queryKeys = {
     ["organization", organizationId] as const,
   dashboard: (organizationId: string, days: string) =>
     [...queryKeys.organization(organizationId), "dashboard", { days }] as const,
+  businessHealth: (organizationId: string, days: string) =>
+    [...queryKeys.organization(organizationId), "business-health", { days }] as const,
   crm: (organizationId: string) =>
     [...queryKeys.organization(organizationId), "crm"] as const,
   customers: (
