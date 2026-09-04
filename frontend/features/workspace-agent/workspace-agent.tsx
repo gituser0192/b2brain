@@ -30,17 +30,19 @@ export function WorkspaceAgent({
   onNavigate?: (view: string) => void;
 }) {
   const { session, authorizedRequest } = useAuth(),
-    storageKey = `b2brain-agent-conversation:${session?.organization.id ?? "none"}:${session?.membership.id ?? "none"}`;
+    storageKey = `b2brain-agent-conversation:${session?.organization.id ?? "none"}:${session?.membership.id ?? "none"}`,
+    draftKey = `b2brain-agent-draft:${session?.organization.id ?? "none"}:${session?.user.id ?? "none"}`;
   const [conversationId] = useState(() => {
       if (typeof window === "undefined") return crypto.randomUUID();
+      if (compact) return crypto.randomUUID();
       const saved = window.localStorage.getItem(storageKey),
         id = saved ?? crypto.randomUUID();
       window.localStorage.setItem(storageKey, id);
       return id;
     }),
     [items, setItems] = useState<AgentItem[]>([]),
-    [message, setMessage] = useState(""),
-    [loading, setLoading] = useState(true),
+    [message, setMessage] = useState(() => typeof window !== "undefined" && compact ? window.sessionStorage.getItem(draftKey) ?? "" : ""),
+    [loading, setLoading] = useState(!compact),
     [error, setError] = useState(""),
     [section, setSection] = useState<AgentSection>(
       "brief",
@@ -56,6 +58,7 @@ export function WorkspaceAgent({
     setItems(response.data);
   }, [authorizedRequest, conversationId]);
   useEffect(() => {
+    if (compact) return;
     const task = window.setTimeout(
       () =>
         void load()
@@ -70,7 +73,7 @@ export function WorkspaceAgent({
       0,
     );
     return () => window.clearTimeout(task);
-  }, [load]);
+  }, [compact, load]);
   const loadManagement = useCallback(async () => {
     if (compact) return;
     const [briefResponse, goalResponse] = await Promise.all([
@@ -151,6 +154,7 @@ export function WorkspaceAgent({
         },
       ]);
       setMessage("");
+      if (compact) window.sessionStorage.removeItem(draftKey);
     } catch (reason) {
       setError(
         reason instanceof ApiError
@@ -168,7 +172,7 @@ export function WorkspaceAgent({
       {!compact && section === "goals" && <BusinessGoalsView goals={goals} goal={goal} open={goalOpen} loading={loading} onToggle={() => setGoalOpen((value) => !value)} onGoal={setGoal} onCreate={() => void createGoal()} />}
       {(compact || section === "conversation") && <WorkspaceAgentConversation items={items} loading={loading} compact={compact} prompts={suggestions} onSend={(text) => void send(text)} onNavigate={onNavigate} onSection={setSection} />}
       {error && <div className="dashboard-notice error" role="alert">{error}</div>}
-      {(compact || section === "conversation") && <WorkspaceAgentComposer message={message} loading={loading} compact={compact} onMessage={setMessage} onSend={() => void send()} />}
+      {(compact || section === "conversation") && <WorkspaceAgentComposer message={message} loading={loading} compact={compact} onMessage={(value) => { setMessage(value); if (compact) window.sessionStorage.setItem(draftKey, value); }} onSend={() => void send()} />}
     </section>
   );
 }

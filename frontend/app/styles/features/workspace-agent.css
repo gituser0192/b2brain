@@ -286,6 +286,8 @@
   background: #071d39;
   box-shadow: 0 10px 28px #061b3533;
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
 }
 .workspace-agent-launcher img { border-radius: 50%; }
 .workspace-agent-launcher span {
@@ -340,6 +342,15 @@
 }
 .workspace-agent-drawer-actions { display: flex; align-items: center; gap: 0.5rem; }
 .workspace-agent-drawer-actions a { color: #b9dcfa; font-size: 0.72rem; font-weight: 750; }
+.workspace-agent-drawer-actions .workspace-agent-new-chat {
+  width: auto;
+  height: auto;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: #ffffff14;
+  color: #dceeff;
+  font-size: 0.72rem;
+}
 .workspace-agent-drawer > header button {
   border: 0;
   border-radius: 50%;
@@ -408,6 +419,9 @@
   .workspace-agent-launcher {
     right: 0.75rem;
     bottom: calc(5.4rem + env(safe-area-inset-bottom));
+    left: auto !important;
+    top: auto !important;
+    touch-action: auto;
   }
   .workspace-agent-welcome > div:last-child {
     display: grid;

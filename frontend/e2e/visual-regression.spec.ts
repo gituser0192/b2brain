@@ -219,7 +219,7 @@ test("Business Operating Agent floating drawer visual baseline", async ({ page }
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
   await expect(page.locator(".workspace-agent-drawer")).toBeVisible();
-  await expect(page.locator(".workspace-agent-drawer").getByRole("heading", { name: "How can I help your business?" })).toBeVisible();
+  await expect(page.locator(".workspace-agent-drawer").getByRole("heading", { name: "Start a new conversation" })).toBeVisible();
   await expect(page).toHaveScreenshot("workspace-agent-drawer.png", { mask: [page.locator(".dashboard-date")] });
 });
 
