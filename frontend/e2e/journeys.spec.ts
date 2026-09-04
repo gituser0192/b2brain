@@ -21,7 +21,7 @@ test("invitation registration and sign-in use controlled synthetic data", async 
 test("dashboard navigation, history, refresh, CRM details, projects and tasks", async ({ syntheticPage: page }) => {
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Aarav/ })).toBeVisible();
-  await page.getByRole("link", { name: /CRM$/ }).click();
+  await page.getByRole("link", { name: "Customers" }).click();
   await expect(page).toHaveURL(/\/crm$/);
   await expect(page.getByText("Synthetic Retail Co").first()).toBeVisible();
   await page.getByText("Synthetic Retail Co").first().click();
@@ -49,7 +49,7 @@ test("finance, automation, operating agent and settings load", async ({ syntheti
   await expect(page).toHaveURL(/\/finance$/);
   await page.getByRole("link", { name: /Automation$/ }).click();
   await expect(page.getByRole("heading", { name: "Build intelligence on a controlled frame." })).toBeVisible();
-  await page.getByRole("link", { name: /Ask B² Brain$/ }).click();
+  await page.getByRole("link", { name: "Business Agent" }).click();
   await expect(page.getByText("Business Operating Agent").first()).toBeVisible();
   await page.getByRole("link", { name: /Settings$/ }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
@@ -98,7 +98,7 @@ test("migrated deep links, legacy links, active state and auth restoration remai
   }
   await page.goto("/dashboard?view=crm");
   await expect(page).toHaveURL(/\/crm$/);
-  await expect(page.getByRole("link", { name: /CRM$/ })).toHaveClass(/active/);
+  await expect(page.getByRole("link", { name: "Customers" })).toHaveClass(/active/);
   await page.goto("/dashboard?view=projects");
   await expect(page).toHaveURL(/\/projects$/);
   expect(refreshRequests).toBe(14);
@@ -116,7 +116,7 @@ test("primary client navigation preserves the shell and does not repeat auth res
   page.on("request", (request) => { const path = new URL(request.url()).pathname; if (path.startsWith("/api/v1/")) counts.set(path, (counts.get(path) ?? 0) + 1); });
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Aarav/ })).toBeVisible();
-  await page.getByRole("link", { name: /CRM$/ }).click();
+  await page.getByRole("link", { name: "Customers" }).click();
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
   await page.getByRole("link", { name: /Projects$/ }).click();
   await expect(page.getByRole("heading", { name: "Projects & tasks" })).toBeVisible();

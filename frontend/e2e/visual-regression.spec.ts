@@ -270,8 +270,12 @@ test("Business Operating Agent error visual baseline", async ({ page }) => {
 test("sidebar and mobile drawer visual baseline", async ({ page }, testInfo) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");
-  if (testInfo.project.name === "mobile") await page.getByRole("button", { name: "Open service menu" }).click();
-  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "More" }).click();
+    await expect(page.getByRole("dialog", { name: "More destinations" })).toBeVisible();
+  } else {
+    await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  }
   await expect(page).toHaveScreenshot("sidebar-expanded.png");
 });
 

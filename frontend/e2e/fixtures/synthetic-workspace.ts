@@ -57,7 +57,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; delayDashboard?: number; failDashboard?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const session = options.restricted ? employeeSession : ownerSession;
   await page.route("**/api/v1/**", async (route) => {
@@ -65,6 +65,7 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     const path = `${url.pathname.replace(/^\/api\/v1/, "")}${url.search}`;
     const clean = path.split("?")[0];
     if (clean === "/auth/refresh" && !authenticated) return json(route, { message: "Authentication required." }, 401);
+    if (clean === "/services/enabled" && options.enabledServices) return json(route, { success: true, data: options.enabledServices.map((code) => ({ code, name: code })) });
     if (clean === "/dashboard/summary" && options.delayDashboard) await new Promise((resolve) => setTimeout(resolve, options.delayDashboard));
     if (clean === "/dashboard/summary" && options.failDashboard) return json(route, { message: "Synthetic dashboard failure." }, 503);
     if (clean === "/customers" && options.delayCustomers) await new Promise((resolve) => setTimeout(resolve, options.delayCustomers));
