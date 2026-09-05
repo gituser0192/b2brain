@@ -24,7 +24,8 @@ test("dashboard navigation, history, refresh, CRM details, projects and tasks", 
   await page.getByRole("link", { name: "Customers" }).click();
   await expect(page).toHaveURL(/\/crm$/);
   await expect(page.getByText("Synthetic Retail Co").first()).toBeVisible();
-  await page.getByText("Synthetic Retail Co").first().click();
+  await page.waitForFunction(() => Object.keys(document.querySelector("button.customer-main") ?? {}).some((key) => key.startsWith("__reactProps$")));
+  await page.getByRole("button", { name: /Synthetic Retail Co/ }).click();
   await expect(page).toHaveURL(/\/crm\/customers\/cus-e2e-001$/);
   await expect(page.getByRole("heading", { name: "Synthetic Retail Co" })).toBeVisible();
   await page.reload();
@@ -35,6 +36,7 @@ test("dashboard navigation, history, refresh, CRM details, projects and tasks", 
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.goForward();
   await expect(page).toHaveURL(/\/crm$/);
+  await expect(page.getByRole("heading", { name: "Customers" }).first()).toBeVisible();
   await page.getByRole("link", { name: /Projects$/ }).click();
   await expect(page.getByText("Synthetic Store Launch").first()).toBeVisible();
   await page.getByText("Synthetic Store Launch").first().click();
