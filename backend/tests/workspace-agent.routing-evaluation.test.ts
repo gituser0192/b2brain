@@ -13,6 +13,7 @@ const groups: [WorkspaceAgentIntent, string[]][] = [
       "Review today's brief",
       "Aaj ka daily brief",
       "show today’s brief",
+      "Give me today’s business brief.",
     ],
   ],
   [
@@ -82,6 +83,7 @@ const groups: [WorkspaceAgentIntent, string[]][] = [
       "Check my business health",
       "What is going on in my business",
       "business health batao",
+      "How is my business performing?",
     ],
   ],
   [
@@ -165,7 +167,7 @@ describe("workspace agent routing evaluation", () => {
     const cases = groups.flatMap(([intent, messages]) =>
       messages.map((message) => ({ intent, message })),
     );
-    expect(cases).toHaveLength(79);
+    expect(cases).toHaveLength(81);
     let correct = 0;
     for (const test of cases) {
       const result = routeWorkspaceRequest(test.message);

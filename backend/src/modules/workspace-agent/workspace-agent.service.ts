@@ -7,6 +7,7 @@ import type { WorkspaceAgentMessage } from "./workspace-agent.validation.js";
 import { WorkspaceAgentProactiveService } from "./workspace-agent.proactive.service.js";
 import { routeWorkspaceRequest } from "./workspace-agent.router.js";
 import { env } from "../../config/env.js";
+import { verifyServiceAccess } from "../../middleware/auth.js";
 import {
   createWorkspaceReasoningProvider,
   type WorkspaceReasoningProvider,
@@ -47,7 +48,7 @@ export class WorkspaceAgentService {
         eventName: "workspace-agent.message",
         createdAt: { gte: monthStart },
       },
-      select: { payload: true, createdAt: true },
+      select: { payload: true, createdAt: true, status: true },
       take: 5000,
     });
     const diagnostics = events.map(
@@ -56,6 +57,17 @@ export class WorkspaceAgentService {
     );
     const tokens = (value: unknown) =>
       typeof value === "number" && Number.isFinite(value) ? value : 0;
+    if (env.WORKSPACE_AGENT_REASONING_BACKEND === "python" && env.PYTHON_AGENT_ENABLED) {
+      // Durable event reservations include in-flight calls across backend processes.
+      // Failed/time-out requests may have been billed: conservatively reserve their maximum.
+      const charged = (event: (typeof events)[number]) => {
+        const data = (event.payload as { diagnostics?: Record<string, unknown> }).diagnostics ?? {};
+        const uncertain = event.status === "PROCESSING" || event.status === "FAILED" || data.providerFailure === true;
+        return { called: uncertain || data.aiCalled === true, cost: uncertain ? 36000 : tokens(data.inputTokens) + tokens(data.outputTokens) };
+      };
+      const daily = events.filter((event) => event.createdAt >= dayStart).map(charged);
+      return { allowed: events.length < 5000 && daily.filter((item) => item.called).length <= env.WORKSPACE_AI_DAILY_REQUEST_LIMIT && daily.reduce((sum, item) => sum + item.cost, 0) <= env.WORKSPACE_AI_DAILY_TOKEN_LIMIT && events.map(charged).reduce((sum, item) => sum + item.cost, 0) <= env.WORKSPACE_AI_MONTHLY_TOKEN_LIMIT };
+    }
     const monthTokens = diagnostics.reduce(
       (sum, item) => sum + tokens(item.inputTokens) + tokens(item.outputTokens),
       0,
@@ -85,6 +97,24 @@ export class WorkspaceAgentService {
     conversationId: string,
     request: string,
   ): Promise<WorkspaceReasoningResult> {
+    const pythonSelected = env.WORKSPACE_AGENT_REASONING_BACKEND === "python" && env.PYTHON_AGENT_ENABLED;
+    if (pythonSelected) {
+      // Re-check current module availability before collecting facts for another service.
+      const allowed = new Set(context.permissions);
+      for (const [service, permissions] of [
+        ["CRM", ["CRM_VIEW", "CRM_ACTIVITY_VIEW"]],
+        ["PROJECTS", ["PROJECT_VIEW", "TASK_VIEW"]],
+        ["FINANCE", ["FINANCE_VIEW"]],
+      ] as const) {
+        if (!permissions.some((permission) => allowed.has(permission))) continue;
+        try { await verifyServiceAccess({ ...context, isPlatformAdmin: false }, service); }
+        catch (error) {
+          if (!(error instanceof AppError) || error.statusCode !== 403) throw error;
+          permissions.forEach((permission) => allowed.delete(permission));
+        }
+      }
+      context = { ...context, permissions: [...allowed] };
+    }
     const [brief, goals, limits, history] = await Promise.all([
       this.proactive.brief(context),
       this.proactive.goals(context),
@@ -115,11 +145,29 @@ export class WorkspaceAgentService {
             { id: "finance.profit", label: "Profit", value: brief.finance.profit, period: brief.period },
           ]
         : []),
-      ...goals.slice(0, 8).flatMap((goal, index) => [
-        { id: `goal.${index}.progress`, label: `${goal.title} progress`, value: goal.progress, period: `Ends ${goal.periodEnd.toISOString()}` },
-        { id: `goal.${index}.risk`, label: `${goal.title} risk`, value: goal.risk, period: `Ends ${goal.periodEnd.toISOString()}` },
+      ...goals.filter((goal) => !pythonSelected || goal.currentValue !== null).slice(0, 8).flatMap((goal, index) => [
+        { id: `goal.${index}.progress`, label: `${pythonSelected ? goal.type : goal.title} progress`, value: goal.progress, period: `Ends ${goal.periodEnd.toISOString()}` },
+        { id: `goal.${index}.risk`, label: `${pythonSelected ? goal.type : goal.title} risk`, value: goal.risk, period: `Ends ${goal.periodEnd.toISOString()}` },
       ]),
     ];
+    if (pythonSelected && context.permissions.includes("FINANCE_VIEW")) {
+      const finance = await this.finance(context);
+      facts.push({ id: "finance.score", label: "Calculated financial score", value: finance.score, period: "Current month" });
+      facts.push({ id: "finance.margin", label: "Calculated profit margin", value: finance.margin, period: "Current month" });
+      const observed = finance.monthly.filter((item) => item.revenue || item.expenses).slice(-3);
+      const average = observed.length === 3 ? observed.reduce((sum, item) => sum + item.revenue, 0) / 3 : null;
+      facts.push({ id: "forecast.revenueLow", label: "Cautious revenue lower estimate (not guaranteed)", value: average === null ? null : average * 0.8, period: "Next month; three-month simple average" });
+      facts.push({ id: "forecast.revenueHigh", label: "Cautious revenue upper estimate (not guaranteed)", value: average === null ? null : average * 1.2, period: "Next month; three-month simple average" });
+      if (brief.finance) facts.push({ id: "finance.previousRevenue", label: "Previous rolling-period revenue", value: brief.finance.previousRevenue, period: "Previous 30-day comparison period" });
+    }
+    if (pythonSelected) {
+      facts.push({ id: "health.change", label: "Historical health score change is unavailable", value: null, period: "Through today" });
+      goals.filter((goal) => goal.currentValue !== null).slice(0, 4).forEach((goal, index) => {
+        facts.push({ id: `goal.target.${index}`, label: `${goal.type} target`, value: goal.targetValue, period: `Ends ${goal.periodEnd.toISOString()}` });
+        facts.push({ id: `goal.current.${index}`, label: `${goal.type} current`, value: goal.currentValue, period: `Ends ${goal.periodEnd.toISOString()}` });
+        facts.push({ id: `goal.pace.${index}`, label: `${goal.type} required daily pace`, value: goal.requiredPace, period: `Ends ${goal.periodEnd.toISOString()}` });
+      });
+    }
     const conversationSummary = history
       .filter(
         (event) =>
@@ -136,16 +184,19 @@ export class WorkspaceAgentService {
         return `User: ${(payload.message ?? "").slice(0, 300)}\nAssistant: ${(payload.output?.answer ?? "").slice(0, 500)}`;
       })
       .join("\n");
-    if (!limits.allowed)
-      return new (await import("./workspace-agent.provider.js"))
+    if (!limits.allowed) {
+      const fallbackResult = await new (await import("./workspace-agent.provider.js"))
         .DeterministicWorkspaceReasoningFallback()
         .analyze({ tenantKey: context.organizationId, request, conversationSummary, facts });
-    return this.reasoningProvider.analyze({
+      return { ...fallbackResult, evidenceFacts: facts.filter((fact) => fallbackResult.evidenceReferences.includes(fact.id)) };
+    }
+    const result = await this.reasoningProvider.analyze({
       tenantKey: context.organizationId,
       request,
       conversationSummary,
       facts,
     });
+    return { ...result, evidenceFacts: facts.filter((fact) => result.evidenceReferences.includes(fact.id)) };
   }
   private async connector(context: Context) {
     const existing = await prisma.integrationConnector.findFirst({
@@ -639,7 +690,7 @@ export class WorkspaceAgentService {
         reasoning: {
           source: reasoning.source,
           confidence: reasoning.confidence,
-          evidence,
+          evidence: reasoning.evidenceFacts ?? evidence,
           conclusions: reasoning.conclusions,
           recommendations: reasoning.recommendations,
           assumptions: reasoning.assumptions,
@@ -758,6 +809,7 @@ export class WorkspaceAgentService {
         route: route.intent,
         processingPath: route.path,
         aiCalled: reasoning?.source === "REAL_AI",
+        reasoningProvider: reasoning?.providerName ?? null,
         inputTokens: reasoning?.usage.inputTokens ?? 0,
         outputTokens: reasoning?.usage.outputTokens ?? 0,
         estimatedCostUsd: reasoning
@@ -793,13 +845,16 @@ export class WorkspaceAgentService {
         sourceType: "INTEGRATION_EVENT",
         sourceId: event.id,
         summary:
-          "Ask B² Brain completed an authenticated deterministic workspace request.",
+          "Ask B² Brain completed an authenticated workspace request.",
         metadata: {
           membershipId: context.membershipId,
           externalActionPerformed: false,
           route: route.intent,
           processingPath: route.path,
           aiCalled: reasoning?.source === "REAL_AI",
+          reasoningProvider: reasoning?.providerName ?? null,
+          inputTokens: reasoning?.usage.inputTokens ?? 0,
+          outputTokens: reasoning?.usage.outputTokens ?? 0,
           fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
           responseTimeMs: Date.now() - startedAt,
         },

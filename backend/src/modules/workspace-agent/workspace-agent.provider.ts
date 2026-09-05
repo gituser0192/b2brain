@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { env } from "../../config/env.js";
+import { PythonWorkspaceReasoningProvider } from "./workspace-agent.python.js";
 
 const proposedAction = z.enum(["NAVIGATE", "CREATE_FOLLOW_UP", "CREATE_TASK", "ESCALATE"]);
 export const workspaceReasoningSchema = z.object({
@@ -21,6 +22,7 @@ export type WorkspaceReasoningResult = z.infer<typeof workspaceReasoningSchema> 
   model: string | null;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
   providerFailed?: boolean;
+  evidenceFacts?: WorkspaceReasoningInput["facts"];
 };
 export type WorkspaceReasoningInput = {
   tenantKey: string;
@@ -109,6 +111,9 @@ export class FallbackWorkspaceReasoningProvider implements WorkspaceReasoningPro
 
 export function createWorkspaceReasoningProvider() {
   const fallback = new DeterministicWorkspaceReasoningFallback();
+  if (env.WORKSPACE_AGENT_REASONING_BACKEND === "python" && env.PYTHON_AGENT_ENABLED && !env.WORKSPACE_AI_KILL_SWITCH && !env.WORKSPACE_AI_DETERMINISTIC_ONLY && env.PYTHON_AGENT_SERVICE_URL && env.PYTHON_AGENT_SERVICE_SECRET) {
+    return new FallbackWorkspaceReasoningProvider(new PythonWorkspaceReasoningProvider({ url: env.PYTHON_AGENT_SERVICE_URL, secret: env.PYTHON_AGENT_SERVICE_SECRET, timeoutMs: env.PYTHON_AGENT_TIMEOUT_MS, maxIterations: env.PYTHON_AGENT_MAX_ITERATIONS, maxOutputTokens: env.WORKSPACE_AI_MAX_OUTPUT_TOKENS }), fallback);
+  }
   const hosted = env.WORKSPACE_AI_PROVIDER === "openai" && !env.WORKSPACE_AI_KILL_SWITCH && !env.WORKSPACE_AI_DETERMINISTIC_ONLY && env.OPENAI_API_KEY && env.WORKSPACE_AI_MODEL
     ? new OpenAIWorkspaceReasoningProvider({ apiKey: env.OPENAI_API_KEY, model: env.WORKSPACE_AI_MODEL, baseUrl: env.WORKSPACE_AI_BASE_URL, timeoutMs: env.WORKSPACE_AI_TIMEOUT_MS, maxRetries: env.WORKSPACE_AI_MAX_RETRIES, maxOutputTokens: env.WORKSPACE_AI_MAX_OUTPUT_TOKENS, maxInputChars: env.WORKSPACE_AI_MAX_INPUT_CHARS, failureThreshold: env.WORKSPACE_AI_CIRCUIT_FAILURE_THRESHOLD, resetMs: env.WORKSPACE_AI_CIRCUIT_RESET_MS }) : null;
   return new FallbackWorkspaceReasoningProvider(hosted, fallback);

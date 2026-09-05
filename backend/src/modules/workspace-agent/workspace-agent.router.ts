@@ -30,7 +30,10 @@ export function routeWorkspaceRequest(message: string): {
 } {
   const value = message.trim(),
     lower = value.toLowerCase();
-  if (/(today[’']?s brief|daily brief|review today)/i.test(value))
+  // Explanation requests precede keywords like "overdue" and "goal"; they never execute actions.
+  if (/(why.*business health.*(?:fall|chang)|explain.*financial score|practical plan.*revenue goal|pehle kya improve|पहले.*(?:सुधार|बेहतर)|व्यवसाय.*(?:क्यों|गिर))/i.test(value))
+    return { intent: "AI_ANALYSIS", path: "AI_ANALYSIS", aiRequired: true };
+  if (/(today[’']?s (?:business )?brief|daily brief|review today)/i.test(value))
     return {
       intent: "DAILY_BRIEF",
       path: "DETERMINISTIC_TOOL",
@@ -90,7 +93,7 @@ export function routeWorkspaceRequest(message: string): {
     )
   )
     return { intent: "AI_ANALYSIS", path: "AI_ANALYSIS", aiRequired: true };
-  if (/(business health|what is going on)/i.test(value))
+  if (/(business health|what is going on|how is (?:my|the) business (?:performing|doing))/i.test(value))
     return {
       intent: "BUSINESS_HEALTH",
       path: "DETERMINISTIC_TOOL",

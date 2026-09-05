@@ -17,6 +17,8 @@ const db = vi.hoisted(() => ({
   txAuditCreate: vi.fn(),
 }));
 const proactive = vi.hoisted(() => ({ brief: vi.fn(), goals: vi.fn() }));
+const serviceAccess = vi.hoisted(() => vi.fn());
+vi.mock("../src/middleware/auth.js", () => ({ verifyServiceAccess: serviceAccess }));
 vi.mock("../src/database/prisma.js", () => ({
   prisma: {
     integrationConnector: {
@@ -46,6 +48,8 @@ vi.mock(
 );
 import { WorkspaceAgentService } from "../src/modules/workspace-agent/workspace-agent.service.js";
 import { workspaceAgentMessageSchema } from "../src/modules/workspace-agent/workspace-agent.validation.js";
+import { env } from "../src/config/env.js";
+import { AppError } from "../src/shared/errors/app-error.js";
 
 const context = {
   organizationId: "00000000-0000-4000-8000-000000000001",
@@ -185,6 +189,33 @@ describe("Ask B² Brain workspace agent", () => {
     expect(result).toMatchObject({
       answer: "Rahul was added to CRM as a lead.",
     });
+  });
+  it("Python fact collection rechecks current service access and authenticated tenant", async () => {
+    const saved = { ...env };
+    try {
+      Object.assign(env, { WORKSPACE_AGENT_REASONING_BACKEND: "python", PYTHON_AGENT_ENABLED: true });
+      db.eventFindMany.mockResolvedValue([]);
+      proactive.goals.mockResolvedValue([]);
+      serviceAccess.mockRejectedValue(new AppError(403, "Not assigned"));
+      const provider = { enabled: true, name: "python-test", analyze: vi.fn().mockResolvedValue({ answer: "Insufficient permitted information", evidenceReferences: [], conclusions: [], recommendations: [], assumptions: [], missingData: [], confidence: "LOW", proposedToolActions: [], requiresConfirmation: false, requiresHumanEscalation: false, source: "DETERMINISTIC_FALLBACK", providerName: "python-test", model: null, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }) };
+      await new WorkspaceAgentService(provider).message(context, input("What should I improve?", "python-scope"));
+      expect(serviceAccess).toHaveBeenCalledWith(expect.objectContaining({ organizationId: context.organizationId, membershipId: context.membershipId }), "CRM");
+      expect(proactive.brief).toHaveBeenCalledWith(expect.objectContaining({ organizationId: context.organizationId, permissions: ["CRM_CREATE"] }));
+      expect(db.eventFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ organizationId: context.organizationId }) }));
+      expect(db.auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ organizationId: context.organizationId }) }));
+    } finally { Object.assign(env, saved); }
+  });
+  it("Python usage caps include in-flight reservations and do not call a provider over budget", async () => {
+    const saved = { ...env };
+    try {
+      Object.assign(env, { WORKSPACE_AGENT_REASONING_BACKEND: "python", PYTHON_AGENT_ENABLED: true, WORKSPACE_AI_DAILY_TOKEN_LIMIT: 1000 });
+      db.eventFindMany.mockResolvedValue([{ createdAt: new Date(), status: "PROCESSING", payload: {} }]);
+      proactive.goals.mockResolvedValue([]);
+      const provider = { enabled: true, name: "python-test", analyze: vi.fn() };
+      const result = await new WorkspaceAgentService(provider).message({ ...context, permissions: [] }, input("What should I improve?", "python-budget"));
+      expect(provider.analyze).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ reasoning: { source: "DETERMINISTIC_FALLBACK" } });
+    } finally { Object.assign(env, saved); }
   });
   it("does not duplicate tool execution when the message ID is retried", async () => {
     db.eventFindFirst.mockResolvedValue({

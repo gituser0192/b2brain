@@ -174,6 +174,12 @@ const envSchema = z
       .min(1)
       .max(10000)
       .default(100),
+    WORKSPACE_AGENT_REASONING_BACKEND: z.enum(["typescript", "python"]).default("typescript"),
+    PYTHON_AGENT_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    PYTHON_AGENT_SERVICE_URL: z.string().url().optional(),
+    PYTHON_AGENT_SERVICE_SECRET: z.string().min(32).optional(),
+    PYTHON_AGENT_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(15000),
+    PYTHON_AGENT_MAX_ITERATIONS: z.coerce.number().int().min(0).max(1).default(1),
     WORKSPACE_AI_PROVIDER: z.enum(["disabled", "openai"]).default("disabled"),
     WORKSPACE_AI_KILL_SWITCH: z.string().default("false").transform((value) => value === "true"),
     WORKSPACE_AI_DETERMINISTIC_ONLY: z.string().default("true").transform((value) => value === "true"),
@@ -193,6 +199,16 @@ const envSchema = z
     WORKSPACE_AI_OUTPUT_COST_PER_MILLION_USD: z.coerce.number().min(0).default(0),
   })
   .superRefine((value, context) => {
+    if (value.PYTHON_AGENT_ENABLED) {
+      if (!value.PYTHON_AGENT_SERVICE_SECRET) context.addIssue({ code: "custom", path: ["PYTHON_AGENT_SERVICE_SECRET"], message: "Internal signing secret required." });
+      if (!value.PYTHON_AGENT_SERVICE_URL) context.addIssue({ code: "custom", path: ["PYTHON_AGENT_SERVICE_URL"], message: "Internal service URL required." });
+      else {
+        const url = new URL(value.PYTHON_AGENT_SERVICE_URL);
+        const local = value.NODE_ENV !== "production" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+        if ((url.protocol !== "https:" && !(local && url.protocol === "http:")) || url.username || url.password || url.search || url.hash || url.pathname !== "/")
+          context.addIssue({ code: "custom", path: ["PYTHON_AGENT_SERVICE_URL"], message: "Use an HTTPS origin (loopback HTTP only in development)." });
+      }
+    }
     if (value.META_WHATSAPP_ENABLED) {
       if (!value.EXTERNAL_CHANNELS_ENABLED)
         context.addIssue({
