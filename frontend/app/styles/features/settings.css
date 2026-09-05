@@ -1,0 +1,39 @@
+.settings-navigation {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 22px;
+  overflow-x: auto;
+  border-bottom: 1px solid #dbe5ef;
+}
+.settings-navigation a {
+  flex: 0 0 auto;
+  border-bottom: 3px solid transparent;
+  padding: 10px 12px;
+  color: #60718a;
+  font-weight: 700;
+  text-decoration: none;
+}
+.settings-navigation a.active { border-bottom-color: #087ce3; color: #0d2240; }
+.settings-navigation a:focus-visible { outline: 3px solid #7dc2ff; outline-offset: 2px; }
+.settings-section { min-width: 0; }
+.settings-section .team-workspace,
+.settings-section .services-workspace,
+.settings-section .roles-workspace { padding: 0; }
+.settings-info { max-width: 900px; }
+.settings-info > a {
+  align-self: flex-start;
+  border-radius: 10px;
+  background: #087ce3;
+  padding: 11px 15px;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+.settings-checklist { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.settings-checklist li { display: flex; justify-content: space-between; gap: 16px; border: 1px solid #dbe5ef; border-radius: 12px; padding: 13px; }
+.settings-checklist span { color: #64748b; text-align: right; }
+@media (max-width: 600px) {
+  .settings-navigation { margin-inline: -16px; padding-inline: 16px; }
+  .settings-checklist li { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .settings-checklist span { text-align: left; }
+}

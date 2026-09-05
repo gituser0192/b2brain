@@ -54,6 +54,7 @@ test("finance, automation, operating agent and settings load", async ({ syntheti
   await expect(page.getByText("Business Operating Agent").first()).toBeVisible();
   await page.getByRole("link", { name: /Settings$/ }).click();
   await expect(page.getByRole("heading", { name: "Settings" }).first()).toBeVisible();
+  await page.getByRole("link", { name: "Business Profile", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Business name" })).toHaveValue("E2E Safety Works");
 });
 
@@ -79,6 +80,7 @@ test("CRM search, status filter and row actions remain operable", async ({ synth
 
 test("sign-out clears the session and protected routes redirect", async ({ syntheticPage: page }) => {
   await page.goto("/dashboard?view=settings");
+  await page.getByRole("link", { name: "Security and Sessions", exact: true }).click();
   await page.getByRole("button", { name: "Sign out this browser" }).click();
   await expect(page).toHaveURL(/\/login/);
   const anonymous = await page.context().newPage();

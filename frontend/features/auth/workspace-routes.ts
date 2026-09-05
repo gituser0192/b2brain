@@ -8,6 +8,8 @@ export const primaryViewRoutes: Partial<Record<ActiveView, string>> = {
   automation: "/automation",
   b2agent: "/agent",
   settings: "/settings",
+  people: "/settings?section=team",
+  roles: "/settings?section=roles",
 };
 
 export function routeForView(view: ActiveView) {
