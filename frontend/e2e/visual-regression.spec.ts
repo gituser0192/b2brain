@@ -38,7 +38,7 @@ test("important customer form modal visual baseline", async ({ page }) => {
 test("CRM follow-up centre visual baseline", async ({ page }) => {
   await installSyntheticApi(page);
   await page.goto("/crm");
-  await page.getByRole("button", { name: "Follow-ups" }).click();
+  await page.getByRole("button", { name: "Follow-up due" }).click();
   await expect(page.getByRole("heading", { name: "Follow-up center" })).toBeVisible();
   await expect(page.getByText("Confirm annual plan")).toBeVisible();
   await expect(page).toHaveScreenshot("crm-follow-up-centre.png");

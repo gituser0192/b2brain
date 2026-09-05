@@ -709,3 +709,87 @@
   }
 }
 
+/* Phase 6 customer acquisition and lifecycle views. */
+.crm-heading > div { min-width: 0; }
+.crm-visible-count {
+  color: #53647a;
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 650;
+  margin-top: 0.35rem;
+}
+.crm-view-tabs,
+.inquiry-pipeline {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+.crm-view-tabs button,
+.inquiry-pipeline button {
+  background: #fff;
+  border: 1px solid #dce4ef;
+  border-radius: 999px;
+  color: #53647a;
+  flex: 0 0 auto;
+  font-size: 0.58rem;
+  padding: 0.5rem 0.75rem;
+}
+.crm-view-tabs button.active,
+.inquiry-pipeline button.active {
+  background: #071d39;
+  border-color: #071d39;
+  color: #fff;
+}
+.crm-pagination {
+  align-items: center;
+  border-top: 1px solid #e7ecf2;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+}
+.crm-pagination button {
+  background: #fff;
+  border: 1px solid #d7e0ea;
+  border-radius: 0.45rem;
+  color: #176fae;
+  font-size: 0.55rem;
+  padding: 0.45rem 0.65rem;
+}
+.crm-pagination button:disabled { cursor: not-allowed; opacity: 0.45; }
+.crm-pagination span { color: #68788d; font-size: 0.55rem; }
+.inquiry-pipeline { margin: 0.2rem 0 0.85rem; }
+.inquiry-pipeline button { align-items: center; display: flex; gap: 0.45rem; }
+.inquiry-pipeline strong {
+  background: #edf3f8;
+  border-radius: 999px;
+  color: #405269;
+  font-size: 0.5rem;
+  padding: 0.12rem 0.35rem;
+}
+.inquiry-pipeline button.active strong { background: #ffffff24; color: #fff; }
+
+@media (max-width: 760px) {
+  .crm-heading { align-items: flex-start; gap: 0.8rem; }
+  .crm-heading h2 { font-size: 1.35rem; }
+  .crm-heading > button { white-space: nowrap; }
+  .customer-table article {
+    align-items: stretch;
+    gap: 0.7rem;
+    grid-template-columns: 1fr;
+    padding: 0.9rem;
+  }
+  .customer-table article > :not(.customer-main):not(.customer-row-actions) { display: flex; }
+  .customer-contact { min-width: 0; }
+  .customer-contact span,
+  .customer-contact small,
+  .customer-main strong { overflow-wrap: anywhere; }
+  .customer-status { width: max-content; }
+  .customer-table time::before { content: attr(data-label) ": "; font-weight: 700; }
+  .customer-row-actions { justify-content: flex-start; }
+  .crm-pagination { justify-content: space-between; }
+  .inquiry-layout { grid-template-columns: 1fr; }
+  .inquiry-list { max-height: 16rem; }
+}

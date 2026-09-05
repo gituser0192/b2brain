@@ -9,7 +9,7 @@ export const queryKeys = {
     [...queryKeys.organization(organizationId), "crm"] as const,
   customers: (
     organizationId: string,
-    filters: { archived: boolean; query: string; status: string },
+    filters: { archived: boolean; page: number; query: string; status: string },
   ) => [...queryKeys.crm(organizationId), "customers", filters] as const,
   followUps: (organizationId: string, assignedToMe: boolean) =>
     [...queryKeys.crm(organizationId), "follow-ups", { assignedToMe }] as const,

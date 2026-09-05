@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   LeadAssignmentControl,
   type AssignmentEmployee,
@@ -73,6 +75,18 @@ export function InquiryInbox({
   onConvert: (target: ConversionTarget) => void;
   onAddNote: () => void;
 }) {
+  const [stage, setStage] = useState("ALL");
+  const stages = [
+    ["ALL", "All"], ["NEW", "New"], ["REVIEWING", "Contacted"],
+    ["QUALIFIED", "Qualified"], ["CONVERTED", "Won"],
+    ["DISQUALIFIED", "Lost"], ["SPAM", "Spam"],
+  ];
+  const visibleItems = stage === "ALL" ? items : items.filter((item) => item.status === stage);
+  const selectStage = (value: string) => {
+    setStage(value);
+    const next = value === "ALL" ? items[0] : items.find((item) => item.status === value);
+    if (next) onChoose(next);
+  };
   return (
     <>
       <section className="inquiry-metrics">
@@ -85,6 +99,9 @@ export function InquiryInbox({
           </article>
         ))}
       </section>
+      <nav className="inquiry-pipeline" aria-label="Inquiry pipeline">
+        {stages.map(([value, label]) => <button key={value} className={stage === value ? "active" : ""} onClick={() => selectStage(value)}><span>{label}</span><strong>{value === "ALL" ? items.length : items.filter((item) => item.status === value).length}</strong></button>)}
+      </nav>
       {!items.length ? (
         <section className="project-empty">
           <span>◇</span>
@@ -94,10 +111,10 @@ export function InquiryInbox({
             arrives.
           </p>
         </section>
-      ) : (
+      ) : !visibleItems.length ? <section className="project-empty"><span>◇</span><h3>No inquiries in this stage</h3><p>Choose another pipeline stage to continue.</p></section> : (
         <div className="inquiry-layout">
           <section className="inquiry-list">
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <button
                 key={item.id}
                 className={chosen?.id === item.id ? "active" : ""}

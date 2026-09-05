@@ -329,10 +329,11 @@ export function InquiryWorkspace({
         <div>
           <p>Controlled intake</p>
           <h2>Lead & inquiry inbox</h2>
-          <span>Capture, classify and explicitly convert real inquiries.</span>
+          <span>Move each enquiry from first contact to a recorded outcome.</span>
         </div>
         {manage && (
           <div className="inquiry-header-actions">
+            <button onClick={() => onNavigate("crm")}>Customers</button>
             <button onClick={() => setShowRules((value) => !value)}>
               {showRules ? "Close rules" : "Assignment rules"}
             </button>

@@ -105,6 +105,7 @@ export function CustomerWorkspace({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [archived, setArchived] = useState(false);
+  const [page, setPage] = useState(1);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -130,12 +131,14 @@ export function CustomerWorkspace({
   const customerQuery = useQuery({
     queryKey: queryKeys.customers(organizationId, {
       archived,
+      page,
       query: query.trim(),
       status,
     }),
     queryFn: async () => {
       const params = new URLSearchParams({
         archived: String(archived),
+        page: String(page),
         pageSize: "50",
       });
       if (query.trim()) params.set("q", query.trim());
@@ -158,6 +161,7 @@ export function CustomerWorkspace({
   });
   const customers = customerQuery.data?.customers ?? [];
   const total = customerQuery.data?.pagination.total ?? 0;
+  const pages = customerQuery.data?.pagination.pages ?? 0;
   const followUps = followUpQuery.data?.items ?? [];
   const followUpMetrics = followUpQuery.data?.metrics ?? {
     pending: 0,
@@ -196,6 +200,12 @@ export function CustomerWorkspace({
     setForm(emptyForm);
     setEditorOpen(true);
     setError("");
+  }
+  function showCustomers(nextStatus = "", nextArchived = false) {
+    setView("customers");
+    setStatus(nextStatus);
+    setArchived(nextArchived);
+    setPage(1);
   }
   function openEdit(customer: Customer) {
     setEditing(customer);
@@ -324,6 +334,7 @@ export function CustomerWorkspace({
         <div>
           <p>CRM service</p>
           <h2>{view === "customers" ? "Customers" : "Follow-up center"}</h2>
+          {view === "customers" && <strong className="crm-visible-count">{total} {archived ? "archived" : "visible"}</strong>}
           <span>
             {view === "customers"
               ? "Keep every customer relationship organized within this workspace."
@@ -338,21 +349,19 @@ export function CustomerWorkspace({
       {visibleError && !editorOpen && (
         <div className="dashboard-notice error">{visibleError}</div>
       )}
-      <div className="crm-view-tabs">
-        <button
-          className={view === "customers" ? "active" : ""}
-          onClick={() => setView("customers")}
-        >
-          Customers
-        </button>
+      <div className="crm-view-tabs" role="tablist" aria-label="Customer views">
+        <button className={view === "customers" && !status && !archived ? "active" : ""} onClick={() => showCustomers()}>All</button>
+        <button className={view === "customers" && status === "ACTIVE" && !archived ? "active" : ""} onClick={() => showCustomers("ACTIVE")}>Active customers</button>
+        <button className={view === "customers" && status === "LEAD" && !archived ? "active" : ""} onClick={() => showCustomers("LEAD")}>Leads</button>
         {canViewEngagement && (
           <button
             className={view === "followups" ? "active" : ""}
-            onClick={() => setView("followups")}
+            onClick={() => { setView("followups"); setPage(1); }}
           >
-            Follow-ups
+            Follow-up due
           </button>
         )}
+        <button className={view === "customers" && archived ? "active" : ""} onClick={() => showCustomers("", true)}>Archived</button>
       </div>
       {view === "followups" && (
         <>
@@ -464,24 +473,20 @@ export function CustomerWorkspace({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              onInput={() => setPage(1)}
               placeholder="Search name, email, phone or company"
             />
           </div>
           <select
             value={status}
-            onChange={(event) => setStatus(event.target.value)}
+            onChange={(event) => { setStatus(event.target.value); setPage(1); }}
           >
             <option value="">All statuses</option>
             <option value="LEAD">Lead</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </select>
-          <button
-            className={archived ? "active" : ""}
-            onClick={() => setArchived((value) => !value)}
-          >
-            {archived ? "Current customers" : "Archived"}
-          </button>
+          {(query || status) && <button onClick={() => { setQuery(""); setStatus(""); setPage(1); }}>Clear filters</button>}
           <span>
             {total} {archived ? "archived" : "customers"}
           </span>
@@ -546,11 +551,12 @@ export function CustomerWorkspace({
                     <small>{customer.phone || "No phone"}</small>
                   </div>
                   <span
+                    data-label="Status"
                     className={`customer-status ${customer.status.toLowerCase()}`}
                   >
                     {customer.status}
                   </span>
-                  <time>
+                  <time data-label="Updated">
                     {new Intl.DateTimeFormat("en", {
                       dateStyle: "medium",
                     }).format(new Date(customer.updatedAt))}
@@ -583,6 +589,7 @@ export function CustomerWorkspace({
               ))}
             </div>
           )}
+          {pages > 1 && <nav className="crm-pagination" aria-label="Customer pages"><button disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {pages}</span><button disabled={page >= pages} onClick={() => setPage((value) => value + 1)}>Next</button></nav>}
         </section>
       </div>
       {editorOpen && (
