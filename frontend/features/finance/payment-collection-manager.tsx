@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import {
@@ -28,12 +28,6 @@ interface P {
     };
   };
 }
-interface F {
-  success: true;
-  data: {
-    invoices: CollectionInvoice[];
-  };
-}
 const ab = {
     name: "",
     type: "BANK",
@@ -53,7 +47,15 @@ const ab = {
     receivedAt: new Date().toISOString().slice(0, 16),
     notes: "",
   };
-export function PaymentCollectionManager() {
+export function PaymentCollectionManager({
+  initialAction,
+  invoices,
+  onFinanceChanged,
+}: {
+  initialAction?: "incoming";
+  invoices: CollectionInvoice[];
+  onFinanceChanged: () => Promise<void>;
+}) {
   const { session, authorizedRequest } = useAuth(),
     [data, setData] = useState<P["data"]>({
       accounts: [],
@@ -67,12 +69,12 @@ export function PaymentCollectionManager() {
         pendingRefunds: 0,
       },
     }),
-    [invoices, setInvoices] = useState<F["data"]["invoices"]>([]),
     [mode, setMode] = useState<CollectionDialogMode | null>(null),
     [account, setAccount] = useState(ab),
     [incoming, setIncoming] = useState(ib),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const initialActionHandled = useRef(false);
   const canManage =
       session?.membership.permissions.includes("FINANCE_MANAGE") ?? false,
     money = (v: number, c = session?.organization.currency ?? "INR") =>
@@ -83,12 +85,8 @@ export function PaymentCollectionManager() {
       }).format(v),
     load = useCallback(async () => {
       try {
-        const [c, f] = await Promise.all([
-          authorizedRequest<P>("/payment-collection"),
-          authorizedRequest<F>("/finance"),
-        ]);
+        const c = await authorizedRequest<P>("/payment-collection");
         setData(c.data);
-        setInvoices(f.data.invoices);
         setError("");
       } catch (e) {
         setError(
@@ -102,6 +100,12 @@ export function PaymentCollectionManager() {
     const t = setTimeout(() => void load(), 0);
     return () => clearTimeout(t);
   }, [load]);
+  useEffect(() => {
+    if (initialAction !== "incoming" || !canManage || initialActionHandled.current) return;
+    initialActionHandled.current = true;
+    setIncoming({ ...ib, paymentAccountId: data.accounts.find((item) => item.isActive)?.id ?? "" });
+    setMode("incoming");
+  }, [canManage, data.accounts, initialAction]);
   async function run(task: () => Promise<unknown>, message: string) {
     try {
       await task();
@@ -109,6 +113,7 @@ export function PaymentCollectionManager() {
       setNotice(message);
       setError("");
       await load();
+      await onFinanceChanged();
     } catch (e) {
       setError(
         e instanceof ApiError
@@ -150,6 +155,7 @@ export function PaymentCollectionManager() {
       setNotice(response.data.autoMatched ? "Payment matched automatically; receipt created and collection workflow updated." : "Payment captured in the unmatched queue for manual review.");
       setError("");
       await load();
+      await onFinanceChanged();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to capture incoming payment."); }
   }
   async function saveAccount() {
@@ -163,7 +169,7 @@ export function PaymentCollectionManager() {
     );
   }
   async function requestRefund(
-    p: F["data"]["invoices"][number]["payments"][number],
+    p: CollectionInvoice["payments"][number],
   ) {
     const available = Number(p.amount) - Number(p.refundedAmount),
       amount = Number(

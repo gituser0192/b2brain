@@ -30,8 +30,8 @@ function quickActions(enabled: string[], permissions: string[]) {
   return [
     has("CRM", "CRM_CREATE") && { label: "Add customer", href: routeForView("crm") },
     has("LEADS", "INQUIRY_CREATE") && { label: "Add lead or inquiry", href: routeForView("inquiries") },
-    has("FINANCE", "FINANCE_MANAGE") && { label: "Record revenue", href: routeForView("finance") },
-    has("FINANCE", "FINANCE_MANAGE") && { label: "Add expense", href: routeForView("finance") },
+    has("FINANCE", "FINANCE_MANAGE") && { label: "Record revenue", href: `${routeForView("finance")}?tab=payments&action=incoming` },
+    has("FINANCE", "FINANCE_MANAGE") && { label: "Add expense", href: `${routeForView("finance")}?tab=expenses&action=expense` },
     has("PROJECTS", "PROJECT_CREATE") && { label: "Create project", href: routeForView("projects") },
     has("PROJECTS", "PROJECT_TASK_MANAGE") && { label: "Create task", href: routeForView("projects") },
     has("B2BRAIN_AGENT") && { label: "Ask Business Agent", href: routeForView("b2agent") },

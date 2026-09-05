@@ -30,7 +30,8 @@ test("Quick Add exposes permitted Finance and Projects destinations", async ({ p
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Quick Add" }).click();
   const menu = page.getByRole("menu");
-  for (const name of ["Record revenue", "Add expense"]) await expect(menu.getByRole("menuitem", { name })).toHaveAttribute("href", "/finance");
+  await expect(menu.getByRole("menuitem", { name: "Record revenue" })).toHaveAttribute("href", "/finance?tab=payments&action=incoming");
+  await expect(menu.getByRole("menuitem", { name: "Add expense" })).toHaveAttribute("href", "/finance?tab=expenses&action=expense");
   for (const name of ["Create project", "Create task"]) await expect(menu.getByRole("menuitem", { name })).toHaveAttribute("href", "/projects");
 });
 

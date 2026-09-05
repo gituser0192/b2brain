@@ -5,12 +5,20 @@ export interface FinanceInvoice {
   invoiceNumber: string;
   status: string;
   total: string;
+  currency: string;
+  issueDate?: string;
   dueDate: string;
   paid: number;
   outstanding: number;
   daysOverdue: number;
   customer: { id: string; displayName: string };
-  payments: { amount: string }[];
+  payments: {
+    id: string;
+    receiptNumber: string;
+    amount: string;
+    refundedAmount: string;
+    paidAt: string;
+  }[];
   collectionFollowUps: {
     id: string;
     title: string;
@@ -36,10 +44,10 @@ export interface FinanceExpense {
   status: "RECORDED" | "VOIDED";
 }
 
-export const formatMoney = (value: number) =>
+export const formatMoney = (value: number, currency = "INR") =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "INR",
+    currency,
     maximumFractionDigits: 0,
   }).format(value);
 
@@ -54,6 +62,8 @@ export function FinanceRecords({
   onToggleFollowUp,
   onEditExpense,
   onArchiveExpense,
+  view = "all",
+  currency = "INR",
 }: {
   invoices: FinanceInvoice[];
   expenses: FinanceExpense[];
@@ -65,10 +75,12 @@ export function FinanceRecords({
   onToggleFollowUp: (followUpId: string) => void;
   onEditExpense: (expense: FinanceExpense) => void;
   onArchiveExpense: (expenseId: string) => void;
+  view?: "all" | "invoices" | "expenses";
+  currency?: string;
 }) {
   return (
     <div className="finance-columns">
-      <section>
+      {view !== "expenses" && <section>
         <h3>Customer invoices</h3>
         {invoices.length === 0 ? (
           <div className="finance-empty">
@@ -86,12 +98,13 @@ export function FinanceRecords({
                 <div>
                   <strong>{invoice.invoiceNumber}</strong>
                   <small>
-                    {invoice.customer.displayName} · {invoice.status}
+                    {invoice.customer.displayName} · <span className="finance-status" data-status={invoice.status}>{invoice.status.replaceAll("_", " ")}</span>
                     {invoice.daysOverdue
                       ? ` · ${invoice.daysOverdue} days overdue`
                       : ""}
                   </small>
                   <small>
+                    {invoice.issueDate && <>Issued {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invoice.issueDate))} · </>}
                     Due{" "}
                     {new Intl.DateTimeFormat("en", {
                       dateStyle: "medium",
@@ -99,9 +112,9 @@ export function FinanceRecords({
                   </small>
                 </div>
                 <div className="invoice-balance">
-                  <small>Total {formatMoney(Number(invoice.total))}</small>
-                  <strong>{formatMoney(invoice.outstanding)} due</strong>
-                  <small>{formatMoney(invoice.paid)} received</small>
+                  <small>Total {formatMoney(Number(invoice.total), currency)}</small>
+                  <strong>{formatMoney(invoice.outstanding, currency)} due</strong>
+                  <small>{formatMoney(invoice.paid, currency)} received</small>
                 </div>
                 {canManage &&
                   invoice.outstanding > 0 &&
@@ -145,8 +158,8 @@ export function FinanceRecords({
             );
           })
         )}
-      </section>
-      <section>
+      </section>}
+      {view !== "invoices" && <section>
         <h3>Expenses</h3>
         {expenses.length === 0 ? (
           <div className="finance-empty">
@@ -160,7 +173,7 @@ export function FinanceRecords({
                 <strong>{expense.title}</strong>
                 <small>{expense.category}</small>
               </div>
-              <strong>{formatMoney(Number(expense.amount))}</strong>
+              <strong>{formatMoney(Number(expense.amount), currency)}</strong>
               {canManage && (
                 <div className="invoice-actions">
                   <button onClick={() => onEditExpense(expense)}>Edit</button>
@@ -172,7 +185,7 @@ export function FinanceRecords({
             </article>
           ))
         )}
-      </section>
+      </section>}
     </div>
   );
 }

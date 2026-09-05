@@ -17,7 +17,8 @@ export function MobileNavigation({ activeView, enabledServices, session }: { act
   const quick = [
     session.membership.permissions.includes("CRM_CREATE") && find("crm") ? { label: "Add customer", href: routeForView("crm") } : null,
     session.membership.permissions.includes("INQUIRY_CREATE") && find("inquiries") ? { label: "Add lead", href: routeForView("inquiries") } : null,
-    session.membership.permissions.includes("FINANCE_MANAGE") && find("finance") ? { label: "Record revenue or expense", href: routeForView("finance") } : null,
+    session.membership.permissions.includes("FINANCE_MANAGE") && find("finance") ? { label: "Record revenue", href: `${routeForView("finance")}?tab=payments&action=incoming` } : null,
+    session.membership.permissions.includes("FINANCE_MANAGE") && find("finance") ? { label: "Add expense", href: `${routeForView("finance")}?tab=expenses&action=expense` } : null,
     find("b2agent") ? { label: "Ask Business Agent", href: routeForView("b2agent") } : null,
   ].filter((item): item is { label: string; href: string } => Boolean(item));
   useEffect(() => { if (!sheet) return; const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setSheet(null); trigger.current?.focus(); } }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [sheet]);
