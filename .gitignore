@@ -23,3 +23,9 @@ desktop.ini
 playwright-report/
 test-results/
 blob-report/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
