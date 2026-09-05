@@ -1,0 +1,16 @@
+{
+  "contractVersion": "1",
+  "requestId": "00000000-0000-4000-8000-000000000001",
+  "message": "Why is my business health falling?",
+  "languageHint": "en",
+  "shortConversationSummary": "",
+  "structuredBusinessFacts": [{"id":"activity.overdueFollowUps","label":"Overdue follow-ups","value":5,"period":"Through today"}],
+  "calculatedHealthResults": [],
+  "calculatedFinancialResults": [],
+  "calculatedForecastResults": [],
+  "relevantProductHelp": [],
+  "allowedToolNames": [],
+  "permissionSafeRecordReferences": [],
+  "maximumToolIterations": 1,
+  "responseConstraints": {"evidenceOnly":true,"noTools":true,"maxOutputTokens":700}
+}
