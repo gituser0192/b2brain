@@ -38,6 +38,9 @@ describe("channel-independent enquiry agent", () => {
   it("enforces bounded untrusted message input", () => {
     expect(normalizedInboundMessageSchema.safeParse({ channel: "WEBSITE_PLAYGROUND", externalMessageId: "message-2", conversationId: crypto.randomUUID(), message: "x".repeat(4097), metadata: {} }).success).toBe(false);
   });
+  it("accepts normalized email identity when a phone is unavailable", () => {
+    expect(normalizedInboundMessageSchema.parse({ channel: "WEBSITE_PLAYGROUND", externalMessageId: "message-email", conversationId: crypto.randomUUID(), customerName: "Test", email: "test@example.com", message: "Need service details", metadata: {} }).email).toBe("test@example.com");
+  });
   it("marks the fallback as non-production", () => {
     expect(provider.productionModel).toBe(false); expect(provider.name).toContain("deterministic");
   });

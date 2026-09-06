@@ -87,6 +87,7 @@ export function validateProposedAgentTools(
   return requested.filter((tool) => allowed.has(tool));
 }
 const normalizePhone = (value: string) => value.replace(/[^\d]/g, "");
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 export class EnquiryAgentService {
   constructor(
@@ -199,6 +200,7 @@ export class EnquiryAgentService {
       };
     const configuration = connector.configuration as InternalConfiguration;
     const phone = input.phone ? normalizePhone(input.phone) : null;
+    const email = input.email ? normalizeEmail(input.email) : null;
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
     const [organization, customers, openInquiries, owner, aiRequestsToday] =
@@ -207,23 +209,34 @@ export class EnquiryAgentService {
           where: { id: organizationId, status: "ACTIVE", deletedAt: null },
           select: { id: true, name: true },
         }),
-        phone
+        phone || email
           ? prisma.customer.findMany({
-              where: { organizationId, phone: { not: null }, deletedAt: null },
-              select: { id: true, phone: true, displayName: true },
+              where: {
+                organizationId,
+                deletedAt: null,
+                OR: [
+                  ...(phone ? [{ phone: { not: null } }] : []),
+                  ...(email ? [{ email: { equals: email, mode: "insensitive" as const } }] : []),
+                ],
+              },
+              select: { id: true, phone: true, email: true, displayName: true },
             })
           : [],
-        phone
+        phone || email
           ? prisma.inquiry.findMany({
               where: {
                 organizationId,
-                phone: { not: null },
                 deletedAt: null,
                 status: { notIn: ["CONVERTED", "DISQUALIFIED", "SPAM"] },
+                OR: [
+                  ...(phone ? [{ phone: { not: null } }] : []),
+                  ...(email ? [{ email: { equals: email, mode: "insensitive" as const } }] : []),
+                ],
               },
               select: {
                 id: true,
                 phone: true,
+                email: true,
                 assignedEmployee: { select: { linkedUserId: true } },
               },
               orderBy: { updatedAt: "desc" },
@@ -288,12 +301,32 @@ export class EnquiryAgentService {
         approvedKnowledge,
       });
     }
-    const customer = customers.find(
+    const phoneCustomers = customers.filter(
       (item) => item.phone && normalizePhone(item.phone) === phone,
     );
-    const existingInquiry = openInquiries.find(
+    const emailCustomers = customers.filter(
+      (item) => item.email && normalizeEmail(item.email) === email,
+    );
+    if (phoneCustomers.length > 1 || emailCustomers.length > 1)
+      throw new AppError(409, "Multiple customers match the supplied contact identifier.", "AMBIGUOUS_CUSTOMER_IDENTITY");
+    const phoneCustomer = phoneCustomers[0];
+    const emailCustomer = emailCustomers[0];
+    if (phoneCustomer && emailCustomer && phoneCustomer.id !== emailCustomer.id)
+      throw new AppError(409, "The supplied contact identifiers match different customers.", "AMBIGUOUS_CUSTOMER_IDENTITY");
+    const customer = phoneCustomer ?? emailCustomer;
+    const phoneInquiries = openInquiries.filter(
       (item) => item.phone && normalizePhone(item.phone) === phone,
     );
+    const emailInquiries = openInquiries.filter(
+      (item) => item.email && normalizeEmail(item.email) === email,
+    );
+    if (phoneInquiries.length > 1 || emailInquiries.length > 1)
+      throw new AppError(409, "Multiple open inquiries match the supplied contact identifier.", "AMBIGUOUS_INQUIRY_IDENTITY");
+    const phoneInquiry = phoneInquiries[0];
+    const emailInquiry = emailInquiries[0];
+    if (phoneInquiry && emailInquiry && phoneInquiry.id !== emailInquiry.id)
+      throw new AppError(409, "The supplied contact identifiers match different inquiries.", "AMBIGUOUS_INQUIRY_IDENTITY");
+    const existingInquiry = phoneInquiry ?? emailInquiry;
     const takeover =
       (configuration.humanTakeoverConversationIds ?? []).includes(
         input.conversationId,
@@ -371,6 +404,7 @@ export class EnquiryAgentService {
       conversationId: input.conversationId,
       customerName: input.customerName,
       phone,
+      email,
       message: input.message,
       receivedAt: input.receivedAt ?? new Date().toISOString(),
       metadata: input.metadata,
@@ -390,16 +424,17 @@ export class EnquiryAgentService {
     return prisma.$transaction(async (tx) => {
       const crmCustomer =
         customer ??
-        (phone
+        (phone || email
           ? await tx.customer.create({
               data: {
                 organizationId,
                 type: "PERSON",
-                displayName: input.customerName ?? phone,
+                displayName: input.customerName ?? phone ?? email!,
                 ...(input.customerName
                   ? { firstName: input.customerName }
                   : {}),
                 phone,
+                email,
                 status: "LEAD",
                 notes: "Created by Sales and Customer Enquiry Agent",
                 createdById: userId,
@@ -453,8 +488,9 @@ export class EnquiryAgentService {
               status: analysis.intent === "SPAM" ? "SPAM" : "NEW",
               priority:
                 unsafe || analysis.intent === "COMPLAINT" ? "HIGH" : "MEDIUM",
-              contactName: input.customerName ?? phone ?? "Website visitor",
+              contactName: input.customerName ?? phone ?? email ?? "Website visitor",
               phone,
+              email,
               subject: `Agent: ${analysis.intent.replaceAll("_", " ")}`,
               message: input.message,
               nextFollowUpAt:
@@ -515,8 +551,9 @@ export class EnquiryAgentService {
           ? ["create_follow_up", "request_human_takeover"]
           : []),
       ];
-      if (crmCustomer && followUpRequired)
-        await tx.customerFollowUp.create({
+      let followUpId: string | null = null;
+      if (crmCustomer && followUpRequired) {
+        const followUp = await tx.customerFollowUp.create({
           data: {
             organizationId,
             customerId: crmCustomer.id,
@@ -528,6 +565,8 @@ export class EnquiryAgentService {
             updatedById: userId,
           },
         });
+        followUpId = followUp.id;
+      }
       let draftId: string | null = null,
         approvalId: string | null = null;
       if (analysis.intent !== "SPAM" && !takeover) {
@@ -645,6 +684,7 @@ export class EnquiryAgentService {
         customer: crmCustomer,
         customerCreated: Boolean(crmCustomer && !customer),
         inquiryId: inquiry.id,
+        followUpId,
         analysis,
         response,
         knowledgeSources: sources,

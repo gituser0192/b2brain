@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
-import { EnquiryAgentService, enforceAgentPolicy, inquiryTypeForAgentIntent } from "../enquiry-agent/enquiry-agent.service.js";
 import type { WhatsappSimulatorInput, WhatsappTakeoverInput } from "./bridge.validation.js";
+import { normalizedInboundEventSchema } from "./contracts/inbound-event.contract.js";
+import { InboundEventProcessor } from "./processing/inbound-event.processor.js";
 
 type ConnectorConfiguration = { simulator?: boolean; humanTakeoverInquiryIds?: string[] };
 
@@ -19,41 +20,25 @@ function stableConversationId(connectorId: string, phone: string) {
 }
 
 export class WhatsappSimulatorService {
-  constructor(private readonly agent = new EnquiryAgentService()) {}
+  constructor(private readonly processor = new InboundEventProcessor()) {}
 
   async receive(organizationId: string, userId: string, input: WhatsappSimulatorInput) {
-    const connector = await prisma.integrationConnector.findFirst({
-      where: { id: input.connectorId, organizationId, type: "WHATSAPP", status: "ACTIVE", deletedAt: null },
-      select: { id: true, provider: true, configuration: true },
-    });
-    if (!connector) throw new AppError(404, "Active WhatsApp connector was not found.", "CONNECTOR_NOT_FOUND");
-    const configuration = connector.configuration as ConnectorConfiguration;
-    if (!configuration.simulator && connector.provider.toUpperCase() !== "B2BRAIN_SIMULATOR")
-      throw new AppError(409, "This endpoint only accepts simulator connectors.", "SIMULATOR_CONNECTOR_REQUIRED");
-
     const phone = normalizeWhatsappPhone(input.from);
-    const result = await this.agent.process(organizationId, userId, {
-      channel: "WHATSAPP",
-      externalMessageId: input.externalMessageId,
-      conversationId: stableConversationId(connector.id, phone),
-      customerName: input.contactName,
-      phone,
-      message: input.message,
-      receivedAt: input.receivedAt,
+    const receivedAt = input.receivedAt ?? new Date().toISOString();
+    const event = normalizedInboundEventSchema.parse({
+      version: "1",
+      channel: "SIMULATOR",
+      eventType: "CUSTOMER_MESSAGE",
+      externalEventId: input.externalMessageId,
+      occurredAt: receivedAt,
+      receivedAt: new Date().toISOString(),
+      connectorId: input.connectorId,
+      sender: { name: input.contactName, phone },
+      content: { text: input.message },
       metadata: { simulator: true },
-    }, { connectorId: connector.id });
-
-    if (!("analysis" in result)) return result;
-    const classification = inquiryTypeForAgentIntent(result.analysis.intent);
-    const policy = enforceAgentPolicy(result.analysis.intent, result.analysis.confidence, result.analysis.promptInjectionDetected);
-    return {
-      ...result,
-      customerId: result.customer?.id ?? null,
-      customerName: result.customer?.displayName ?? null,
-      classification,
-      humanAttentionRequired: policy.followUpRequired || result.approvalRequired,
-      inquiryUpdated: !result.customerCreated,
-    };
+      correlationId: stableConversationId(input.connectorId, phone),
+    });
+    return this.processor.processAuthenticatedSimulator(organizationId, userId, event);
   }
 
   async takeover(organizationId: string, userId: string, connectorId: string, input: WhatsappTakeoverInput) {

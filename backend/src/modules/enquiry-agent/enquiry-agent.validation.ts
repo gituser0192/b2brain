@@ -6,6 +6,7 @@ export const normalizedInboundMessageSchema = z.object({
   conversationId: z.string().uuid(),
   customerName: z.string().trim().min(1).max(160).optional().nullable(),
   phone: z.string().trim().regex(/^\+?[1-9]\d{6,14}$/).optional().nullable(),
+  email: z.string().trim().email().max(254).optional().nullable(),
   message: z.string().trim().min(1).max(4096),
   receivedAt: z.string().datetime().optional(),
   metadata: z.record(z.string(), z.union([z.string().max(500), z.number(), z.boolean(), z.null()])).default({}),
