@@ -64,3 +64,19 @@ urllib.request.urlopen(request)
 ```
 
 Responses expose only acceptance, duplicate/processing status and a correlation reference. Draft replies remain approval-controlled and are never sent externally. Website orders, payments, CAPTCHA, Meta, real WhatsApp and browser-direct signed delivery are not part of Phase B. The public route is mounted only when `EXTERNAL_CHANNELS_ENABLED` is enabled deliberately.
+
+## Website order adapter (Phase C)
+
+Phase C uses the same connector-specific HMAC headers and five-minute replay window at `POST /api/v1/integrations/website/orders/:connectorPublicId`. An authorized Automation manager must first enable the connector capability with `PUT /api/v1/automation-bridge/connectors/:id/website-orders` and `{ "enabled": true }`.
+
+Payload version 1 contains `eventId`, `submittedAt`, `externalOrderId`, customer contact, `currency`, one to 50 SKU lines with positive integer quantities, and optional notes, shipping address, attribution and submitted display totals. SKU is resolved only against active catalogue items owned by the connector organization. Unknown, cross-tenant, duplicate or currency-mismatched SKU lines are rejected.
+
+The backend always uses catalogue selling price and tax rate. Submitted display prices/totals are diagnostic only; a mismatch remains review-required. The resulting order is always `DRAFT`, `UNPAID` and `UNFULFILLED`, with zero discount and shipping. The atomic transaction creates the customer when needed, order, integration event, customer activity, notification and redacted audit. Event ID and a connector-scoped external-order-derived order number provide database-backed idempotency.
+
+Synthetic senders use the Phase B signature algorithm; replace the enquiry payload with:
+
+```json
+{"version":"1","eventId":"synthetic-order-event-001","submittedAt":"2026-09-06T10:00:00Z","externalOrderId":"synthetic-shop-order-001","customer":{"name":"Test Buyer","email":"buyer@example.test"},"currency":"INR","items":[{"sku":"DEMO-SKU","quantity":1}]}
+```
+
+Successful responses contain only acceptance, duplicate/review status and a correlation reference. A website submission is not proof of payment: Phase C creates no payment, invoice, revenue, refund, stock reservation/deduction, fulfilment or external reply. Payment confirmation requires a future provider-signed payment webhook.

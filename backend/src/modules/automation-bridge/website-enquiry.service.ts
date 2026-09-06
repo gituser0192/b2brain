@@ -8,36 +8,32 @@ import { websiteEnquirySchema } from "./website-enquiry.validation.js";
 
 const REPLAY_WINDOW_SECONDS = 300;
 
+export async function verifyWebsiteWebhook(publicId: string, rawBody: Buffer | undefined, signature: string | undefined, timestampHeader: string | undefined, eventIdHeader: string | undefined, maxBytes = 64 * 1024) {
+  if (!rawBody || rawBody.length === 0 || rawBody.length > maxBytes)
+    throw new AppError(413, "Website payload is invalid.", "INVALID_WEBSITE_PAYLOAD");
+  const connector = await prisma.integrationConnector.findFirst({
+    where: { webhookKey: publicId, type: "WEBSITE", status: "ACTIVE", deletedAt: null },
+    select: { id: true, organizationId: true, createdById: true, appSecretEncrypted: true, configuration: true },
+  });
+  if (!connector?.appSecretEncrypted) throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+  const timestamp = Number(timestampHeader), now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > REPLAY_WINDOW_SECONDS || !eventIdHeader || eventIdHeader.length > 240 || !signature?.startsWith("v1="))
+    throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+  const expected = createHmac("sha256", decryptSecret(connector.appSecretEncrypted))
+    .update(Buffer.concat([Buffer.from(`${timestamp}.${eventIdHeader}.`, "utf8"), rawBody])).digest();
+  const suppliedHex = signature.slice(3), supplied = /^[a-f\d]{64}$/i.test(suppliedHex) ? Buffer.from(suppliedHex, "hex") : Buffer.alloc(0);
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected))
+    throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+  return { connector, eventId: eventIdHeader };
+}
+
 export class WebsiteEnquiryService {
   constructor(private readonly processor = new InboundEventProcessor()) {}
 
   async accept(publicId: string, rawBody: Buffer | undefined, signature: string | undefined, timestampHeader: string | undefined, eventIdHeader: string | undefined, body: unknown) {
-    if (!rawBody || rawBody.length === 0 || rawBody.length > 64 * 1024)
-      throw new AppError(413, "Website enquiry payload is invalid.", "INVALID_WEBSITE_ENQUIRY");
-    const connector = await prisma.integrationConnector.findFirst({
-      where: { webhookKey: publicId, type: "WEBSITE", status: "ACTIVE", deletedAt: null },
-      select: { id: true, organizationId: true, createdById: true, appSecretEncrypted: true },
-    });
-    if (!connector?.appSecretEncrypted)
-      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
-
-    const timestamp = Number(timestampHeader);
-    const now = Math.floor(Date.now() / 1000);
-    if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > REPLAY_WINDOW_SECONDS)
-      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
-    if (!eventIdHeader || eventIdHeader.length > 240 || !signature?.startsWith("v1="))
-      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
-
-    const expected = createHmac("sha256", decryptSecret(connector.appSecretEncrypted))
-      .update(Buffer.concat([Buffer.from(`${timestamp}.${eventIdHeader}.`, "utf8"), rawBody]))
-      .digest();
-    const suppliedHex = signature.slice(3);
-    const supplied = /^[a-f\d]{64}$/i.test(suppliedHex) ? Buffer.from(suppliedHex, "hex") : Buffer.alloc(0);
-    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected))
-      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
-
+    const { connector, eventId } = await verifyWebsiteWebhook(publicId, rawBody, signature, timestampHeader, eventIdHeader);
     const input = websiteEnquirySchema.parse(body);
-    if (input.eventId !== eventIdHeader)
+    if (input.eventId !== eventId)
       throw new AppError(400, "Website enquiry payload is invalid.", "INVALID_WEBSITE_ENQUIRY");
     const receivedAt = new Date().toISOString();
     const event = normalizedInboundEventSchema.parse({

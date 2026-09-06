@@ -6,7 +6,9 @@ const database = vi.hoisted(() => ({
   integrationEvent: { findFirst: vi.fn() },
   auditEvent: { create: vi.fn() },
 }));
+const orderCreate = vi.hoisted(() => vi.fn());
 vi.mock("../src/database/prisma.js", () => ({ prisma: database }));
+vi.mock("../src/modules/orders/order.service.js", () => ({ OrderService: class { createWebsiteDraft = orderCreate; } }));
 
 import { InboundEventProcessor } from "../src/modules/automation-bridge/processing/inbound-event.processor.js";
 
@@ -25,6 +27,7 @@ describe("shared inbound event processor", () => {
     database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR, provider: "B2BRAIN_SIMULATOR", configuration: { simulator: true } });
     database.integrationEvent.findFirst.mockResolvedValue(null);
     database.auditEvent.create.mockResolvedValue({});
+    orderCreate.mockResolvedValue({ duplicate: false, status: "AWAITING_APPROVAL", reviewRequired: true });
   });
 
   it("scopes connector lookup to the authenticated organization and delegates once", async () => {
@@ -107,5 +110,14 @@ describe("shared inbound event processor", () => {
     } }];
     expect(duplicateCall[0].where).toMatchObject({ organizationId: ORG_A,
       connectorId: "10000000-0000-4000-8000-00000000000b", externalEventId: event.externalEventId });
+  });
+
+  it("gates website orders by connector capability and delegates order creation", async () => {
+    database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR, configuration: { websiteOrderIngestionEnabled: true } });
+    const orderInput = { version: "1", eventId: "order-event-1", submittedAt: event.occurredAt, externalOrderId: "shop-1", customer: { email: "buyer@example.test" }, items: [{ sku: "SKU-1", quantity: 1 }], currency: "INR" } as const;
+    await new InboundEventProcessor().processVerifiedWebsiteOrder(ORG_A, "20000000-0000-4000-8000-00000000000a", { ...event, channel: "WEBSITE_ORDER", eventType: "ORDER_CREATED" }, orderInput);
+    expect(orderCreate).toHaveBeenCalledWith(ORG_A, "20000000-0000-4000-8000-00000000000a", CONNECTOR, event.correlationId, orderInput);
+    database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR, configuration: {} });
+    await expect(new InboundEventProcessor().processVerifiedWebsiteOrder(ORG_A, crypto.randomUUID(), { ...event, channel: "WEBSITE_ORDER", eventType: "ORDER_CREATED" }, orderInput)).rejects.toMatchObject({ code: "WEBSITE_ORDER_UNAVAILABLE" });
   });
 });

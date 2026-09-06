@@ -132,6 +132,8 @@ export const collectionEmailDeliverySchema = z.object({
   approvalId: z.string().uuid(),
 }).strict();
 export type CollectionEmailDeliveryInput = z.infer<typeof collectionEmailDeliverySchema>;
+export const websiteOrderCapabilitySchema = z.object({ enabled: z.boolean() }).strict();
+export type WebsiteOrderCapabilityInput = z.infer<typeof websiteOrderCapabilitySchema>;
 export const emailDeliveryPolicySchema = z.object({
   mode: z.enum(["MANUAL", "SEND_AFTER_APPROVAL"]),
   dailyContactLimit: z.number().int().min(1).max(1000),

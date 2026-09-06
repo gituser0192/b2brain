@@ -4,6 +4,8 @@ import { prisma } from "../../../database/prisma.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { EnquiryAgentService, enforceAgentPolicy, inquiryTypeForAgentIntent } from "../../enquiry-agent/enquiry-agent.service.js";
 import { inboundProcessingResultSchema, type InboundProcessingResult, type NormalizedInboundEvent } from "../contracts/inbound-event.contract.js";
+import { OrderService } from "../../orders/order.service.js";
+import type { WebsiteOrderInput } from "../website-order.validation.js";
 
 type AgentResult = Awaited<ReturnType<EnquiryAgentService["process"]>>;
 
@@ -122,6 +124,14 @@ export class InboundEventProcessor {
       }).catch(() => undefined);
       throw error;
     }
+  }
+
+  async processVerifiedWebsiteOrder(organizationId: string, userId: string, event: NormalizedInboundEvent, input: WebsiteOrderInput) {
+    if (event.channel !== "WEBSITE_ORDER" || event.eventType !== "ORDER_CREATED") throw new AppError(400, "This adapter accepts website orders only.", "UNSUPPORTED_INBOUND_EVENT");
+    const connector = await prisma.integrationConnector.findFirst({ where: { id: event.connectorId, organizationId, type: "WEBSITE", status: "ACTIVE", deletedAt: null }, select: { id: true, configuration: true } });
+    if (!connector || !(connector.configuration as { websiteOrderIngestionEnabled?: boolean }).websiteOrderIngestionEnabled)
+      throw new AppError(403, "Website order intake is unavailable.", "WEBSITE_ORDER_UNAVAILABLE");
+    return new OrderService().createWebsiteDraft(organizationId, userId, connector.id, event.correlationId, input);
   }
 
   private duplicateResult(event: { id: string; status: string; resultId: string | null }, correlationId: string): InboundProcessingResult {

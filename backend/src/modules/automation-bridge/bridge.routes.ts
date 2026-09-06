@@ -20,6 +20,8 @@ import {
   type CollectionEmailDeliveryInput,
   emailDeliveryPolicySchema,
   type EmailDeliveryPolicyInput,
+  websiteOrderCapabilitySchema,
+  type WebsiteOrderCapabilityInput,
 } from "./bridge.validation.js";
 import { EmailDeliveryService } from "./email-delivery.service.js";
 const service = new BridgeService(),
@@ -77,6 +79,10 @@ bridgeRouter.post(
     );
   },
 );
+bridgeRouter.put("/connectors/:id/website-orders", requirePermission("AUTOMATION_MANAGE"), validateBody(websiteOrderCapabilitySchema), async (r, s) => {
+  const c = auth(r), input = r.body as WebsiteOrderCapabilityInput;
+  s.json(success(await service.configureWebsiteOrders(c.organizationId, c.userId, String(r.params.id), input.enabled), "Website order capability updated."));
+});
 bridgeRouter.post(
   "/connectors/:id/website-secret/rotate",
   requirePermission("AUTOMATION_MANAGE"),

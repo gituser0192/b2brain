@@ -63,6 +63,7 @@ import { enquiryAgentRouter } from "./modules/enquiry-agent/enquiry-agent.routes
 import { businessKnowledgeRouter } from "./modules/business-knowledge/business-knowledge.routes.js";
 import { workspaceAgentRouter } from "./modules/workspace-agent/workspace-agent.routes.js";
 import { websiteEnquiryWebhookRouter } from "./modules/automation-bridge/website-enquiry.routes.js";
+import { websiteOrderWebhookRouter } from "./modules/automation-bridge/website-order.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -117,6 +118,7 @@ if (env.EXTERNAL_CHANNELS_ENABLED) {
   apiRouter.use("/webhooks/whatsapp", whatsappWebhookRouter);
   apiRouter.use("/public/forms", publicWebsiteFormRouter);
   apiRouter.use("/integrations/website/enquiries", websiteEnquiryWebhookRouter);
+  apiRouter.use("/integrations/website/orders", websiteOrderWebhookRouter);
 }
 apiRouter.use("/stay", stayRouter);
 apiRouter.use("/voice-calls", voiceCallRouter);

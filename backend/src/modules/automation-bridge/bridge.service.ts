@@ -84,6 +84,12 @@ export class BridgeService {
     });
     return { webhookSecret: secret, warning: "Store this secret securely. It is shown only once." };
   }
+  async configureWebsiteOrders(org: string, user: string, id: string, enabled: boolean) {
+    const connector = await prisma.integrationConnector.findFirst({ where: { id, organizationId: org, type: "WEBSITE", deletedAt: null }, select: { id: true, configuration: true } });
+    if (!connector) throw new AppError(404, "Connector was not found.", "CONNECTOR_NOT_FOUND");
+    const configuration = connector.configuration as Record<string, unknown>;
+    return prisma.integrationConnector.update({ where: { id }, data: { configuration: { ...configuration, websiteOrderIngestionEnabled: enabled }, updatedById: user }, select: connectorView });
+  }
   async updateConnector(
     org: string,
     user: string,
