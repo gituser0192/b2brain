@@ -119,6 +119,13 @@ const envSchema = z
       .default(10000),
     META_WHATSAPP_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
     META_GRAPH_API_VERSION: z.string().default("v23.0"),
+    META_LEAD_ADS_ENABLED: z.string().default("false").transform((value) => value === "true"),
+    META_LEAD_GRAPH_ENABLED: z.string().default("false").transform((value) => value === "true"),
+    META_LEAD_VERIFY_TOKEN: z.string().min(16).optional().transform((value) => value || undefined),
+    META_LEAD_APP_SECRET: z.string().min(16).optional().transform((value) => value || undefined),
+    META_LEAD_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+    META_LEAD_GRAPH_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(10000),
+    META_LEAD_GRAPH_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
     SMTP_HOST: z
       .string()
       .optional()
@@ -228,6 +235,12 @@ const envSchema = z
             path: [key],
             message: `${key} is required when Meta WhatsApp is enabled.`,
           });
+    }
+    if (value.META_LEAD_ADS_ENABLED) {
+      if (!value.EXTERNAL_CHANNELS_ENABLED)
+        context.addIssue({ code: "custom", path: ["META_LEAD_ADS_ENABLED"], message: "External channels must be enabled before Meta Lead Ads can be enabled." });
+      for (const key of ["META_LEAD_VERIFY_TOKEN", "META_LEAD_APP_SECRET"] as const)
+        if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when Meta Lead Ads is enabled.` });
     }
     if (value.META_WHATSAPP_OUTBOUND_ENABLED) {
       if (!value.META_WHATSAPP_ENABLED)

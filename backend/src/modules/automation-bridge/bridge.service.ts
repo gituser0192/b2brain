@@ -6,11 +6,12 @@ import type {
   ConnectorInput,
   EventDecisionInput,
   IntakeInput,
+  MetaLeadConnectorInput,
 } from "./bridge.validation.js";
 import { LeadAssignmentService } from "../inquiries/lead-assignment.service.js";
 import { LeadToCashAutomationService } from "./lead-to-cash-automation.service.js";
 import { encryptSecret } from "./bridge.crypto.js";
-const connectorView={id:true,name:true,type:true,status:true,mode:true,provider:true,externalAccountRef:true,webhookKey:true,whatsappPhoneNumberId:true,whatsappBusinessAccountId:true,credentialsConfiguredAt:true,lastReceivedAt:true,lastSuccessfulAt:true,lastErrorAt:true,lastErrorMessage:true,createdAt:true,_count:{select:{events:true,messageDrafts:true}}}as const;
+const connectorView={id:true,name:true,type:true,status:true,mode:true,provider:true,externalAccountRef:true,webhookKey:true,whatsappPhoneNumberId:true,whatsappBusinessAccountId:true,metaPageId:true,credentialsConfiguredAt:true,lastReceivedAt:true,lastSuccessfulAt:true,lastErrorAt:true,lastErrorMessage:true,createdAt:true,_count:{select:{events:true,messageDrafts:true}}}as const;
 const eventInclude = {
   connector: { select: { id: true, name: true, type: true, mode: true } },
   attempts: { orderBy: { createdAt: "desc" as const } },
@@ -89,6 +90,11 @@ export class BridgeService {
     if (!connector) throw new AppError(404, "Connector was not found.", "CONNECTOR_NOT_FOUND");
     const configuration = connector.configuration as Record<string, unknown>;
     return prisma.integrationConnector.update({ where: { id }, data: { configuration: { ...configuration, websiteOrderIngestionEnabled: enabled }, updatedById: user }, select: connectorView });
+  }
+  async configureMetaLead(org: string, user: string, id: string, input: MetaLeadConnectorInput) {
+    const connector = await prisma.integrationConnector.findFirst({ where: { id, organizationId: org, type: "SOCIAL", provider: "META_LEAD_ADS", deletedAt: null }, select: { id: true, configuration: true } });
+    if (!connector) throw new AppError(404, "Connector was not found.", "CONNECTOR_NOT_FOUND");
+    return prisma.integrationConnector.update({ where: { id }, data: { metaPageId: input.pageId, accessTokenEncrypted: encryptSecret(input.pageAccessToken), credentialsConfiguredAt: new Date(), status: "DRAFT", configuration: { ...(connector.configuration as Record<string, unknown>), metaLeadAllowedFormIds: input.allowedFormIds, metaLeadAuthorizationVerified: false }, updatedById: user }, select: connectorView });
   }
   async updateConnector(
     org: string,

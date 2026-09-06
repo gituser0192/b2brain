@@ -120,4 +120,13 @@ describe("shared inbound event processor", () => {
     database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR, configuration: {} });
     await expect(new InboundEventProcessor().processVerifiedWebsiteOrder(ORG_A, crypto.randomUUID(), { ...event, channel: "WEBSITE_ORDER", eventType: "ORDER_CREATED" }, orderInput)).rejects.toMatchObject({ code: "WEBSITE_ORDER_UNAVAILABLE" });
   });
+
+  it("delegates a Meta lead exclusively through the shared CRM agent", async () => {
+    database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR });
+    database.integrationEvent.findFirst.mockResolvedValue(null);
+    const process = vi.fn().mockResolvedValue({ duplicate: false, eventId: crypto.randomUUID(), customer: null, customerCreated: true, inquiryId: crypto.randomUUID(), analysis: { intent: "SALES_ENQUIRY", confidence: 0.9, promptInjectionDetected: false }, response: "Review required.", tools: [], approvalRequired: true, humanTakeover: false, externalActionPerformed: false });
+    const result = await new InboundEventProcessor({ process } as never).processVerifiedMetaLead(ORG_A, crypto.randomUUID(), { ...event, channel: "META_LEAD_AD", eventType: "LEAD_CAPTURED", externalEventId: "333" });
+    expect(process).toHaveBeenCalledWith(ORG_A, expect.any(String), expect.objectContaining({ channel: "META_LEAD_AD", externalMessageId: "333" }), { connectorId: CONNECTOR, source: "META_LEAD", forceApproval: true });
+    expect(result).toMatchObject({ duplicate: false, externalActionPerformed: false });
+  });
 });

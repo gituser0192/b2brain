@@ -80,3 +80,15 @@ Synthetic senders use the Phase B signature algorithm; replace the enquiry paylo
 ```
 
 Successful responses contain only acceptance, duplicate/review status and a correlation reference. A website submission is not proof of payment: Phase C creates no payment, invoice, revenue, refund, stock reservation/deduction, fulfilment or external reply. Payment confirmation requires a future provider-signed payment webhook.
+
+## Meta Lead Ads adapter (Phase D)
+
+Phase D adds the disabled-by-default callback at `GET|POST /api/v1/integrations/meta/leads`. GET returns Meta's challenge only for `hub.mode=subscribe` and the server-side verify token. POST verifies the exact raw bytes with `X-Hub-Signature-256` and the server-side Meta App Secret before connector lookup or Graph access. `EXTERNAL_CHANNELS_ENABLED` and `META_LEAD_ADS_ENABLED` must both be deliberately enabled; `META_LEAD_GRAPH_ENABLED` separately controls real Graph retrieval.
+
+An authorized Automation manager configures a `SOCIAL` / `META_LEAD_ADS` connector through `PUT /api/v1/automation-bridge/connectors/:id/meta-lead`. The Page ID is a digits-only string stored in the unique `metaPageId` column. Optional Form IDs are an allowlist. The Page token uses existing encrypted credential storage and is never returned. Saving identifiers leaves the connector in `DRAFT`; it must not become active until authorization and webhook verification have succeeded. Disable or reconnect by pausing the connector and replacing its encrypted credentials explicitly.
+
+The Graph boundary accepts only `https://graph.facebook.com`, constructs its own versioned lead URL, uses an authorization header, limits time, retries, and response size, and maps failures to safe errors. Automated tests inject a deterministic fake client and never contact Meta. Supported standard fields are name, email, phone, company, message and requirement; unknown form answers are discarded unless explicitly mapped. No URL in a lead answer is fetched.
+
+Verified leads normalize to `META_LEAD_AD` / `LEAD_CAPTURED`; organization and connector come only from the unique active Page mapping. Form allowlists are evaluated after Page resolution. The Meta lead ID is the external idempotency identity, and the adapter delegates CRM work exclusively to the shared inbound processor. Acknowledgements contain only accepted/processed state; diagnostics use correlation IDs and hashed Page/lead identifiers.
+
+No reply, campaign change, audience upload, payment, order, revenue recognition, WhatsApp action or hosted-AI activation occurs in Phase D. Real activation still requires a Meta App, Lead Ads permissions and App Review, durable Page/system-user tokens, authorization verification, subscribed Pages, operational token rotation, privacy/compliance review, and production kill-switch approval. Use placeholders and the fake Graph client for local tests.

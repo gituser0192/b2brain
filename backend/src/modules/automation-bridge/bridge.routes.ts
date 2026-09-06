@@ -22,6 +22,8 @@ import {
   type EmailDeliveryPolicyInput,
   websiteOrderCapabilitySchema,
   type WebsiteOrderCapabilityInput,
+  metaLeadConnectorSchema,
+  type MetaLeadConnectorInput,
 } from "./bridge.validation.js";
 import { EmailDeliveryService } from "./email-delivery.service.js";
 const service = new BridgeService(),
@@ -82,6 +84,10 @@ bridgeRouter.post(
 bridgeRouter.put("/connectors/:id/website-orders", requirePermission("AUTOMATION_MANAGE"), validateBody(websiteOrderCapabilitySchema), async (r, s) => {
   const c = auth(r), input = r.body as WebsiteOrderCapabilityInput;
   s.json(success(await service.configureWebsiteOrders(c.organizationId, c.userId, String(r.params.id), input.enabled), "Website order capability updated."));
+});
+bridgeRouter.put("/connectors/:id/meta-lead", requirePermission("AUTOMATION_MANAGE"), validateBody(metaLeadConnectorSchema), async (r, s) => {
+  const c = auth(r);
+  s.json(success(await service.configureMetaLead(c.organizationId, c.userId, String(r.params.id), r.body as MetaLeadConnectorInput), "Meta Lead connector configuration saved for verification."));
 });
 bridgeRouter.post(
   "/connectors/:id/website-secret/rotate",

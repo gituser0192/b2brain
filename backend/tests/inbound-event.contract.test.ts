@@ -23,12 +23,12 @@ describe("normalized inbound event contract v1", () => {
   });
 
   it("rejects unknown event types, oversized content and future timestamps", () => {
-    expect(normalizedInboundEventSchema.safeParse({ ...event, eventType: "LEAD_CAPTURED" }).success).toBe(false);
+    expect(normalizedInboundEventSchema.safeParse({ ...event, eventType: "MESSAGE_STATUS_UPDATED" }).success).toBe(false);
     expect(normalizedInboundEventSchema.safeParse({ ...event, content: { text: "x".repeat(4097) } }).success).toBe(false);
     expect(normalizedInboundEventSchema.safeParse({ ...event, occurredAt: "2026-09-06T11:00:00.000Z" }).success).toBe(false);
   });
 
   it("documents remaining future types without activating them", () => {
-    expect(reservedInboundEventTypes).toEqual(["LEAD_CAPTURED", "MESSAGE_STATUS_UPDATED"]);
+    expect(reservedInboundEventTypes).toEqual(["MESSAGE_STATUS_UPDATED"]);
   });
 });

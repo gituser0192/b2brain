@@ -3267,6 +3267,7 @@ model IntegrationConnector {
   signingSecretHash         String?
   whatsappPhoneNumberId     String?
   whatsappBusinessAccountId String?
+  metaPageId                String?                  @unique
   accessTokenEncrypted      String?
   appSecretEncrypted        String?
   credentialsConfiguredAt   DateTime?
