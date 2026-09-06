@@ -21,6 +21,7 @@ const collection = { accounts: [{ id: "acc-e2e-001", name: "Synthetic Current Ac
 const followUp = { id: "fup-e2e-001", title: "Confirm annual plan", description: "Synthetic follow-up fixture", status: "PENDING", dueAt: "2026-09-01T09:00:00.000Z", customer: { id: customer.id, displayName: customer.displayName, email: customer.email, phone: customer.phone }, assignedTo: { id: ownerSession.user.id, firstName: ownerSession.user.firstName, lastName: ownerSession.user.lastName } };
 const inquiry = { id: "inq-e2e-001", source: "WEBSITE", type: "SALES", status: "QUALIFIED", priority: "HIGH", contactName: "Synthetic Buyer", email: "buyer@example.test", phone: "+919999900002", companyName: "Buyer Test Co", subject: "Annual plan enquiry", message: "Please share the annual plan.", campaignId: null, assignedEmployeeId: null, responseDueAt: null, disqualifiedReason: null, nextFollowUpAt: "2026-09-05T09:00:00.000Z", followUpNote: "Share approved plan details", followUpCompletedAt: null, createdAt: NOW, customer: null, assignedEmployee: null, timeline: [] };
 const automationConnector = { id: "con-e2e-whatsapp", name: "Synthetic WhatsApp Simulator", type: "WHATSAPP", provider: "B2BRAIN_SIMULATOR", status: "ACTIVE", mode: "MANUAL_APPROVAL", webhookKey: "synthetic-webhook", lastReceivedAt: null, credentialsConfiguredAt: null, whatsappPhoneNumberId: null, _count: { events: 0, messageDrafts: 0 } };
+const metaAutomationConnector = { ...automationConnector, id: "con-meta-e2e", name: "Synthetic Meta Lead Ads", type: "SOCIAL", provider: "META_LEAD_ADS", status: "DRAFT", webhookKey: "synthetic-meta" };
 function json(route: Route, data: unknown, status = 200) { return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) }); }
 
 function fixture(path: string, method: string, session: typeof ownerSession) {
@@ -63,7 +64,7 @@ function fixture(path: string, method: string, session: typeof ownerSession) {
   return { success: true, data: method === "GET" ? [] : { id: "synthetic-result" } };
 }
 
-export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; permissions?: string[]; delayDashboard?: number; failDashboard?: boolean; emptyDashboard?: boolean; dashboardAlerts?: { type: string; count: number; label: string; view: string }[]; longIdentity?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean } = {}) {
+export async function installSyntheticApi(page: Page, options: { authenticated?: boolean; restricted?: boolean; enabledServices?: string[]; permissions?: string[]; delayDashboard?: number; failDashboard?: boolean; emptyDashboard?: boolean; dashboardAlerts?: { type: string; count: number; label: string; view: string }[]; longIdentity?: boolean; delayCustomers?: number; failCustomers?: boolean; emptyCustomers?: boolean; delayProjects?: number; failProjects?: boolean; emptyProjects?: boolean; delayFinance?: number; failFinance?: boolean; emptyFinance?: boolean; richFinance?: boolean; richAutomation?: boolean; metaAutomation?: boolean } = {}) {
   const authenticated = options.authenticated ?? true;
   const baseSession = options.restricted ? employeeSession : ownerSession;
   const permissionSession = options.permissions ? { ...baseSession, membership: { ...baseSession.membership, permissions: options.permissions } } : baseSession;
@@ -90,6 +91,7 @@ export async function installSyntheticApi(page: Page, options: { authenticated?:
     if (clean === "/finance/ledger" && options.richFinance) return json(route, { success: true, data: ledger });
     if (clean === "/payment-collection" && options.richFinance) return json(route, { success: true, data: collection });
     if (clean === "/automation-bridge" && options.richAutomation) return json(route, { success: true, data: { connectors: [automationConnector], events: [], metrics: { received: 0, processed: 0, failed: 0, quarantined: 0 } } });
+    if (clean === "/automation-bridge" && options.metaAutomation) return json(route, { success: true, data: { connectors: [metaAutomationConnector], events: [], metrics: { received: 0, processed: 0, failed: 0, quarantined: 0 } } });
     const response = fixture(path, route.request().method(), session);
     if (clean === "/dashboard/summary" && "data" in response && response.data && typeof response.data === "object") {
       const data = response.data as ReturnType<typeof fixture> extends { data: infer T } ? T : never;

@@ -564,6 +564,26 @@
   padding: 7px 10px;
 }
 
+/* Meta Lead Ads guided test-mode setup */
+.meta-lead-setup { background:#fff; border:1px solid #dce4ef; border-radius:13px; margin-top:18px; padding:18px; }
+.meta-lead-setup > header { align-items:flex-start; display:flex; gap:16px; justify-content:space-between; }
+.meta-lead-setup > header p,.meta-lead-setup > header h3 { margin:0; }
+.meta-lead-setup > header p { color:#087ce3; font-size:10px; font-weight:800; text-transform:uppercase; }
+.meta-lead-setup > header span,.meta-lead-setup > small { color:#68798f; }
+.meta-lead-setup > header strong { background:#fff3cd; border-radius:99px; color:#7a5200; padding:7px 10px; }
+.meta-lead-setup ol { display:grid; gap:7px; grid-template-columns:repeat(8,minmax(0,1fr)); list-style-position:inside; padding:0; }
+.meta-lead-setup li { background:#f4f8fc; border-radius:8px; font-size:10px; padding:9px; }
+.meta-setup-status { display:grid; gap:8px; grid-template-columns:repeat(3,minmax(0,1fr)); margin:14px 0; }
+.meta-setup-status span { background:#f7f9fc; border:1px solid #e2e8ef; border-radius:9px; display:grid; gap:4px; padding:10px; }
+.meta-setup-actions { align-items:end; display:flex; flex-wrap:wrap; gap:9px; margin:12px 0; }
+.meta-setup-actions label,.meta-setup-actions fieldset { display:flex; gap:7px; }
+.meta-setup-actions select,.meta-setup-actions button { border:1px solid #ced9e6; border-radius:8px; padding:9px; }
+.meta-setup-actions button { background:#087ce3; color:#fff; cursor:pointer; }
+.meta-setup-actions button:disabled { background:#b8c5d2; cursor:not-allowed; }
+.meta-setup-notice { background:#edf7ff; border-radius:8px; padding:10px; }
+@media (max-width:900px) { .meta-lead-setup ol,.meta-setup-status { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { .meta-lead-setup ol,.meta-setup-status { grid-template-columns:1fr; } .meta-setup-actions,.meta-setup-actions label,.meta-setup-actions fieldset { align-items:stretch; flex-direction:column; } }
+
 /* Follow-up automation */
 /* Follow-up sequence automation */
 .follow-up-automation {

@@ -8,6 +8,7 @@ import { WhatsappFollowUpWorkspace } from "./whatsapp-follow-up-workspace";
 import { BridgeOverview } from "./bridge-overview";
 import { BridgeDialogs, type BridgeDialogKind } from "./bridge-dialogs";
 import type { BridgeConnector, BridgeDraft, BridgeEvent, BridgePayload } from "./bridge-types";
+import { MetaLeadSetup } from "./meta-lead-setup";
 const connectorBlank = {
     name: "",
     type: "WHATSAPP",
@@ -291,6 +292,7 @@ export function BridgeManager() {
         onReply={(item) => void createReply(item)}
         onSendDraft={(id) => void sendDraft(id)}
       />
+      {connectors.filter(item => item.type === "SOCIAL" && item.provider === "META_LEAD_ADS").map(item => <MetaLeadSetup key={item.id} connectorId={item.id} />)}
       <WhatsappFollowUpWorkspace />
       <BridgeDialogs
         open={open}

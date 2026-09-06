@@ -891,298 +891,300 @@ enum SchoolImportStatus {
 }
 
 model User {
-  id                           String                        @id @default(uuid()) @db.Uuid
-  firstName                    String
-  lastName                     String?
-  email                        String                        @unique
-  passwordHash                 String
-  status                       UserStatus                    @default(ACTIVE)
-  emailVerifiedAt              DateTime?
-  lastLoginAt                  DateTime?
-  createdAt                    DateTime                      @default(now())
-  updatedAt                    DateTime                      @updatedAt
-  deletedAt                    DateTime?
-  isPlatformAdmin              Boolean                       @default(false)
-  memberships                  OrganizationMembership[]
-  refreshSessions              RefreshSession[]
-  passwordResetTokens          PasswordResetToken[]
-  invitationsSent              MembershipInvitation[]        @relation("InvitationSender")
-  organizationServicesCreated  OrganizationService[]         @relation("OrganizationServiceCreatedBy")
-  organizationServicesUpdated  OrganizationService[]         @relation("OrganizationServiceUpdatedBy")
-  memberServiceAccessCreated   MembershipServiceAccess[]     @relation("MemberServiceAccessCreatedBy")
-  memberServiceAccessUpdated   MembershipServiceAccess[]     @relation("MemberServiceAccessUpdatedBy")
-  servicePlansCreated          ServicePlan[]                 @relation("ServicePlanCreatedBy")
-  servicePlansUpdated          ServicePlan[]                 @relation("ServicePlanUpdatedBy")
-  organizationPlansAssigned    OrganizationPlan[]            @relation("OrganizationPlanAssignedBy")
-  organizationPlansUpdated     OrganizationPlan[]            @relation("OrganizationPlanUpdatedBy")
-  subscriptionPaymentsCreated  SubscriptionPayment[]         @relation("SubscriptionPaymentCreatedBy")
-  serviceOverridesCreated      OrganizationServiceOverride[] @relation("ServiceOverrideCreatedBy")
-  entitlementsCreated          Entitlement[]                 @relation("EntitlementCreatedBy")
-  entitlementsUpdated          Entitlement[]                 @relation("EntitlementUpdatedBy")
-  platformInvitationsSent      PlatformInvitation[]          @relation("PlatformInvitationSender")
-  customersCreated             Customer[]                    @relation("CustomerCreatedBy")
-  customersUpdated             Customer[]                    @relation("CustomerUpdatedBy")
-  customerActivitiesCreated    CustomerActivity[]            @relation("CustomerActivityCreatedBy")
-  customerActivitiesUpdated    CustomerActivity[]            @relation("CustomerActivityUpdatedBy")
-  followUpsAssigned            CustomerFollowUp[]            @relation("FollowUpAssignedTo")
-  followUpsCreated             CustomerFollowUp[]            @relation("FollowUpCreatedBy")
-  followUpsUpdated             CustomerFollowUp[]            @relation("FollowUpUpdatedBy")
-  notifications                Notification[]                @relation("NotificationRecipient")
-  notificationsCreated         Notification[]                @relation("NotificationCreatedBy")
-  notificationsUpdated         Notification[]                @relation("NotificationUpdatedBy")
-  agentsCreated                AgentDefinition[]             @relation("AgentCreatedBy")
-  agentsUpdated                AgentDefinition[]             @relation("AgentUpdatedBy")
-  agentRunsInitiated           AgentRun[]                    @relation("AgentRunInitiatedBy")
-  voiceCallsCreated            VoiceCallJob[]                @relation("VoiceCallCreatedBy")
-  voiceCallsUpdated            VoiceCallJob[]                @relation("VoiceCallUpdatedBy")
-  voiceCallsApproved           VoiceCallJob[]                @relation("VoiceCallApprovedBy")
-  approvalsRequested           ApprovalRequest[]             @relation("ApprovalRequestedBy")
-  approvalsDecided             ApprovalRequest[]             @relation("ApprovalDecidedBy")
-  auditEvents                  AuditEvent[]                  @relation("AuditActorUser")
-  recommendationsDecided       BusinessRecommendation[]      @relation("RecommendationDecidedBy")
-  businessGoalsCreated         BusinessGoal[]                @relation("BusinessGoalCreatedBy")
-  businessGoalsUpdated         BusinessGoal[]                @relation("BusinessGoalUpdatedBy")
-  projectsOwned                Project[]                     @relation("ProjectOwner")
-  projectsCreated              Project[]                     @relation("ProjectCreatedBy")
-  projectsUpdated              Project[]                     @relation("ProjectUpdatedBy")
-  tasksAssigned                ProjectTask[]                 @relation("TaskAssignedTo")
-  tasksCreated                 ProjectTask[]                 @relation("TaskCreatedBy")
-  tasksUpdated                 ProjectTask[]                 @relation("TaskUpdatedBy")
-  projectMembersCreated        ProjectMember[]               @relation("ProjectMemberCreatedBy")
-  projectMembersUpdated        ProjectMember[]               @relation("ProjectMemberUpdatedBy")
-  employeeProfiles             Employee[]                    @relation("EmployeeLinkedUser")
-  employeesCreated             Employee[]                    @relation("EmployeeCreatedBy")
-  employeesUpdated             Employee[]                    @relation("EmployeeUpdatedBy")
-  dealsOwned                   Deal[]                        @relation("DealOwner")
-  dealsCreated                 Deal[]                        @relation("DealCreatedBy")
-  dealsUpdated                 Deal[]                        @relation("DealUpdatedBy")
-  invoicesCreated              Invoice[]                     @relation("InvoiceCreatedBy")
-  invoicesUpdated              Invoice[]                     @relation("InvoiceUpdatedBy")
-  quotationsCreated            Quotation[]                   @relation("QuotationCreatedBy")
-  quotationsUpdated            Quotation[]                   @relation("QuotationUpdatedBy")
-  paymentsCreated              Payment[]                     @relation("PaymentCreatedBy")
-  paymentAccountsCreated       PaymentAccount[]              @relation("PaymentAccountCreatedBy")
-  paymentAccountsUpdated       PaymentAccount[]              @relation("PaymentAccountUpdatedBy")
-  incomingPaymentsCreated      IncomingPaymentTransaction[]  @relation("IncomingPaymentCreatedBy")
-  incomingPaymentsUpdated      IncomingPaymentTransaction[]  @relation("IncomingPaymentUpdatedBy")
-  paymentRefundsRequested      PaymentRefund[]               @relation("PaymentRefundRequestedBy")
-  paymentRefundsUpdated        PaymentRefund[]               @relation("PaymentRefundUpdatedBy")
-  expensesCreated              Expense[]                     @relation("ExpenseCreatedBy")
-  expensesUpdated              Expense[]                     @relation("ExpenseUpdatedBy")
-  catalogueItemsCreated        CatalogueItem[]               @relation("CatalogueItemCreatedBy")
-  catalogueItemsUpdated        CatalogueItem[]               @relation("CatalogueItemUpdatedBy")
-  ordersCreated                Order[]                       @relation("OrderCreatedBy")
-  ordersUpdated                Order[]                       @relation("OrderUpdatedBy")
-  warehousesCreated            Warehouse[]                   @relation("WarehouseCreatedBy")
-  warehousesUpdated            Warehouse[]                   @relation("WarehouseUpdatedBy")
-  stockMovementsCreated        StockMovement[]               @relation("StockMovementCreatedBy")
-  campaignsCreated             MarketingCampaign[]           @relation("CampaignCreatedBy")
-  campaignsUpdated             MarketingCampaign[]           @relation("CampaignUpdatedBy")
-  campaignLeadsCreated         CampaignLead[]                @relation("CampaignLeadCreatedBy")
-  ticketsCreated               SupportTicket[]               @relation("TicketCreatedBy")
-  ticketsUpdated               SupportTicket[]               @relation("TicketUpdatedBy")
-  ticketMessagesCreated        TicketMessage[]               @relation("TicketMessageCreatedBy")
-  ticketAttachmentsCreated     TicketAttachment[]            @relation("TicketAttachmentCreatedBy")
-  websitesCreated              ManagedWebsite[]              @relation("WebsiteCreatedBy")
-  websitesUpdated              ManagedWebsite[]              @relation("WebsiteUpdatedBy")
-  websiteRequestsCreated       WebsiteChangeRequest[]        @relation("WebsiteRequestCreatedBy")
-  websiteRequestsUpdated       WebsiteChangeRequest[]        @relation("WebsiteRequestUpdatedBy")
-  websiteRequestsApproved      WebsiteChangeRequest[]        @relation("WebsiteRequestApprovedBy")
-  providerRequestsCreated      ProviderServiceRequest[]      @relation("ProviderRequestCreatedBy")
-  providerRequestsUpdated      ProviderServiceRequest[]      @relation("ProviderRequestUpdatedBy")
-  providerMessagesCreated      ProviderServiceMessage[]      @relation("ProviderMessageCreatedBy")
-  deploymentsCreated           WebsiteDeployment[]           @relation("DeploymentCreatedBy")
-  vendorsCreated               Vendor[]                      @relation("VendorCreatedBy")
-  vendorsUpdated               Vendor[]                      @relation("VendorUpdatedBy")
-  purchaseOrdersCreated        PurchaseOrder[]               @relation("PurchaseOrderCreatedBy")
-  purchaseOrdersUpdated        PurchaseOrder[]               @relation("PurchaseOrderUpdatedBy")
-  purchaseOrdersApproved       PurchaseOrder[]               @relation("PurchaseOrderApprovedBy")
-  goodsReceiptsCreated         GoodsReceipt[]                @relation("GoodsReceiptCreatedBy")
-  calendarEventsCreated        CalendarEvent[]               @relation("CalendarEventCreatedBy")
-  calendarEventsUpdated        CalendarEvent[]               @relation("CalendarEventUpdatedBy")
-  inquiriesCreated             Inquiry[]                     @relation("InquiryCreatedBy")
-  inquiriesUpdated             Inquiry[]                     @relation("InquiryUpdatedBy")
-  inquiryTimelineCreated       InquiryTimeline[]             @relation("InquiryTimelineCreatedBy")
-  leadAssignmentsCreated       LeadAssignmentHistory[]       @relation("LeadAssignmentActor")
-  connectorsCreated            IntegrationConnector[]        @relation("ConnectorCreatedBy")
-  connectorsUpdated            IntegrationConnector[]        @relation("ConnectorUpdatedBy")
-  integrationEventsCreated     IntegrationEvent[]            @relation("IntegrationEventCreatedBy")
-  integrationEventsUpdated     IntegrationEvent[]            @relation("IntegrationEventUpdatedBy")
-  automationAttemptsCreated    AutomationAttempt[]           @relation("AutomationAttemptCreatedBy")
-  automationPoliciesCreated    AutomationPolicy[]            @relation("AutomationPolicyCreatedBy")
-  automationPoliciesUpdated    AutomationPolicy[]            @relation("AutomationPolicyUpdatedBy")
-  policyExecutionsCreated      AutomationPolicyExecution[]   @relation("AutomationPolicyExecutionCreatedBy")
-  messageDraftsCreated         AutomationMessageDraft[]      @relation("MessageDraftCreatedBy")
-  messageDraftsUpdated         AutomationMessageDraft[]      @relation("MessageDraftUpdatedBy")
-  messageDraftsApproved        AutomationMessageDraft[]      @relation("MessageDraftApprovedBy")
-  agentSchedulesCreated        AgentSchedule[]               @relation("AgentScheduleCreatedBy")
-  agentSchedulesUpdated        AgentSchedule[]               @relation("AgentScheduleUpdatedBy")
-  stayRecordsCreated           StayProperty[]                @relation("StayPropertyCreatedBy")
-  stayRecordsUpdated           StayProperty[]                @relation("StayPropertyUpdatedBy")
-  stayResidentsCreated         StayResident[]                @relation("StayResidentCreatedBy")
-  stayResidentsUpdated         StayResident[]                @relation("StayResidentUpdatedBy")
-  stayOccupanciesCreated       StayOccupancy[]               @relation("StayOccupancyCreatedBy")
-  stayRentChargesCreated       StayRentCharge[]              @relation("StayRentChargeCreatedBy")
-  stayPaymentsCreated          StayRentPayment[]             @relation("StayRentPaymentCreatedBy")
-  schoolAcademicYearsCreated   SchoolAcademicYear[]          @relation("SchoolAcademicYearCreatedBy")
-  schoolAcademicYearsUpdated   SchoolAcademicYear[]          @relation("SchoolAcademicYearUpdatedBy")
-  schoolClassesCreated         SchoolClass[]                 @relation("SchoolClassCreatedBy")
-  schoolClassesUpdated         SchoolClass[]                 @relation("SchoolClassUpdatedBy")
-  schoolSectionsCreated        SchoolSection[]               @relation("SchoolSectionCreatedBy")
-  schoolSectionsUpdated        SchoolSection[]               @relation("SchoolSectionUpdatedBy")
-  schoolStudentsCreated        SchoolStudent[]               @relation("SchoolStudentCreatedBy")
-  schoolStudentsUpdated        SchoolStudent[]               @relation("SchoolStudentUpdatedBy")
-  schoolGuardiansCreated       SchoolGuardian[]              @relation("SchoolGuardianCreatedBy")
-  schoolGuardiansUpdated       SchoolGuardian[]              @relation("SchoolGuardianUpdatedBy")
-  schoolEnrollmentsCreated     SchoolEnrollment[]            @relation("SchoolEnrollmentCreatedBy")
-  schoolEnrollmentsUpdated     SchoolEnrollment[]            @relation("SchoolEnrollmentUpdatedBy")
-  schoolSubjectsCreated        SchoolSubject[]               @relation("SchoolSubjectCreatedBy")
-  schoolSubjectsUpdated        SchoolSubject[]               @relation("SchoolSubjectUpdatedBy")
-  schoolTeachersCreated        SchoolTeacher[]               @relation("SchoolTeacherCreatedBy")
-  schoolTeachersUpdated        SchoolTeacher[]               @relation("SchoolTeacherUpdatedBy")
-  schoolAssignmentsCreated     SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentCreatedBy")
-  schoolAssignmentsUpdated     SchoolTeacherAssignment[]     @relation("SchoolTeacherAssignmentUpdatedBy")
-  studentAttendanceMarked      SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceMarkedBy")
-  studentAttendanceUpdated     SchoolStudentAttendance[]     @relation("SchoolStudentAttendanceUpdatedBy")
-  teacherAttendanceMarked      SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceMarkedBy")
-  teacherAttendanceUpdated     SchoolTeacherAttendance[]     @relation("SchoolTeacherAttendanceUpdatedBy")
-  schoolTimetableCreated       SchoolTimetableEntry[]        @relation("SchoolTimetableCreatedBy")
-  schoolTimetableUpdated       SchoolTimetableEntry[]        @relation("SchoolTimetableUpdatedBy")
-  schoolSubstitutesCreated     SchoolSubstituteAssignment[]  @relation("SchoolSubstituteCreatedBy")
-  schoolSubstitutesUpdated     SchoolSubstituteAssignment[]  @relation("SchoolSubstituteUpdatedBy")
-  schoolGuardianAlertsCreated  SchoolGuardianAlert[]         @relation("SchoolGuardianAlertCreatedBy")
-  schoolGuardianAlertsUpdated  SchoolGuardianAlert[]         @relation("SchoolGuardianAlertUpdatedBy")
-  schoolGuardianAlertsApproved SchoolGuardianAlert[]         @relation("SchoolGuardianAlertApprovedBy")
-  schoolFeeStructuresCreated   SchoolFeeStructure[]          @relation("SchoolFeeStructureCreatedBy")
-  schoolFeeStructuresUpdated   SchoolFeeStructure[]          @relation("SchoolFeeStructureUpdatedBy")
-  schoolFeeChargesCreated      SchoolFeeCharge[]             @relation("SchoolFeeChargeCreatedBy")
-  schoolFeeChargesUpdated      SchoolFeeCharge[]             @relation("SchoolFeeChargeUpdatedBy")
-  schoolFeePaymentsCreated     SchoolFeePayment[]            @relation("SchoolFeePaymentCreatedBy")
-  schoolFeeRemindersCreated    SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderCreatedBy")
-  schoolFeeRemindersUpdated    SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderUpdatedBy")
-  schoolFeeRemindersApproved   SchoolFeeReminderDraft[]      @relation("SchoolFeeReminderApprovedBy")
-  schoolImportsCreated         SchoolImportBatch[]           @relation("SchoolImportCreatedBy")
-  businessKnowledgeCreated     BusinessKnowledgeEntry[]      @relation("BusinessKnowledgeCreatedBy")
-  businessKnowledgeUpdated     BusinessKnowledgeEntry[]      @relation("BusinessKnowledgeUpdatedBy")
-  businessKnowledgeApproved    BusinessKnowledgeEntry[]      @relation("BusinessKnowledgeApprovedBy")
+  id                             String                          @id @default(uuid()) @db.Uuid
+  firstName                      String
+  lastName                       String?
+  email                          String                          @unique
+  passwordHash                   String
+  status                         UserStatus                      @default(ACTIVE)
+  emailVerifiedAt                DateTime?
+  lastLoginAt                    DateTime?
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  deletedAt                      DateTime?
+  isPlatformAdmin                Boolean                         @default(false)
+  memberships                    OrganizationMembership[]
+  integrationAuthorizationStates IntegrationAuthorizationState[]
+  refreshSessions                RefreshSession[]
+  passwordResetTokens            PasswordResetToken[]
+  invitationsSent                MembershipInvitation[]          @relation("InvitationSender")
+  organizationServicesCreated    OrganizationService[]           @relation("OrganizationServiceCreatedBy")
+  organizationServicesUpdated    OrganizationService[]           @relation("OrganizationServiceUpdatedBy")
+  memberServiceAccessCreated     MembershipServiceAccess[]       @relation("MemberServiceAccessCreatedBy")
+  memberServiceAccessUpdated     MembershipServiceAccess[]       @relation("MemberServiceAccessUpdatedBy")
+  servicePlansCreated            ServicePlan[]                   @relation("ServicePlanCreatedBy")
+  servicePlansUpdated            ServicePlan[]                   @relation("ServicePlanUpdatedBy")
+  organizationPlansAssigned      OrganizationPlan[]              @relation("OrganizationPlanAssignedBy")
+  organizationPlansUpdated       OrganizationPlan[]              @relation("OrganizationPlanUpdatedBy")
+  subscriptionPaymentsCreated    SubscriptionPayment[]           @relation("SubscriptionPaymentCreatedBy")
+  serviceOverridesCreated        OrganizationServiceOverride[]   @relation("ServiceOverrideCreatedBy")
+  entitlementsCreated            Entitlement[]                   @relation("EntitlementCreatedBy")
+  entitlementsUpdated            Entitlement[]                   @relation("EntitlementUpdatedBy")
+  platformInvitationsSent        PlatformInvitation[]            @relation("PlatformInvitationSender")
+  customersCreated               Customer[]                      @relation("CustomerCreatedBy")
+  customersUpdated               Customer[]                      @relation("CustomerUpdatedBy")
+  customerActivitiesCreated      CustomerActivity[]              @relation("CustomerActivityCreatedBy")
+  customerActivitiesUpdated      CustomerActivity[]              @relation("CustomerActivityUpdatedBy")
+  followUpsAssigned              CustomerFollowUp[]              @relation("FollowUpAssignedTo")
+  followUpsCreated               CustomerFollowUp[]              @relation("FollowUpCreatedBy")
+  followUpsUpdated               CustomerFollowUp[]              @relation("FollowUpUpdatedBy")
+  notifications                  Notification[]                  @relation("NotificationRecipient")
+  notificationsCreated           Notification[]                  @relation("NotificationCreatedBy")
+  notificationsUpdated           Notification[]                  @relation("NotificationUpdatedBy")
+  agentsCreated                  AgentDefinition[]               @relation("AgentCreatedBy")
+  agentsUpdated                  AgentDefinition[]               @relation("AgentUpdatedBy")
+  agentRunsInitiated             AgentRun[]                      @relation("AgentRunInitiatedBy")
+  voiceCallsCreated              VoiceCallJob[]                  @relation("VoiceCallCreatedBy")
+  voiceCallsUpdated              VoiceCallJob[]                  @relation("VoiceCallUpdatedBy")
+  voiceCallsApproved             VoiceCallJob[]                  @relation("VoiceCallApprovedBy")
+  approvalsRequested             ApprovalRequest[]               @relation("ApprovalRequestedBy")
+  approvalsDecided               ApprovalRequest[]               @relation("ApprovalDecidedBy")
+  auditEvents                    AuditEvent[]                    @relation("AuditActorUser")
+  recommendationsDecided         BusinessRecommendation[]        @relation("RecommendationDecidedBy")
+  businessGoalsCreated           BusinessGoal[]                  @relation("BusinessGoalCreatedBy")
+  businessGoalsUpdated           BusinessGoal[]                  @relation("BusinessGoalUpdatedBy")
+  projectsOwned                  Project[]                       @relation("ProjectOwner")
+  projectsCreated                Project[]                       @relation("ProjectCreatedBy")
+  projectsUpdated                Project[]                       @relation("ProjectUpdatedBy")
+  tasksAssigned                  ProjectTask[]                   @relation("TaskAssignedTo")
+  tasksCreated                   ProjectTask[]                   @relation("TaskCreatedBy")
+  tasksUpdated                   ProjectTask[]                   @relation("TaskUpdatedBy")
+  projectMembersCreated          ProjectMember[]                 @relation("ProjectMemberCreatedBy")
+  projectMembersUpdated          ProjectMember[]                 @relation("ProjectMemberUpdatedBy")
+  employeeProfiles               Employee[]                      @relation("EmployeeLinkedUser")
+  employeesCreated               Employee[]                      @relation("EmployeeCreatedBy")
+  employeesUpdated               Employee[]                      @relation("EmployeeUpdatedBy")
+  dealsOwned                     Deal[]                          @relation("DealOwner")
+  dealsCreated                   Deal[]                          @relation("DealCreatedBy")
+  dealsUpdated                   Deal[]                          @relation("DealUpdatedBy")
+  invoicesCreated                Invoice[]                       @relation("InvoiceCreatedBy")
+  invoicesUpdated                Invoice[]                       @relation("InvoiceUpdatedBy")
+  quotationsCreated              Quotation[]                     @relation("QuotationCreatedBy")
+  quotationsUpdated              Quotation[]                     @relation("QuotationUpdatedBy")
+  paymentsCreated                Payment[]                       @relation("PaymentCreatedBy")
+  paymentAccountsCreated         PaymentAccount[]                @relation("PaymentAccountCreatedBy")
+  paymentAccountsUpdated         PaymentAccount[]                @relation("PaymentAccountUpdatedBy")
+  incomingPaymentsCreated        IncomingPaymentTransaction[]    @relation("IncomingPaymentCreatedBy")
+  incomingPaymentsUpdated        IncomingPaymentTransaction[]    @relation("IncomingPaymentUpdatedBy")
+  paymentRefundsRequested        PaymentRefund[]                 @relation("PaymentRefundRequestedBy")
+  paymentRefundsUpdated          PaymentRefund[]                 @relation("PaymentRefundUpdatedBy")
+  expensesCreated                Expense[]                       @relation("ExpenseCreatedBy")
+  expensesUpdated                Expense[]                       @relation("ExpenseUpdatedBy")
+  catalogueItemsCreated          CatalogueItem[]                 @relation("CatalogueItemCreatedBy")
+  catalogueItemsUpdated          CatalogueItem[]                 @relation("CatalogueItemUpdatedBy")
+  ordersCreated                  Order[]                         @relation("OrderCreatedBy")
+  ordersUpdated                  Order[]                         @relation("OrderUpdatedBy")
+  warehousesCreated              Warehouse[]                     @relation("WarehouseCreatedBy")
+  warehousesUpdated              Warehouse[]                     @relation("WarehouseUpdatedBy")
+  stockMovementsCreated          StockMovement[]                 @relation("StockMovementCreatedBy")
+  campaignsCreated               MarketingCampaign[]             @relation("CampaignCreatedBy")
+  campaignsUpdated               MarketingCampaign[]             @relation("CampaignUpdatedBy")
+  campaignLeadsCreated           CampaignLead[]                  @relation("CampaignLeadCreatedBy")
+  ticketsCreated                 SupportTicket[]                 @relation("TicketCreatedBy")
+  ticketsUpdated                 SupportTicket[]                 @relation("TicketUpdatedBy")
+  ticketMessagesCreated          TicketMessage[]                 @relation("TicketMessageCreatedBy")
+  ticketAttachmentsCreated       TicketAttachment[]              @relation("TicketAttachmentCreatedBy")
+  websitesCreated                ManagedWebsite[]                @relation("WebsiteCreatedBy")
+  websitesUpdated                ManagedWebsite[]                @relation("WebsiteUpdatedBy")
+  websiteRequestsCreated         WebsiteChangeRequest[]          @relation("WebsiteRequestCreatedBy")
+  websiteRequestsUpdated         WebsiteChangeRequest[]          @relation("WebsiteRequestUpdatedBy")
+  websiteRequestsApproved        WebsiteChangeRequest[]          @relation("WebsiteRequestApprovedBy")
+  providerRequestsCreated        ProviderServiceRequest[]        @relation("ProviderRequestCreatedBy")
+  providerRequestsUpdated        ProviderServiceRequest[]        @relation("ProviderRequestUpdatedBy")
+  providerMessagesCreated        ProviderServiceMessage[]        @relation("ProviderMessageCreatedBy")
+  deploymentsCreated             WebsiteDeployment[]             @relation("DeploymentCreatedBy")
+  vendorsCreated                 Vendor[]                        @relation("VendorCreatedBy")
+  vendorsUpdated                 Vendor[]                        @relation("VendorUpdatedBy")
+  purchaseOrdersCreated          PurchaseOrder[]                 @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersUpdated          PurchaseOrder[]                 @relation("PurchaseOrderUpdatedBy")
+  purchaseOrdersApproved         PurchaseOrder[]                 @relation("PurchaseOrderApprovedBy")
+  goodsReceiptsCreated           GoodsReceipt[]                  @relation("GoodsReceiptCreatedBy")
+  calendarEventsCreated          CalendarEvent[]                 @relation("CalendarEventCreatedBy")
+  calendarEventsUpdated          CalendarEvent[]                 @relation("CalendarEventUpdatedBy")
+  inquiriesCreated               Inquiry[]                       @relation("InquiryCreatedBy")
+  inquiriesUpdated               Inquiry[]                       @relation("InquiryUpdatedBy")
+  inquiryTimelineCreated         InquiryTimeline[]               @relation("InquiryTimelineCreatedBy")
+  leadAssignmentsCreated         LeadAssignmentHistory[]         @relation("LeadAssignmentActor")
+  connectorsCreated              IntegrationConnector[]          @relation("ConnectorCreatedBy")
+  connectorsUpdated              IntegrationConnector[]          @relation("ConnectorUpdatedBy")
+  integrationEventsCreated       IntegrationEvent[]              @relation("IntegrationEventCreatedBy")
+  integrationEventsUpdated       IntegrationEvent[]              @relation("IntegrationEventUpdatedBy")
+  automationAttemptsCreated      AutomationAttempt[]             @relation("AutomationAttemptCreatedBy")
+  automationPoliciesCreated      AutomationPolicy[]              @relation("AutomationPolicyCreatedBy")
+  automationPoliciesUpdated      AutomationPolicy[]              @relation("AutomationPolicyUpdatedBy")
+  policyExecutionsCreated        AutomationPolicyExecution[]     @relation("AutomationPolicyExecutionCreatedBy")
+  messageDraftsCreated           AutomationMessageDraft[]        @relation("MessageDraftCreatedBy")
+  messageDraftsUpdated           AutomationMessageDraft[]        @relation("MessageDraftUpdatedBy")
+  messageDraftsApproved          AutomationMessageDraft[]        @relation("MessageDraftApprovedBy")
+  agentSchedulesCreated          AgentSchedule[]                 @relation("AgentScheduleCreatedBy")
+  agentSchedulesUpdated          AgentSchedule[]                 @relation("AgentScheduleUpdatedBy")
+  stayRecordsCreated             StayProperty[]                  @relation("StayPropertyCreatedBy")
+  stayRecordsUpdated             StayProperty[]                  @relation("StayPropertyUpdatedBy")
+  stayResidentsCreated           StayResident[]                  @relation("StayResidentCreatedBy")
+  stayResidentsUpdated           StayResident[]                  @relation("StayResidentUpdatedBy")
+  stayOccupanciesCreated         StayOccupancy[]                 @relation("StayOccupancyCreatedBy")
+  stayRentChargesCreated         StayRentCharge[]                @relation("StayRentChargeCreatedBy")
+  stayPaymentsCreated            StayRentPayment[]               @relation("StayRentPaymentCreatedBy")
+  schoolAcademicYearsCreated     SchoolAcademicYear[]            @relation("SchoolAcademicYearCreatedBy")
+  schoolAcademicYearsUpdated     SchoolAcademicYear[]            @relation("SchoolAcademicYearUpdatedBy")
+  schoolClassesCreated           SchoolClass[]                   @relation("SchoolClassCreatedBy")
+  schoolClassesUpdated           SchoolClass[]                   @relation("SchoolClassUpdatedBy")
+  schoolSectionsCreated          SchoolSection[]                 @relation("SchoolSectionCreatedBy")
+  schoolSectionsUpdated          SchoolSection[]                 @relation("SchoolSectionUpdatedBy")
+  schoolStudentsCreated          SchoolStudent[]                 @relation("SchoolStudentCreatedBy")
+  schoolStudentsUpdated          SchoolStudent[]                 @relation("SchoolStudentUpdatedBy")
+  schoolGuardiansCreated         SchoolGuardian[]                @relation("SchoolGuardianCreatedBy")
+  schoolGuardiansUpdated         SchoolGuardian[]                @relation("SchoolGuardianUpdatedBy")
+  schoolEnrollmentsCreated       SchoolEnrollment[]              @relation("SchoolEnrollmentCreatedBy")
+  schoolEnrollmentsUpdated       SchoolEnrollment[]              @relation("SchoolEnrollmentUpdatedBy")
+  schoolSubjectsCreated          SchoolSubject[]                 @relation("SchoolSubjectCreatedBy")
+  schoolSubjectsUpdated          SchoolSubject[]                 @relation("SchoolSubjectUpdatedBy")
+  schoolTeachersCreated          SchoolTeacher[]                 @relation("SchoolTeacherCreatedBy")
+  schoolTeachersUpdated          SchoolTeacher[]                 @relation("SchoolTeacherUpdatedBy")
+  schoolAssignmentsCreated       SchoolTeacherAssignment[]       @relation("SchoolTeacherAssignmentCreatedBy")
+  schoolAssignmentsUpdated       SchoolTeacherAssignment[]       @relation("SchoolTeacherAssignmentUpdatedBy")
+  studentAttendanceMarked        SchoolStudentAttendance[]       @relation("SchoolStudentAttendanceMarkedBy")
+  studentAttendanceUpdated       SchoolStudentAttendance[]       @relation("SchoolStudentAttendanceUpdatedBy")
+  teacherAttendanceMarked        SchoolTeacherAttendance[]       @relation("SchoolTeacherAttendanceMarkedBy")
+  teacherAttendanceUpdated       SchoolTeacherAttendance[]       @relation("SchoolTeacherAttendanceUpdatedBy")
+  schoolTimetableCreated         SchoolTimetableEntry[]          @relation("SchoolTimetableCreatedBy")
+  schoolTimetableUpdated         SchoolTimetableEntry[]          @relation("SchoolTimetableUpdatedBy")
+  schoolSubstitutesCreated       SchoolSubstituteAssignment[]    @relation("SchoolSubstituteCreatedBy")
+  schoolSubstitutesUpdated       SchoolSubstituteAssignment[]    @relation("SchoolSubstituteUpdatedBy")
+  schoolGuardianAlertsCreated    SchoolGuardianAlert[]           @relation("SchoolGuardianAlertCreatedBy")
+  schoolGuardianAlertsUpdated    SchoolGuardianAlert[]           @relation("SchoolGuardianAlertUpdatedBy")
+  schoolGuardianAlertsApproved   SchoolGuardianAlert[]           @relation("SchoolGuardianAlertApprovedBy")
+  schoolFeeStructuresCreated     SchoolFeeStructure[]            @relation("SchoolFeeStructureCreatedBy")
+  schoolFeeStructuresUpdated     SchoolFeeStructure[]            @relation("SchoolFeeStructureUpdatedBy")
+  schoolFeeChargesCreated        SchoolFeeCharge[]               @relation("SchoolFeeChargeCreatedBy")
+  schoolFeeChargesUpdated        SchoolFeeCharge[]               @relation("SchoolFeeChargeUpdatedBy")
+  schoolFeePaymentsCreated       SchoolFeePayment[]              @relation("SchoolFeePaymentCreatedBy")
+  schoolFeeRemindersCreated      SchoolFeeReminderDraft[]        @relation("SchoolFeeReminderCreatedBy")
+  schoolFeeRemindersUpdated      SchoolFeeReminderDraft[]        @relation("SchoolFeeReminderUpdatedBy")
+  schoolFeeRemindersApproved     SchoolFeeReminderDraft[]        @relation("SchoolFeeReminderApprovedBy")
+  schoolImportsCreated           SchoolImportBatch[]             @relation("SchoolImportCreatedBy")
+  businessKnowledgeCreated       BusinessKnowledgeEntry[]        @relation("BusinessKnowledgeCreatedBy")
+  businessKnowledgeUpdated       BusinessKnowledgeEntry[]        @relation("BusinessKnowledgeUpdatedBy")
+  businessKnowledgeApproved      BusinessKnowledgeEntry[]        @relation("BusinessKnowledgeApprovedBy")
 
   @@index([status, deletedAt])
 }
 
 model Organization {
-  id                       String                        @id @default(uuid()) @db.Uuid
-  name                     String
-  slug                     String                        @unique
-  status                   OrganizationStatus            @default(ACTIVE)
-  isServiceProvider        Boolean                       @default(false)
-  timezone                 String                        @default("Asia/Kolkata")
-  currency                 String                        @default("INR")
-  industry                 String?
-  phone                    String?
-  businessSize             String?
-  monthlyRevenueRange      String?
-  primaryBusinessGoal      String?
-  onboardingCompletedAt    DateTime?
-  createdAt                DateTime                      @default(now())
-  updatedAt                DateTime                      @updatedAt
-  deletedAt                DateTime?
-  memberships              OrganizationMembership[]
-  roles                    Role[]
-  invitations              MembershipInvitation[]
-  organizationServices     OrganizationService[]
-  memberServiceAccess      MembershipServiceAccess[]
-  organizationPlan         OrganizationPlan?
-  subscriptionPayments     SubscriptionPayment[]
-  serviceOverrides         OrganizationServiceOverride[]
-  entitlements             Entitlement[]
-  platformInvitations      PlatformInvitation[]
-  customers                Customer[]
-  customerActivities       CustomerActivity[]
-  customerFollowUps        CustomerFollowUp[]
-  notifications            Notification[]
-  agents                   AgentDefinition[]
-  agentRuns                AgentRun[]
-  voiceCallJobs            VoiceCallJob[]
-  approvalRequests         ApprovalRequest[]
-  auditEvents              AuditEvent[]
-  businessRecommendations  BusinessRecommendation[]
-  businessGoals            BusinessGoal[]
-  projects                 Project[]
-  projectTasks             ProjectTask[]
-  projectMembers           ProjectMember[]
-  employees                Employee[]
-  deals                    Deal[]
-  invoices                 Invoice[]
-  quotations               Quotation[]
-  payments                 Payment[]
-  paymentAccounts          PaymentAccount[]
-  incomingPayments         IncomingPaymentTransaction[]
-  paymentRefunds           PaymentRefund[]
-  expenses                 Expense[]
-  catalogueItems           CatalogueItem[]
-  orders                   Order[]
-  warehouses               Warehouse[]
-  stockLevels              StockLevel[]
-  stockMovements           StockMovement[]
-  stockReservations        StockReservation[]
-  marketingCampaigns       MarketingCampaign[]
-  campaignLeads            CampaignLead[]
-  supportTickets           SupportTicket[]
-  ticketMessages           TicketMessage[]
-  ticketAttachments        TicketAttachment[]
-  providerServiceRequests  ProviderServiceRequest[]
-  providerServiceMessages  ProviderServiceMessage[]
-  managedWebsites          ManagedWebsite[]
-  websiteRequests          WebsiteChangeRequest[]
-  websiteDeployments       WebsiteDeployment[]
-  vendors                  Vendor[]
-  purchaseOrders           PurchaseOrder[]
-  goodsReceipts            GoodsReceipt[]
-  calendarEvents           CalendarEvent[]
-  calendarAttendees        CalendarEventAttendee[]
-  calendarReminders        CalendarReminder[]
-  inquiries                Inquiry[]
-  inquiryTimeline          InquiryTimeline[]
-  leadAssignmentRules      LeadAssignmentRule[]
-  leadAssignmentHistory    LeadAssignmentHistory[]
-  followUpSequences        FollowUpSequence[]
-  followUpEnrollments      FollowUpEnrollment[]
-  followUpExecutions       FollowUpExecution[]
-  integrationConnectors    IntegrationConnector[]
-  integrationEvents        IntegrationEvent[]
-  automationAttempts       AutomationAttempt[]
-  automationPolicies       AutomationPolicy[]
-  policyExecutions         AutomationPolicyExecution[]
-  automationMessageDrafts  AutomationMessageDraft[]
-  agentSchedules           AgentSchedule[]
-  stayProperties           StayProperty[]
-  stayRooms                StayRoom[]
-  stayBeds                 StayBed[]
-  stayResidents            StayResident[]
-  stayOccupancies          StayOccupancy[]
-  stayRentCharges          StayRentCharge[]
-  stayRentPayments         StayRentPayment[]
-  schoolAcademicYears      SchoolAcademicYear[]
-  schoolClasses            SchoolClass[]
-  schoolSections           SchoolSection[]
-  schoolStudents           SchoolStudent[]
-  schoolGuardians          SchoolGuardian[]
-  schoolStudentGuardians   SchoolStudentGuardian[]
-  schoolEnrollments        SchoolEnrollment[]
-  schoolSubjects           SchoolSubject[]
-  schoolTeachers           SchoolTeacher[]
-  schoolTeacherAssignments SchoolTeacherAssignment[]
-  schoolStudentAttendance  SchoolStudentAttendance[]
-  schoolTeacherAttendance  SchoolTeacherAttendance[]
-  schoolTimetableEntries   SchoolTimetableEntry[]
-  schoolSubstitutes        SchoolSubstituteAssignment[]
-  schoolGuardianAlerts     SchoolGuardianAlert[]
-  schoolFeeStructures      SchoolFeeStructure[]
-  schoolFeeCharges         SchoolFeeCharge[]
-  schoolFeePayments        SchoolFeePayment[]
-  schoolFeeReminders       SchoolFeeReminderDraft[]
-  schoolImportBatches      SchoolImportBatch[]
-  businessKnowledge        BusinessKnowledgeEntry[]
+  id                             String                          @id @default(uuid()) @db.Uuid
+  name                           String
+  slug                           String                          @unique
+  status                         OrganizationStatus              @default(ACTIVE)
+  isServiceProvider              Boolean                         @default(false)
+  timezone                       String                          @default("Asia/Kolkata")
+  currency                       String                          @default("INR")
+  industry                       String?
+  phone                          String?
+  businessSize                   String?
+  monthlyRevenueRange            String?
+  primaryBusinessGoal            String?
+  onboardingCompletedAt          DateTime?
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  deletedAt                      DateTime?
+  memberships                    OrganizationMembership[]
+  roles                          Role[]
+  invitations                    MembershipInvitation[]
+  organizationServices           OrganizationService[]
+  memberServiceAccess            MembershipServiceAccess[]
+  organizationPlan               OrganizationPlan?
+  subscriptionPayments           SubscriptionPayment[]
+  serviceOverrides               OrganizationServiceOverride[]
+  entitlements                   Entitlement[]
+  platformInvitations            PlatformInvitation[]
+  customers                      Customer[]
+  customerActivities             CustomerActivity[]
+  customerFollowUps              CustomerFollowUp[]
+  notifications                  Notification[]
+  agents                         AgentDefinition[]
+  agentRuns                      AgentRun[]
+  voiceCallJobs                  VoiceCallJob[]
+  approvalRequests               ApprovalRequest[]
+  auditEvents                    AuditEvent[]
+  businessRecommendations        BusinessRecommendation[]
+  businessGoals                  BusinessGoal[]
+  projects                       Project[]
+  projectTasks                   ProjectTask[]
+  projectMembers                 ProjectMember[]
+  employees                      Employee[]
+  deals                          Deal[]
+  invoices                       Invoice[]
+  quotations                     Quotation[]
+  payments                       Payment[]
+  paymentAccounts                PaymentAccount[]
+  incomingPayments               IncomingPaymentTransaction[]
+  paymentRefunds                 PaymentRefund[]
+  expenses                       Expense[]
+  catalogueItems                 CatalogueItem[]
+  orders                         Order[]
+  warehouses                     Warehouse[]
+  stockLevels                    StockLevel[]
+  stockMovements                 StockMovement[]
+  stockReservations              StockReservation[]
+  marketingCampaigns             MarketingCampaign[]
+  campaignLeads                  CampaignLead[]
+  supportTickets                 SupportTicket[]
+  ticketMessages                 TicketMessage[]
+  ticketAttachments              TicketAttachment[]
+  providerServiceRequests        ProviderServiceRequest[]
+  providerServiceMessages        ProviderServiceMessage[]
+  managedWebsites                ManagedWebsite[]
+  websiteRequests                WebsiteChangeRequest[]
+  websiteDeployments             WebsiteDeployment[]
+  vendors                        Vendor[]
+  purchaseOrders                 PurchaseOrder[]
+  goodsReceipts                  GoodsReceipt[]
+  calendarEvents                 CalendarEvent[]
+  calendarAttendees              CalendarEventAttendee[]
+  calendarReminders              CalendarReminder[]
+  inquiries                      Inquiry[]
+  inquiryTimeline                InquiryTimeline[]
+  leadAssignmentRules            LeadAssignmentRule[]
+  leadAssignmentHistory          LeadAssignmentHistory[]
+  followUpSequences              FollowUpSequence[]
+  followUpEnrollments            FollowUpEnrollment[]
+  followUpExecutions             FollowUpExecution[]
+  integrationConnectors          IntegrationConnector[]
+  integrationAuthorizationStates IntegrationAuthorizationState[]
+  integrationEvents              IntegrationEvent[]
+  automationAttempts             AutomationAttempt[]
+  automationPolicies             AutomationPolicy[]
+  policyExecutions               AutomationPolicyExecution[]
+  automationMessageDrafts        AutomationMessageDraft[]
+  agentSchedules                 AgentSchedule[]
+  stayProperties                 StayProperty[]
+  stayRooms                      StayRoom[]
+  stayBeds                       StayBed[]
+  stayResidents                  StayResident[]
+  stayOccupancies                StayOccupancy[]
+  stayRentCharges                StayRentCharge[]
+  stayRentPayments               StayRentPayment[]
+  schoolAcademicYears            SchoolAcademicYear[]
+  schoolClasses                  SchoolClass[]
+  schoolSections                 SchoolSection[]
+  schoolStudents                 SchoolStudent[]
+  schoolGuardians                SchoolGuardian[]
+  schoolStudentGuardians         SchoolStudentGuardian[]
+  schoolEnrollments              SchoolEnrollment[]
+  schoolSubjects                 SchoolSubject[]
+  schoolTeachers                 SchoolTeacher[]
+  schoolTeacherAssignments       SchoolTeacherAssignment[]
+  schoolStudentAttendance        SchoolStudentAttendance[]
+  schoolTeacherAttendance        SchoolTeacherAttendance[]
+  schoolTimetableEntries         SchoolTimetableEntry[]
+  schoolSubstitutes              SchoolSubstituteAssignment[]
+  schoolGuardianAlerts           SchoolGuardianAlert[]
+  schoolFeeStructures            SchoolFeeStructure[]
+  schoolFeeCharges               SchoolFeeCharge[]
+  schoolFeePayments              SchoolFeePayment[]
+  schoolFeeReminders             SchoolFeeReminderDraft[]
+  schoolImportBatches            SchoolImportBatch[]
+  businessKnowledge              BusinessKnowledgeEntry[]
 
   @@index([status, deletedAt])
 }
@@ -1211,20 +1213,21 @@ model BusinessKnowledgeEntry {
 }
 
 model OrganizationMembership {
-  id                 String                    @id @default(uuid()) @db.Uuid
-  organizationId     String                    @db.Uuid
-  userId             String                    @db.Uuid
-  roleId             String                    @db.Uuid
-  status             MembershipStatus          @default(ACTIVE)
-  joinedAt           DateTime                  @default(now())
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  user               User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  role               Role                      @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  refreshSessions    RefreshSession[]
-  projectAssignments ProjectMember[]
-  serviceAccess      MembershipServiceAccess[]
+  id                             String                          @id @default(uuid()) @db.Uuid
+  organizationId                 String                          @db.Uuid
+  userId                         String                          @db.Uuid
+  roleId                         String                          @db.Uuid
+  status                         MembershipStatus                @default(ACTIVE)
+  joinedAt                       DateTime                        @default(now())
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  organization                   Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user                           User                            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role                           Role                            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  refreshSessions                RefreshSession[]
+  projectAssignments             ProjectMember[]
+  serviceAccess                  MembershipServiceAccess[]
+  integrationAuthorizationStates IntegrationAuthorizationState[]
 
   @@unique([organizationId, userId])
   @@index([userId, status])
@@ -3255,19 +3258,19 @@ model InquiryTimeline {
 }
 
 model IntegrationConnector {
-  id                        String                   @id @default(uuid()) @db.Uuid
-  organizationId            String                   @db.Uuid
+  id                        String                          @id @default(uuid()) @db.Uuid
+  organizationId            String                          @db.Uuid
   name                      String
   type                      ConnectorType
-  status                    ConnectorStatus          @default(DRAFT)
-  mode                      AutomationMode           @default(MANUAL_APPROVAL)
+  status                    ConnectorStatus                 @default(DRAFT)
+  mode                      AutomationMode                  @default(MANUAL_APPROVAL)
   provider                  String
   externalAccountRef        String?
-  webhookKey                String                   @unique @default(uuid())
+  webhookKey                String                          @unique @default(uuid())
   signingSecretHash         String?
   whatsappPhoneNumberId     String?
   whatsappBusinessAccountId String?
-  metaPageId                String?                  @unique
+  metaPageId                String?                         @unique
   accessTokenEncrypted      String?
   appSecretEncrypted        String?
   credentialsConfiguredAt   DateTime?
@@ -3276,19 +3279,43 @@ model IntegrationConnector {
   lastSuccessfulAt          DateTime?
   lastErrorAt               DateTime?
   lastErrorMessage          String?
-  createdById               String                   @db.Uuid
-  updatedById               String                   @db.Uuid
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
+  createdById               String                          @db.Uuid
+  updatedById               String                          @db.Uuid
+  createdAt                 DateTime                        @default(now())
+  updatedAt                 DateTime                        @updatedAt
   deletedAt                 DateTime?
-  organization              Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy                 User                     @relation("ConnectorCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy                 User                     @relation("ConnectorUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  organization              Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                 User                            @relation("ConnectorCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy                 User                            @relation("ConnectorUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   events                    IntegrationEvent[]
   messageDrafts             AutomationMessageDraft[]
+  authorizationStates       IntegrationAuthorizationState[]
 
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, type, deletedAt])
+}
+
+model IntegrationAuthorizationState {
+  id             String                 @id @default(uuid()) @db.Uuid
+  stateHash      String                 @unique
+  provider       String
+  organizationId String                 @db.Uuid
+  membershipId   String                 @db.Uuid
+  userId         String                 @db.Uuid
+  connectorId    String                 @db.Uuid
+  returnPath     String
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership     OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connector      IntegrationConnector   @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([connectorId])
+  @@index([organizationId])
+  @@index([membershipId])
 }
 
 model IntegrationEvent {

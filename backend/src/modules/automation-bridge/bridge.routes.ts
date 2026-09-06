@@ -26,8 +26,12 @@ import {
   type MetaLeadConnectorInput,
 } from "./bridge.validation.js";
 import { EmailDeliveryService } from "./email-delivery.service.js";
+import { MetaLeadConnectionService } from "./meta-lead-connection.service.js";
+import { metaConnectionCallbackSchema, metaConnectionStartSchema, metaFormSelectionSchema, metaPageSelectionSchema, type MetaConnectionCallbackInput, type MetaConnectionStartInput, type MetaFormSelectionInput, type MetaPageSelectionInput } from "./meta-lead-connection.validation.js";
+import rateLimit from "express-rate-limit";
 const service = new BridgeService(),
   emailDelivery = new EmailDeliveryService(),
+  metaConnection = new MetaLeadConnectionService(),
   auth = (r: Parameters<RequestHandler>[0]) => {
     if (!r.auth)
       throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
@@ -55,6 +59,18 @@ bridgeRouter.use(
 bridgeRouter.get("/", requirePermission("AUTOMATION_VIEW"), async (r, s) =>
   s.json(success(await service.list(auth(r).organizationId))),
 );
+const metaLimit = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, message: { success: false, message: "Too many Meta setup requests. Try again later.", code: "RATE_LIMITED" } });
+const metaContext = (r: Parameters<RequestHandler>[0]) => { const c = auth(r); return { organizationId: c.organizationId, membershipId: c.membershipId, userId: c.userId }; };
+bridgeRouter.get("/connectors/:id/meta/status", requirePermission("AUTOMATION_VIEW"), async (r, s) => s.json(success(await metaConnection.status(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/meta/authorize", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaConnectionStartSchema), async (r, s) => s.json(success(await metaConnection.start(metaContext(r), String(r.params.id), r.body as MetaConnectionStartInput))));
+bridgeRouter.post("/connectors/:id/meta/callback", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaConnectionCallbackSchema), async (r, s) => s.json(success(await metaConnection.callback(metaContext(r), String(r.params.id), r.body as MetaConnectionCallbackInput))));
+bridgeRouter.put("/connectors/:id/meta/page", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaPageSelectionSchema), async (r, s) => s.json(success(await metaConnection.selectPage(metaContext(r), String(r.params.id), r.body as MetaPageSelectionInput))));
+bridgeRouter.put("/connectors/:id/meta/forms", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaFormSelectionSchema), async (r, s) => s.json(success(await metaConnection.selectForms(metaContext(r), String(r.params.id), r.body as MetaFormSelectionInput))));
+bridgeRouter.post("/connectors/:id/meta/verify", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.verify(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/meta/test", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.test(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/meta/activate", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.activate(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/meta/reconnect", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.reconnect(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/meta/disconnect", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.disconnect(metaContext(r), String(r.params.id)))));
 bridgeRouter.get("/email-deliveries", requirePermission("AUTOMATION_VIEW"), async (r, s) => {
   s.json(success(await emailDelivery.workspace(auth(r).organizationId)));
 });
