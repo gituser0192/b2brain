@@ -70,4 +70,42 @@ describe("shared inbound event processor", () => {
     expect(auditCall[0].data).toMatchObject({ actionCode: "INBOUND_EVENT_FAILED", metadata: { retrySafe: true } });
     expect(JSON.stringify(auditCall)).not.toContain(event.content.text);
   });
+
+  it("accepts a verified website event through the same processor without a second CRM workflow", async () => {
+    database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR });
+    const process = vi.fn().mockResolvedValue({
+      duplicate: false, eventId: crypto.randomUUID(), conversationId: event.correlationId,
+      customer: { id: crypto.randomUUID(), displayName: "Synthetic Customer" }, customerCreated: false,
+      inquiryId: crypto.randomUUID(), analysis: { intent: "PRODUCT_QUESTION", confidence: 0.88, promptInjectionDetected: false },
+      response: "A person will review this enquiry.", tools: ["update_inquiry"], approvalRequired: true,
+      humanTakeover: false, externalActionPerformed: false,
+    });
+    const websiteEvent: NormalizedInboundEvent = { ...event, channel: "WEBSITE", eventType: "WEBSITE_ENQUIRY" };
+    const result = await new InboundEventProcessor({ process } as never)
+      .processVerifiedWebsite(ORG_A, crypto.randomUUID(), websiteEvent);
+    expect(database.integrationConnector.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: CONNECTOR, organizationId: ORG_A, type: "WEBSITE", status: "ACTIVE", deletedAt: null },
+    }));
+    expect(process).toHaveBeenCalledOnce();
+    expect(process).toHaveBeenCalledWith(ORG_A, expect.any(String), expect.objectContaining({ channel: "WEBSITE" }),
+      { connectorId: CONNECTOR, source: "WEBSITE" });
+    expect(result).toMatchObject({ duplicate: false, externalActionPerformed: false });
+  });
+
+  it("keeps the same external ID independent across website connectors", async () => {
+    database.integrationConnector.findFirst.mockResolvedValue({ id: "10000000-0000-4000-8000-00000000000b" });
+    const process = vi.fn().mockResolvedValue({
+      duplicate: false, eventId: crypto.randomUUID(), customer: null, customerCreated: false,
+      inquiryId: crypto.randomUUID(), analysis: { intent: "UNCLASSIFIED", confidence: 0.4, promptInjectionDetected: false },
+      response: "Review required.", tools: [], approvalRequired: true, humanTakeover: false, externalActionPerformed: false,
+    });
+    await new InboundEventProcessor({ process } as never).processVerifiedWebsite(ORG_A, crypto.randomUUID(), {
+      ...event, channel: "WEBSITE", eventType: "WEBSITE_ENQUIRY", connectorId: "10000000-0000-4000-8000-00000000000b",
+    });
+    const duplicateCall = database.integrationEvent.findFirst.mock.calls[0] as unknown as [{ where: {
+      organizationId: string; connectorId: string; externalEventId: string;
+    } }];
+    expect(duplicateCall[0].where).toMatchObject({ organizationId: ORG_A,
+      connectorId: "10000000-0000-4000-8000-00000000000b", externalEventId: event.externalEventId });
+  });
 });

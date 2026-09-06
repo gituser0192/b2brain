@@ -28,7 +28,7 @@ describe("normalized inbound event contract v1", () => {
     expect(normalizedInboundEventSchema.safeParse({ ...event, occurredAt: "2026-09-06T11:00:00.000Z" }).success).toBe(false);
   });
 
-  it("documents future types without activating them", () => {
-    expect(reservedInboundEventTypes).toEqual(["WEBSITE_ENQUIRY", "ORDER_CREATED", "LEAD_CAPTURED", "MESSAGE_STATUS_UPDATED"]);
+  it("documents remaining future types without activating them", () => {
+    expect(reservedInboundEventTypes).toEqual(["ORDER_CREATED", "LEAD_CAPTURED", "MESSAGE_STATUS_UPDATED"]);
   });
 });

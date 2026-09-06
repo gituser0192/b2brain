@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const normalizedInboundMessageSchema = z.object({
-  channel: z.enum(["WEBSITE_PLAYGROUND", "WHATSAPP"]),
+  channel: z.enum(["WEBSITE", "WEBSITE_PLAYGROUND", "WHATSAPP"]),
   externalMessageId: z.string().trim().min(3).max(240),
   conversationId: z.string().uuid(),
   customerName: z.string().trim().min(1).max(160).optional().nullable(),

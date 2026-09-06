@@ -29,14 +29,16 @@ describe("private staging HTTP boundaries", () => {
 
   it("does not mount external intake channels while disabled", async () => {
     expect(env.EXTERNAL_CHANNELS_ENABLED).toBe(false);
-    const [forms, intake, whatsapp] = await Promise.all([
+    const [forms, intake, whatsapp, website] = await Promise.all([
       request(app).get("/api/v1/public/forms/not-enabled"),
       request(app).post("/api/v1/webhooks/intake/not-enabled").send({}),
       request(app).get("/api/v1/webhooks/whatsapp"),
+      request(app).post("/api/v1/integrations/website/enquiries/not-enabled").send({}),
     ]);
     expect(forms.status).toBe(404);
     expect(intake.status).toBe(404);
     expect(whatsapp.status).toBe(404);
+    expect(website.status).toBe(404);
   });
 
   it("returns safe malformed-request errors without stack traces", async () => {

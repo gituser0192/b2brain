@@ -21,7 +21,7 @@ export const normalizedInboundEventSchema = z
   .object({
     version: z.literal("1"),
     channel: inboundChannelSchema,
-    eventType: z.literal("CUSTOMER_MESSAGE"),
+    eventType: z.enum(["CUSTOMER_MESSAGE", "WEBSITE_ENQUIRY"]),
     externalEventId: z.string().trim().min(3).max(240),
     occurredAt: z.string().datetime(),
     receivedAt: z.string().datetime(),
@@ -52,7 +52,6 @@ export const normalizedInboundEventSchema = z
   });
 
 export const reservedInboundEventTypes = [
-  "WEBSITE_ENQUIRY",
   "ORDER_CREATED",
   "LEAD_CAPTURED",
   "MESSAGE_STATUS_UPDATED",

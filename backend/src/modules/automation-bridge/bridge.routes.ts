@@ -77,6 +77,14 @@ bridgeRouter.post(
     );
   },
 );
+bridgeRouter.post(
+  "/connectors/:id/website-secret/rotate",
+  requirePermission("AUTOMATION_MANAGE"),
+  async (r, s) => {
+    const c = auth(r);
+    s.json(success(await service.rotateWebsiteSecret(c.organizationId, c.userId, String(r.params.id)), "Website signing secret rotated."));
+  },
+);
 bridgeRouter.put(
   "/connectors/:id",
   requirePermission("AUTOMATION_MANAGE"),

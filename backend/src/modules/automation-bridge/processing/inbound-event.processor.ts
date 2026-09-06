@@ -71,6 +71,59 @@ export class InboundEventProcessor {
     }
   }
 
+  async processVerifiedWebsite(organizationId: string, userId: string, event: NormalizedInboundEvent) {
+    if (event.channel !== "WEBSITE" || event.eventType !== "WEBSITE_ENQUIRY")
+      throw new AppError(400, "This adapter accepts website enquiries only.", "UNSUPPORTED_INBOUND_EVENT");
+
+    const connector = await prisma.integrationConnector.findFirst({
+      where: { id: event.connectorId, organizationId, type: "WEBSITE", status: "ACTIVE", deletedAt: null },
+      select: { id: true },
+    });
+    if (!connector) throw new AppError(404, "Active website connector was not found.", "CONNECTOR_NOT_FOUND");
+
+    const duplicate = await prisma.integrationEvent.findFirst({
+      where: { organizationId, connectorId: connector.id, externalEventId: event.externalEventId },
+      select: { id: true, status: true, resultId: true },
+    });
+    if (duplicate) {
+      if (["RECEIVED", "VERIFIED", "PROCESSING"].includes(duplicate.status))
+        throw new AppError(409, "This event is already being processed.", "EVENT_PROCESSING");
+      return this.duplicateResult(duplicate, event.correlationId);
+    }
+
+    try {
+      const result = await this.agent.process(organizationId, userId, {
+        channel: "WEBSITE",
+        externalMessageId: event.externalEventId,
+        conversationId: event.correlationId,
+        customerName: event.sender.name,
+        phone: event.sender.phone,
+        email: event.sender.email,
+        message: event.content.text,
+        receivedAt: event.receivedAt,
+        metadata: { ...event.metadata, inboundContractVersion: event.version, inboundChannel: event.channel },
+      }, { connectorId: connector.id, source: "WEBSITE" });
+      return this.result(result, event.correlationId);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const concurrent = await prisma.integrationEvent.findFirst({
+          where: { organizationId, connectorId: connector.id, externalEventId: event.externalEventId },
+          select: { id: true, status: true, resultId: true },
+        });
+        if (concurrent) return this.duplicateResult(concurrent, event.correlationId);
+      }
+      await prisma.auditEvent.create({
+        data: {
+          organizationId, actorType: "USER", actorUserId: userId, serviceCode: "AUTOMATION",
+          actionCode: "INBOUND_EVENT_FAILED", sourceType: "INTEGRATION_CONNECTOR", sourceId: connector.id,
+          summary: "A verified website enquiry failed before its atomic CRM transaction completed.",
+          metadata: { externalEventIdHash: createHash("sha256").update(event.externalEventId).digest("hex"), correlationId: event.correlationId, retrySafe: true },
+        },
+      }).catch(() => undefined);
+      throw error;
+    }
+  }
+
   private duplicateResult(event: { id: string; status: string; resultId: string | null }, correlationId: string): InboundProcessingResult {
     return {
       version: "1", eventId: event.id, processingStatus: event.status === "COMPLETED" ? "COMPLETED" : event.status === "FAILED" ? "FAILED" : "PROCESSING",

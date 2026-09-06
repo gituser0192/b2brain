@@ -109,14 +109,14 @@ export class EnquiryAgentService {
     organizationId: string,
     userId: string,
     connectorId?: string,
-    source: "SIMULATOR" | "META" = "SIMULATOR",
+    source: "SIMULATOR" | "META" | "WEBSITE" = "SIMULATOR",
   ) {
     if (connectorId) {
       const selected = await prisma.integrationConnector.findFirst({
         where: {
           id: connectorId,
           organizationId,
-          type: "WHATSAPP",
+          type: source === "WEBSITE" ? "WEBSITE" : "WHATSAPP",
           status: "ACTIVE",
           deletedAt: null,
         },
@@ -124,10 +124,11 @@ export class EnquiryAgentService {
       if (!selected)
         throw new AppError(
           404,
-          "Active WhatsApp connector was not found.",
+          "Active connector was not found.",
           "CONNECTOR_NOT_FOUND",
         );
       const configuration = selected.configuration as InternalConfiguration;
+      if (source === "WEBSITE") return selected;
       const simulator =
         configuration.simulator ||
         selected.provider.toUpperCase() === "B2BRAIN_SIMULATOR";
@@ -173,7 +174,7 @@ export class EnquiryAgentService {
     input: NormalizedInboundMessage,
     options: {
       connectorId?: string;
-      source?: "SIMULATOR" | "META";
+      source?: "SIMULATOR" | "META" | "WEBSITE";
       forceApproval?: boolean;
     } = {},
   ) {
@@ -583,6 +584,8 @@ export class EnquiryAgentService {
             providerStatus:
               options.source === "META"
                 ? "META_PENDING_SEND"
+                : options.source === "WEBSITE"
+                  ? "WEBSITE_DRAFT_NOT_SENDABLE"
                 : options.connectorId
                   ? "SIMULATED_NOT_SENDABLE"
                   : "INTERNAL_PLAYGROUND_ONLY",

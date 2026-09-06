@@ -9,6 +9,7 @@ import type {
 } from "./bridge.validation.js";
 import { LeadAssignmentService } from "../inquiries/lead-assignment.service.js";
 import { LeadToCashAutomationService } from "./lead-to-cash-automation.service.js";
+import { encryptSecret } from "./bridge.crypto.js";
 const connectorView={id:true,name:true,type:true,status:true,mode:true,provider:true,externalAccountRef:true,webhookKey:true,whatsappPhoneNumberId:true,whatsappBusinessAccountId:true,credentialsConfiguredAt:true,lastReceivedAt:true,lastSuccessfulAt:true,lastErrorAt:true,lastErrorMessage:true,createdAt:true,_count:{select:{events:true,messageDrafts:true}}}as const;
 const eventInclude = {
   connector: { select: { id: true, name: true, type: true, mode: true } },
@@ -53,6 +54,7 @@ export class BridgeService {
         organizationId: org,
         configuration: {},
         signingSecretHash,
+        ...(input.type === "WEBSITE" ? { appSecretEncrypted: encryptSecret(secret), credentialsConfiguredAt: new Date() } : {}),
         createdById: user,
         updatedById: user,
       },
@@ -63,6 +65,24 @@ export class BridgeService {
       webhookSecret: secret,
       warning: "Store this secret securely. It is shown only once.",
     };
+  }
+  async rotateWebsiteSecret(org: string, user: string, id: string) {
+    const current = await prisma.integrationConnector.findFirst({
+      where: { id, organizationId: org, type: "WEBSITE", deletedAt: null },
+      select: { id: true },
+    });
+    if (!current) throw new AppError(404, "Connector was not found.", "CONNECTOR_NOT_FOUND");
+    const secret = randomBytes(32).toString("hex");
+    await prisma.integrationConnector.update({
+      where: { id },
+      data: {
+        appSecretEncrypted: encryptSecret(secret),
+        signingSecretHash: createHash("sha256").update(secret).digest("hex"),
+        credentialsConfiguredAt: new Date(),
+        updatedById: user,
+      },
+    });
+    return { webhookSecret: secret, warning: "Store this secret securely. It is shown only once." };
   }
   async updateConnector(
     org: string,
