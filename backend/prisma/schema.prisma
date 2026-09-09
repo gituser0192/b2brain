@@ -3268,7 +3268,7 @@ model IntegrationConnector {
   externalAccountRef        String?
   webhookKey                String                          @unique @default(uuid())
   signingSecretHash         String?
-  whatsappPhoneNumberId     String?
+  whatsappPhoneNumberId     String?                         @unique
   whatsappBusinessAccountId String?
   metaPageId                String?                         @unique
   accessTokenEncrypted      String?

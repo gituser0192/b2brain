@@ -11,7 +11,7 @@ export function normalizeWhatsappPhone(value: string) {
   return value.replace(/[^\d]/g, "");
 }
 
-function stableConversationId(connectorId: string, phone: string) {
+export function stableWhatsappConversationId(connectorId: string, phone: string) {
   const hex = createHash("sha256").update(`${connectorId}:${phone}`).digest("hex").slice(0, 32).split("");
   hex[12] = "5";
   hex[16] = ["8", "9", "a", "b"][Number.parseInt(hex[16] ?? "0", 16) % 4] ?? "8";
@@ -36,7 +36,7 @@ export class WhatsappSimulatorService {
       sender: { name: input.contactName, phone },
       content: { text: input.message },
       metadata: { simulator: true },
-      correlationId: stableConversationId(input.connectorId, phone),
+      correlationId: stableWhatsappConversationId(input.connectorId, phone),
     });
     return this.processor.processAuthenticatedSimulator(organizationId, userId, event);
   }

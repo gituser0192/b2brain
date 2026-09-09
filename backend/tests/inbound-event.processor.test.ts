@@ -95,6 +95,24 @@ describe("shared inbound event processor", () => {
     expect(result).toMatchObject({ duplicate: false, externalActionPerformed: false });
   });
 
+  it("delegates verified WhatsApp text to the shared CRM agent with approval required", async () => {
+    database.integrationConnector.findFirst.mockResolvedValue({ id: CONNECTOR });
+    const process = vi.fn().mockResolvedValue({
+      duplicate: false, eventId: crypto.randomUUID(), customer: null, customerCreated: true,
+      inquiryId: crypto.randomUUID(), analysis: { intent: "SALES_ENQUIRY", confidence: 0.9, promptInjectionDetected: false },
+      response: "Review required.", tools: [], approvalRequired: true, humanTakeover: false, externalActionPerformed: false,
+    });
+    const whatsappEvent: NormalizedInboundEvent = { ...event, channel: "WHATSAPP", externalEventId: "wamid.synthetic-1" };
+    const result = await new InboundEventProcessor({ process } as never).processVerifiedWhatsapp(ORG_A, crypto.randomUUID(), whatsappEvent);
+    expect(database.integrationConnector.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: CONNECTOR, organizationId: ORG_A, type: "WHATSAPP", provider: "META_WHATSAPP_CLOUD", status: "ACTIVE", deletedAt: null },
+    }));
+    expect(process).toHaveBeenCalledWith(ORG_A, expect.any(String), expect.objectContaining({
+      channel: "WHATSAPP", externalMessageId: "wamid.synthetic-1", phone: event.sender.phone,
+    }), { connectorId: CONNECTOR, source: "META", forceApproval: true });
+    expect(result).toMatchObject({ duplicate: false, externalActionPerformed: false });
+  });
+
   it("keeps the same external ID independent across website connectors", async () => {
     database.integrationConnector.findFirst.mockResolvedValue({ id: "10000000-0000-4000-8000-00000000000b" });
     const process = vi.fn().mockResolvedValue({

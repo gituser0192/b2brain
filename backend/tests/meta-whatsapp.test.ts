@@ -9,8 +9,8 @@ const state = vi.hoisted(() => ({
     META_WHATSAPP_VERIFY_TOKEN: "verify-token-at-least-sixteen",
     META_WHATSAPP_APP_SECRET: "app-secret-at-least-sixteen",
     META_WHATSAPP_ACCESS_TOKEN: "test-access-token-at-least-twenty",
-    META_WHATSAPP_PHONE_NUMBER_ID: "phone-12345",
-    META_WHATSAPP_BUSINESS_ACCOUNT_ID: "waba-12345",
+    META_WHATSAPP_PHONE_NUMBER_ID: "100000000000001",
+    META_WHATSAPP_BUSINESS_ACCOUNT_ID: "200000000000001",
     META_WHATSAPP_ALLOWED_TEST_RECIPIENTS: ["919999999999"],
     META_WHATSAPP_WEBHOOK_TIMEOUT_MS: 10000,
     META_WHATSAPP_PROVIDER_TIMEOUT_MS: 20,
@@ -18,6 +18,8 @@ const state = vi.hoisted(() => ({
     META_GRAPH_API_VERSION: "v23.0",
   },
   connectorFindMany: vi.fn(),
+  connectorFindFirst: vi.fn(),
+  connectorUpdate: vi.fn(),
   membershipFindFirst: vi.fn(),
   eventCreate: vi.fn(),
   eventUpdateMany: vi.fn(),
@@ -37,7 +39,7 @@ vi.mock("../src/config/logger.js", () => ({
 }));
 vi.mock("../src/database/prisma.js", () => ({
   prisma: {
-    integrationConnector: { findMany: state.connectorFindMany },
+    integrationConnector: { findMany: state.connectorFindMany, findFirst: state.connectorFindFirst, update: state.connectorUpdate },
     organizationMembership: { findFirst: state.membershipFindFirst },
     integrationEvent: {
       create: state.eventCreate,
@@ -72,7 +74,7 @@ const connector = {
   provider: "META_WHATSAPP_CLOUD",
   status: "ACTIVE",
   mode: "MANUAL_APPROVAL",
-  whatsappPhoneNumberId: "phone-12345",
+  whatsappPhoneNumberId: "100000000000001",
 };
 const rawPayload = (message: Record<string, unknown>): MetaPayload => ({
   entry: [
@@ -80,7 +82,9 @@ const rawPayload = (message: Record<string, unknown>): MetaPayload => ({
       changes: [
         {
           value: {
-            metadata: { phone_number_id: "phone-12345" },
+            metadata: { phone_number_id: "100000000000001", display_phone_number: "+91 99999 99999" },
+            whatsapp_business_account_id: "200000000000001",
+            page_id: "300000000000001",
             contacts: [
               {
                 profile: { name: "Meta Test Customer" },
@@ -105,6 +109,7 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
     state.env.META_WHATSAPP_ENABLED = true;
     state.env.META_WHATSAPP_OUTBOUND_ENABLED = false;
     state.connectorFindMany.mockResolvedValue([connector]);
+    state.connectorFindFirst.mockResolvedValue({ id: connector.id });
     state.membershipFindFirst.mockResolvedValue({
       userId: connector.createdById,
     });
@@ -155,6 +160,12 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
     await expect(
       new WhatsappService().receive("", body, undefined, payload),
     ).rejects.toMatchObject({ code: "INVALID_WEBHOOK_SIGNATURE" });
+    await expect(
+      new WhatsappService().receive("", Buffer.concat([body, Buffer.from(" ")]), signature(body), payload),
+    ).rejects.toMatchObject({ code: "INVALID_WEBHOOK_SIGNATURE" });
+    await expect(
+      new WhatsappService().receive("", body, `${signature(body)}00`, payload),
+    ).rejects.toMatchObject({ code: "INVALID_WEBHOOK_SIGNATURE" });
   });
 
   it("maps the configured Phone Number ID to one active organization-owned connector", async () => {
@@ -169,7 +180,7 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
     expect(state.connectorFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          whatsappPhoneNumberId: "phone-12345",
+          whatsappPhoneNumberId: "100000000000001",
           organization: { status: "ACTIVE", deletedAt: null },
         }),
       }),
@@ -181,6 +192,10 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
         }),
       }),
     );
+    const lookup = state.connectorFindMany.mock.calls[0]?.[0];
+    expect(JSON.stringify(lookup)).not.toContain("919999999999");
+    expect(JSON.stringify(lookup)).not.toContain("200000000000001");
+    expect(JSON.stringify(lookup)).not.toContain("300000000000001");
   });
 
   it("rejects unknown, ambiguous, or suspended-organization connector resolution", async () => {
@@ -192,6 +207,13 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
         text: { body: "Hello" },
       }),
       body = raw(payload);
+    await expect(
+      new WhatsappService().receive("", body, signature(body), payload),
+    ).rejects.toMatchObject({ code: "META_CONNECTOR_NOT_FOUND" });
+    state.connectorFindMany.mockResolvedValue([
+      connector,
+      { ...connector, id: crypto.randomUUID(), organizationId: crypto.randomUUID() },
+    ]);
     await expect(
       new WhatsappService().receive("", body, signature(body), payload),
     ).rejects.toMatchObject({ code: "META_CONNECTOR_NOT_FOUND" });
@@ -240,7 +262,9 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
     );
   });
 
-  it("records unsupported media for human handling instead of discarding it", async () => {
+  it("records unsupported media without downloading or creating an enquiry", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     state.eventFindFirst.mockResolvedValue({
       id: "receipt-1",
       organizationId: connector.organizationId,
@@ -257,15 +281,12 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
       },
     });
     await new WhatsappService().processReceipt("receipt-1");
-    expect(state.agentProcess).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      expect.objectContaining({
-        message: expect.stringContaining("Unsupported image"),
-        metadata: expect.objectContaining({ unsupportedMedia: true }),
-      }),
-      expect.objectContaining({ forceApproval: true }),
-    );
+    expect(state.agentProcess).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(state.eventUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "receipt-1" },
+      data: expect.objectContaining({ status: "COMPLETED" }),
+    }));
   });
 
   it("does not process duplicate receipt rows twice", async () => {
@@ -298,6 +319,7 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
         },
       });
       await new WhatsappService().processReceipt(`receipt-${status}`);
+      expect(state.agentProcess).not.toHaveBeenCalled();
       expect(state.draftUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -310,6 +332,17 @@ describe("Meta WhatsApp Cloud API Phase 1", () => {
         }),
       );
     }
+  });
+
+  it("cannot configure a Phone Number ID on a non-WhatsApp connector", async () => {
+    state.connectorFindFirst.mockResolvedValue(null);
+    await expect(new WhatsappService().credentials(
+      connector.organizationId,
+      connector.createdById,
+      connector.id,
+      { phoneNumberId: "100000000000001", businessAccountId: "200000000000001", accessToken: "synthetic-token-value-long-enough", appSecret: "synthetic-secret" },
+    )).rejects.toMatchObject({ code: "CONNECTOR_NOT_FOUND" });
+    expect(state.connectorUpdate).not.toHaveBeenCalled();
   });
 
   it("preserves approval and human-takeover outcomes by never auto-sending them", async () => {

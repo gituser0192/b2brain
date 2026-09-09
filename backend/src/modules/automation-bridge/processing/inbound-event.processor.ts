@@ -12,6 +12,29 @@ type AgentResult = Awaited<ReturnType<EnquiryAgentService["process"]>>;
 export class InboundEventProcessor {
   constructor(private readonly agent = new EnquiryAgentService()) {}
 
+  async processVerifiedWhatsapp(organizationId: string, userId: string, event: NormalizedInboundEvent) {
+    if (event.channel !== "WHATSAPP" || event.eventType !== "CUSTOMER_MESSAGE")
+      throw new AppError(400, "This adapter accepts WhatsApp customer messages only.", "UNSUPPORTED_INBOUND_EVENT");
+
+    const connector = await prisma.integrationConnector.findFirst({
+      where: { id: event.connectorId, organizationId, type: "WHATSAPP", provider: "META_WHATSAPP_CLOUD", status: "ACTIVE", deletedAt: null },
+      select: { id: true },
+    });
+    if (!connector) throw new AppError(404, "WhatsApp intake is unavailable.", "WHATSAPP_INTAKE_UNAVAILABLE");
+
+    const result = await this.agent.process(organizationId, userId, {
+      channel: "WHATSAPP",
+      externalMessageId: event.externalEventId,
+      conversationId: event.correlationId,
+      customerName: event.sender.name,
+      phone: event.sender.phone,
+      message: event.content.text,
+      receivedAt: event.receivedAt,
+      metadata: { ...event.metadata, inboundContractVersion: event.version, inboundChannel: event.channel },
+    }, { connectorId: connector.id, source: "META", forceApproval: true });
+    return this.result(result, event.correlationId);
+  }
+
   async processAuthenticatedSimulator(organizationId: string, userId: string, event: NormalizedInboundEvent) {
     if (event.channel !== "SIMULATOR" || event.eventType !== "CUSTOMER_MESSAGE")
       throw new AppError(400, "This adapter accepts simulator customer messages only.", "UNSUPPORTED_INBOUND_EVENT");

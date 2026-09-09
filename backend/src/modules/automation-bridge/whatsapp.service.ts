@@ -4,39 +4,20 @@ import { env } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
-import { EnquiryAgentService } from "../enquiry-agent/enquiry-agent.service.js";
 import { encryptSecret } from "./bridge.crypto.js";
+import { normalizedInboundEventSchema } from "./contracts/inbound-event.contract.js";
+import { InboundEventProcessor } from "./processing/inbound-event.processor.js";
+import { stableWhatsappConversationId } from "./whatsapp-simulator.service.js";
+import { metaWhatsappWebhookSchema, type MetaWhatsappWebhook } from "./whatsapp-inbound.validation.js";
 import type {
   MessageDraftInput,
   WhatsappEscalationInput,
   WhatsappTemplateDraftInput,
   WhatsappCredentialsInput,
 } from "./bridge.validation.js";
-export type MetaPayload = {
-  entry?: Array<{
-    changes?: Array<{
-      value?: {
-        metadata?: { phone_number_id?: string };
-        contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>;
-        messages?: Array<{
-          id?: string;
-          from?: string;
-          type?: string;
-          text?: { body?: string };
-          timestamp?: string;
-        }>;
-        statuses?: Array<{
-          id?: string;
-          status?: string;
-          timestamp?: string;
-          errors?: Array<{ code?: number; title?: string }>;
-        }>;
-      };
-    }>;
-  }>;
-};
+export type MetaPayload = MetaWhatsappWebhook;
 export class WhatsappService {
-  private agent = new EnquiryAgentService();
+  constructor(private readonly processor = new InboundEventProcessor()) {}
   async credentials(
     org: string,
     user: string,
@@ -103,7 +84,7 @@ export class WhatsappService {
     return challenge;
   }
   signature(raw: Buffer, header: string | undefined, secret: string) {
-    if (!header?.startsWith("sha256=")) return false;
+    if (!header || !/^sha256=[a-f0-9]{64}$/.test(header)) return false;
     const expected = `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`;
     return (
       header.length === expected.length &&
@@ -111,13 +92,10 @@ export class WhatsappService {
     );
   }
   private async connector(phoneNumberId: string) {
-    if (
-      !env.META_WHATSAPP_PHONE_NUMBER_ID ||
-      phoneNumberId !== env.META_WHATSAPP_PHONE_NUMBER_ID
-    )
+    if (!/^\d{5,32}$/.test(phoneNumberId))
       throw new AppError(
         404,
-        "Meta test Phone Number ID was not found.",
+        "Meta Phone Number ID was not found.",
         "META_PHONE_NUMBER_NOT_FOUND",
       );
     const connectors = await prisma.integrationConnector.findMany({
@@ -247,7 +225,7 @@ export class WhatsappService {
     _webhookKey: string,
     raw: Buffer | undefined,
     signature: string | undefined,
-    payload: MetaPayload,
+    payload: unknown,
   ) {
     if (!env.META_WHATSAPP_ENABLED)
       throw new AppError(
@@ -265,7 +243,7 @@ export class WhatsappService {
         "Invalid Meta webhook signature.",
         "INVALID_WEBHOOK_SIGNATURE",
       );
-    const receiptIds = await this.persist(payload);
+    const receiptIds = await this.persist(metaWhatsappWebhookSchema.parse(payload));
     setImmediate(
       () =>
         void Promise.all(receiptIds.map((id) => this.processReceipt(id))).catch(
@@ -279,7 +257,7 @@ export class WhatsappService {
     webhookKey: string,
     raw: Buffer | undefined,
     signature: string | undefined,
-    payload: MetaPayload,
+    payload: unknown,
   ) {
     if (!env.META_WHATSAPP_ENABLED)
       throw new AppError(
@@ -297,7 +275,7 @@ export class WhatsappService {
         "Invalid Meta webhook signature.",
         "INVALID_WEBHOOK_SIGNATURE",
       );
-    const receiptIds = await this.persist(payload);
+    const receiptIds = await this.persist(metaWhatsappWebhookSchema.parse(payload));
     await Promise.all(receiptIds.map((id) => this.processReceipt(id)));
     return { accepted: receiptIds.length };
   }
@@ -372,49 +350,29 @@ export class WhatsappService {
             typeof payload.receivedAt === "string"
               ? payload.receivedAt
               : new Date().toISOString();
-        const result = await this.agent.process(
-          receipt.organizationId,
-          connector.actorUserId,
-          {
+        if (!unsupported) {
+          const event = normalizedInboundEventSchema.parse({
+            version: "1",
             channel: "WHATSAPP",
-            externalMessageId: metaMessageId,
-            conversationId: `meta:${from}`,
-            customerName:
-              typeof payload.contactName === "string"
-                ? payload.contactName
-                : undefined,
-            phone: from,
-            message: unsupported
-              ? `Unsupported ${messageType} message received. Human review is required.`
-              : typeof payload.message === "string"
-                ? payload.message
-                : "",
-            receivedAt,
-            metadata: {
-              provider: "META_WHATSAPP_CLOUD",
-              messageType,
-              unsupportedMedia: unsupported,
-            },
-          },
-          {
+            eventType: "CUSTOMER_MESSAGE",
+            externalEventId: metaMessageId,
+            occurredAt: receivedAt,
+            receivedAt: new Date().toISOString(),
             connectorId: receipt.connectorId,
-            source: "META",
-            forceApproval:
-              unsupported || receipt.connector.mode !== "POLICY_LIMITED",
-          },
-        );
-        if (
-          result &&
-          "draftId" in result &&
-          result.draftId &&
-          !result.approvalRequired &&
-          env.META_WHATSAPP_OUTBOUND_ENABLED
-        )
-          await this.sendApproved(
+            sender: {
+              name: typeof payload.contactName === "string" ? payload.contactName : undefined,
+              phone: from,
+            },
+            content: { text: typeof payload.message === "string" ? payload.message : "" },
+            metadata: { provider: "META_WHATSAPP_CLOUD", messageType },
+            correlationId: stableWhatsappConversationId(receipt.connectorId, from),
+          });
+          await this.processor.processVerifiedWhatsapp(
             receipt.organizationId,
             connector.actorUserId,
-            result.draftId,
+            event,
           );
+        }
       }
       await prisma.integrationEvent.update({
         where: { id },

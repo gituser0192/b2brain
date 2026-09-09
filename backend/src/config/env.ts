@@ -86,14 +86,14 @@ const envSchema = z
       .transform((value) => value || undefined),
     META_WHATSAPP_PHONE_NUMBER_ID: z
       .string()
-      .min(5)
-      .max(100)
+      .trim()
+      .regex(/^\d{5,32}$/)
       .optional()
       .transform((value) => value || undefined),
     META_WHATSAPP_BUSINESS_ACCOUNT_ID: z
       .string()
-      .min(5)
-      .max(100)
+      .trim()
+      .regex(/^\d{5,32}$/)
       .optional()
       .transform((value) => value || undefined),
     META_WHATSAPP_ALLOWED_TEST_RECIPIENTS: z
