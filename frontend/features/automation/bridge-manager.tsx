@@ -9,6 +9,7 @@ import { BridgeOverview } from "./bridge-overview";
 import { BridgeDialogs, type BridgeDialogKind } from "./bridge-dialogs";
 import type { BridgeConnector, BridgeDraft, BridgeEvent, BridgePayload } from "./bridge-types";
 import { MetaLeadSetup } from "./meta-lead-setup";
+import { WhatsappBusinessSetup } from "./whatsapp-business-setup";
 const connectorBlank = {
     name: "",
     type: "WHATSAPP",
@@ -293,6 +294,7 @@ export function BridgeManager() {
         onSendDraft={(id) => void sendDraft(id)}
       />
       {connectors.filter(item => item.type === "SOCIAL" && item.provider === "META_LEAD_ADS").map(item => <MetaLeadSetup key={item.id} connectorId={item.id} />)}
+      {connectors.filter(item => item.type === "WHATSAPP" && item.provider === "META_WHATSAPP_CLOUD").map(item => <WhatsappBusinessSetup key={item.id} connectorId={item.id} canManage={Boolean(session?.membership.permissions.includes("AUTOMATION_MANAGE"))} />)}
       <WhatsappFollowUpWorkspace />
       <BridgeDialogs
         open={open}

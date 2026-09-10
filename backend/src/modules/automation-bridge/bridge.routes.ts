@@ -28,10 +28,13 @@ import {
 import { EmailDeliveryService } from "./email-delivery.service.js";
 import { MetaLeadConnectionService } from "./meta-lead-connection.service.js";
 import { metaConnectionCallbackSchema, metaConnectionStartSchema, metaFormSelectionSchema, metaPageSelectionSchema, type MetaConnectionCallbackInput, type MetaConnectionStartInput, type MetaFormSelectionInput, type MetaPageSelectionInput } from "./meta-lead-connection.validation.js";
+import { WhatsappConnectionService } from "./whatsapp-connection.service.js";
+import { whatsappAccountSelectionSchema, whatsappConnectionCallbackSchema, whatsappConnectionStartSchema, whatsappNumberSelectionSchema, type WhatsappAccountSelectionInput, type WhatsappConnectionCallbackInput, type WhatsappConnectionStartInput, type WhatsappNumberSelectionInput } from "./whatsapp-connection.validation.js";
 import rateLimit from "express-rate-limit";
 const service = new BridgeService(),
   emailDelivery = new EmailDeliveryService(),
   metaConnection = new MetaLeadConnectionService(),
+  whatsappConnection = new WhatsappConnectionService(),
   auth = (r: Parameters<RequestHandler>[0]) => {
     if (!r.auth)
       throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
@@ -71,6 +74,15 @@ bridgeRouter.post("/connectors/:id/meta/test", metaLimit, requirePermission("AUT
 bridgeRouter.post("/connectors/:id/meta/activate", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.activate(metaContext(r), String(r.params.id)))));
 bridgeRouter.post("/connectors/:id/meta/reconnect", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.reconnect(metaContext(r), String(r.params.id)))));
 bridgeRouter.post("/connectors/:id/meta/disconnect", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaConnection.disconnect(metaContext(r), String(r.params.id)))));
+const whatsappSetupLimit = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, message: { success: false, message: "Too many WhatsApp setup requests. Try again later.", code: "RATE_LIMITED" } });
+bridgeRouter.get("/connectors/:id/whatsapp-setup/status", requirePermission("AUTOMATION_VIEW"), async (r, s) => s.json(success(await whatsappConnection.status(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/whatsapp-setup/authorize", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(whatsappConnectionStartSchema), async (r, s) => s.json(success(await whatsappConnection.start(metaContext(r), String(r.params.id), r.body as WhatsappConnectionStartInput))));
+bridgeRouter.post("/connectors/:id/whatsapp-setup/callback", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(whatsappConnectionCallbackSchema), async (r, s) => s.json(success(await whatsappConnection.callback(metaContext(r), String(r.params.id), r.body as WhatsappConnectionCallbackInput))));
+bridgeRouter.put("/connectors/:id/whatsapp-setup/account", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(whatsappAccountSelectionSchema), async (r, s) => s.json(success(await whatsappConnection.selectAccount(metaContext(r), String(r.params.id), r.body as WhatsappAccountSelectionInput))));
+bridgeRouter.put("/connectors/:id/whatsapp-setup/number", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(whatsappNumberSelectionSchema), async (r, s) => s.json(success(await whatsappConnection.selectNumber(metaContext(r), String(r.params.id), r.body as WhatsappNumberSelectionInput))));
+bridgeRouter.post("/connectors/:id/whatsapp-setup/test", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await whatsappConnection.test(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/whatsapp-setup/reconnect", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await whatsappConnection.reconnect(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/connectors/:id/whatsapp-setup/disconnect", whatsappSetupLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await whatsappConnection.disconnect(metaContext(r), String(r.params.id)))));
 bridgeRouter.get("/email-deliveries", requirePermission("AUTOMATION_VIEW"), async (r, s) => {
   s.json(success(await emailDelivery.workspace(auth(r).organizationId)));
 });
