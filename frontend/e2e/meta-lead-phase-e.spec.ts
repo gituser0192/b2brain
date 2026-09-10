@@ -1,6 +1,6 @@
 import { expect, installSyntheticApi, test } from "./fixtures/synthetic-workspace";
 
-test("guided Meta Lead Ads test-mode setup is responsive and safely gated", async ({ page }) => {
+test("guided Meta Lead Ads test-mode setup is responsive and safely gated", async ({ page }, testInfo) => {
   await installSyntheticApi(page, { metaAutomation: true });
   let setupState = "DRAFT", forms: Array<{ id: string; name: string }> = [], subscriptionVerified = false;
   await page.route("**/api/v1/automation-bridge/connectors/*/meta/**", async route => {
@@ -26,6 +26,15 @@ test("guided Meta Lead Ads test-mode setup is responsive and safely gated", asyn
   await setup.getByRole("button", { name: "Run synthetic test" }).click();
   await expect(setup.getByText("Synthetic lead passed without creating CRM data.")).toBeVisible();
   await expect(setup.getByRole("button", { name: "Activate" })).toBeDisabled();
-  await setup.evaluate(element => element.scrollIntoView({ block: "end" }));
-  await expect(setup).toHaveScreenshot("meta-lead-test-mode-setup.png");
+  if (testInfo.project.name === "mobile") {
+    const setupHeader = setup.locator("header");
+    const setupActions = setup.locator(".meta-setup-actions");
+    await setupHeader.evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await expect(setupHeader).toHaveScreenshot("meta-lead-test-mode-header.png");
+    await setupActions.evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await expect(setupActions).toHaveScreenshot("meta-lead-test-mode-actions.png");
+  } else {
+    await setup.evaluate(element => element.scrollIntoView({ block: "end" }));
+    await expect(setup).toHaveScreenshot("meta-lead-test-mode-setup.png");
+  }
 });

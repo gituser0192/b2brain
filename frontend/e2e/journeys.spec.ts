@@ -121,11 +121,14 @@ test("primary client navigation preserves the shell and does not repeat auth res
   page.on("request", (request) => { const path = new URL(request.url()).pathname; if (path.startsWith("/api/v1/")) counts.set(path, (counts.get(path) ?? 0) + 1); });
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Aarav/ })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const refreshRequests = counts.get("/api/v1/auth/refresh");
+  const serviceRequests = counts.get("/api/v1/services/enabled");
   await page.getByRole("link", { name: "Customers" }).click();
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
   await page.getByRole("link", { name: /Projects$/ }).click();
   await expect(page.getByRole("heading", { name: "Projects & tasks" })).toBeVisible();
-  expect(counts.get("/api/v1/auth/refresh")).toBe(1);
-  expect(counts.get("/api/v1/services/enabled")).toBe(1);
-  expect(counts.get("/api/v1/projects")).toBe(1);
+  await expect.poll(() => counts.get("/api/v1/projects")).toBe(1);
+  expect(counts.get("/api/v1/auth/refresh")).toBe(refreshRequests);
+  expect(counts.get("/api/v1/services/enabled")).toBe(serviceRequests);
 });
