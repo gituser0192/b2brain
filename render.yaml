@@ -6,7 +6,6 @@ services:
     buildCommand: npm ci --include=dev && npm run build:production --workspace @b2brain/backend
     startCommand: npm run start --workspace @b2brain/backend
     healthCheckPath: /api/v1/ready
-    maxShutdownDelaySeconds: 15
     autoDeploy: false
     envVars:
       - key: NODE_ENV
