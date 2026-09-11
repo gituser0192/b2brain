@@ -382,80 +382,119 @@
 /* Automation bridge and connector records */
 .bridge-manager {
   margin-top: 24px;
+  padding-bottom: 24px;
 }
 .bridge-manager > header {
   display: flex;
   justify-content: space-between;
-  align-items: end;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+  border: 1px solid #dce4ef;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f1f7ff 100%);
 }
 .bridge-manager > header p,
 .bridge-manager > header h3 {
   margin: 0;
 }
 .bridge-manager > header h3 {
-  font-size: 24px;
-  margin: 5px 0;
+  font-size: 26px;
+  margin: 6px 0;
+}
+.bridge-manager > header > div:first-child {
+  max-width: 650px;
+}
+.bridge-manager > header > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 560px;
 }
 .bridge-manager > header span {
   color: #69778d;
+  line-height: 1.55;
 }
 .bridge-manager > header button {
-  border: 0;
+  border: 1px solid #087ce3;
   background: #087ce3;
   color: #fff;
   border-radius: 8px;
-  padding: 9px 13px;
-  margin-left: 7px;
+  padding: 10px 14px;
+  margin: 0;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 5px 14px rgb(8 124 227 / 14%);
+}
+.bridge-manager > header button:hover {
+  background: #066fc9;
+}
+.bridge-manager > header button:focus-visible {
+  outline: 3px solid rgb(8 124 227 / 24%);
+  outline-offset: 2px;
 }
 .bridge-metrics {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 9px;
+  gap: 12px;
   margin: 18px 0;
 }
 .bridge-metrics article {
   background: #fff;
   border: 1px solid #dce4ef;
-  border-radius: 11px;
-  padding: 13px;
+  border-radius: 13px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgb(24 50 86 / 4%);
 }
 .bridge-metrics span {
   display: block;
   text-transform: capitalize;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 700;
   color: #6c7990;
 }
 .bridge-metrics strong {
   display: block;
-  font-size: 20px;
+  font-size: 24px;
   margin-top: 6px;
 }
 .bridge-columns {
   display: grid;
-  grid-template-columns: 330px 1fr;
-  gap: 13px;
+  grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.75fr);
+  gap: 16px;
 }
 .bridge-columns > section {
   background: #fff;
   border: 1px solid #dce4ef;
-  border-radius: 13px;
-  padding: 15px;
+  min-width: 0;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgb(24 50 86 / 4%);
 }
 .bridge-columns > section > header,
 .connector-card > div,
 .bridge-event > div {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.bridge-columns > section > header {
+  padding-bottom: 12px;
+  font-size: 16px;
 }
 .connector-card,
 .bridge-event {
   border-top: 1px solid #e7ecf2;
-  padding: 12px 2px;
+  padding: 16px 2px;
 }
 .connector-card i,
 .bridge-event i {
   font-style: normal;
-  font-size: 8px;
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
   background: #eef2f7;
   border-radius: 99px;
   padding: 4px 6px;
@@ -464,12 +503,19 @@
 .connector-card small,
 .bridge-event p,
 .bridge-event small {
-  font-size: 10px;
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
   color: #6c7990;
+}
+.connector-card p,
+.bridge-event p {
+  margin: 7px 0;
 }
 .bridge-event > strong {
   display: block;
   margin-top: 8px;
+  overflow-wrap: anywhere;
 }
 .bridge-event footer button {
   border: 1px solid #d7e0eb;
@@ -477,6 +523,26 @@
   border-radius: 7px;
   padding: 6px 8px;
   margin-right: 5px;
+}
+.bridge-see-more {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid #cbd9e8;
+  border-radius: 8px;
+  background: #f4f8fc;
+  color: #086fc9;
+  padding: 9px 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.bridge-see-more:hover {
+  border-color: #8cbce8;
+  background: #eaf4fd;
+}
+.bridge-see-more:focus-visible {
+  outline: 3px solid rgb(8 124 227 / 24%);
+  outline-offset: 2px;
 }
 .bridge-secret {
   display: flex;
@@ -492,6 +558,7 @@
   background: #fff;
   padding: 6px;
   overflow: auto;
+  min-width: 0;
 }
 
 /* Automation bridge dialogs and message drafts */
@@ -508,6 +575,9 @@
   border-radius: 8px;
   padding: 10px;
 }
+.bridge-dialog .form-alert {
+  margin: 0 0 14px;
+}
 @media (max-width: 900px) {
   .bridge-columns {
     grid-template-columns: 1fr;
@@ -520,22 +590,29 @@
     flex-direction: column;
     gap: 12px;
   }
+  .bridge-manager > header > div:last-child {
+    justify-content: flex-start;
+    max-width: none;
+  }
 }
 .connector-card code {
   display: block;
-  font-size: 9px;
+  font-size: 10px;
   color: #53657d;
   background: #f3f6fa;
   padding: 6px;
   margin-top: 7px;
   overflow: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .bridge-drafts {
   background: #fff;
   border: 1px solid #dce4ef;
-  border-radius: 13px;
-  padding: 15px;
-  margin-top: 13px;
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 16px;
+  box-shadow: 0 8px 24px rgb(24 50 86 / 4%);
 }
 .bridge-drafts > header,
 .bridge-drafts article > div {
@@ -544,17 +621,19 @@
 }
 .bridge-drafts article {
   border-top: 1px solid #e7ecf2;
-  padding: 12px 2px;
+  padding: 16px 2px;
 }
 .bridge-drafts article i {
   font-style: normal;
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 700;
   background: #eef2f7;
   border-radius: 99px;
   padding: 4px 7px;
 }
 .bridge-drafts article p {
   color: #53657d;
+  line-height: 1.55;
 }
 .bridge-drafts article button {
   border: 0;
@@ -562,6 +641,25 @@
   color: #fff;
   border-radius: 7px;
   padding: 7px 10px;
+}
+@media (max-width: 600px) {
+  .bridge-manager > header {
+    padding: 18px;
+  }
+  .bridge-manager > header h3 {
+    font-size: 22px;
+  }
+  .bridge-manager > header > div:last-child,
+  .bridge-manager > header button {
+    width: 100%;
+  }
+  .bridge-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bridge-columns > section,
+  .bridge-drafts {
+    padding: 15px;
+  }
 }
 
 /* Meta Lead Ads guided test-mode setup */

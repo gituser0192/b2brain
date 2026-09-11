@@ -272,7 +272,7 @@ export function BridgeManager() {
           </button>
         </div>
       </header>
-      {error && <div className="form-alert">{error}</div>}
+      {error && !open && <div className="form-alert" role="alert">{error}</div>}
       {secret && (
         <div className="bridge-secret">
           <strong>Webhook secret — copy now</strong>
@@ -306,6 +306,7 @@ export function BridgeManager() {
         websiteForm={websiteForm}
         simulatorMessage={simulatorMessage}
         simulatorResult={simulatorResult}
+        error={error}
         setSelected={setSelected}
         setConnector={setConnector}
         setEvent={setEvent}

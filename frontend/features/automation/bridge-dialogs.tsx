@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { BridgeConnector } from "./bridge-types";
 
 export type BridgeDialogKind =
@@ -59,6 +59,7 @@ interface BridgeDialogsProps {
   websiteForm: WebsiteForm;
   simulatorMessage: SimulatorForm;
   simulatorResult: string;
+  error: string;
   setSelected: Dispatch<SetStateAction<string>>;
   setConnector: Dispatch<SetStateAction<ConnectorForm>>;
   setEvent: Dispatch<SetStateAction<EventForm>>;
@@ -98,13 +99,34 @@ const eventKinds = [
 
 export function BridgeDialogs(props: BridgeDialogsProps) {
   const { open } = props;
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(props.onClose);
+
+  useEffect(() => {
+    onCloseRef.current = props.onClose;
+  }, [props.onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseRef.current();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="agent-modal">
-      <div className="agent-dialog bridge-dialog">
+    <div className="agent-modal" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }}>
+      <div className="agent-dialog bridge-dialog" role="dialog" aria-modal="true" aria-labelledby="bridge-dialog-title">
         <header>
-          <h3>
+          <h3 id="bridge-dialog-title">
             {open === "credentials"
               ? "Configure WhatsApp"
               : open === "whatsapp-simulator"
@@ -115,8 +137,13 @@ export function BridgeDialogs(props: BridgeDialogsProps) {
                     ? "Create connector"
                     : "Receive controlled test event"}
           </h3>
-          <button onClick={props.onClose}>×</button>
+          <button ref={closeButtonRef} aria-label="Close dialog" onClick={props.onClose}>×</button>
         </header>
+        {props.error && (
+          <div className="form-alert" role="alert">
+            {props.error}
+          </div>
+        )}
         {open === "whatsapp-simulator" ? (
           <SimulatorDialog {...props} />
         ) : open === "website-form" ? (

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { BridgeConnector, BridgeDraft, BridgeEvent } from "./bridge-types";
 
 export function BridgeOverview({
@@ -22,6 +25,12 @@ export function BridgeOverview({
   onReply: (event: BridgeEvent) => void;
   onSendDraft: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState({
+    connectors: false,
+    events: false,
+    drafts: false,
+  });
+
   return (
     <>
       <section className="bridge-metrics">
@@ -41,7 +50,7 @@ export function BridgeOverview({
           {!connectors.length ? (
             <p className="bridge-empty">No connectors configured.</p>
           ) : (
-            connectors.map((connector) => (
+            connectors.slice(0, expanded.connectors ? undefined : 3).map((connector) => (
               <article className="connector-card" key={connector.id}>
                 <div>
                   <strong>{connector.name}</strong>
@@ -89,6 +98,20 @@ export function BridgeOverview({
               </article>
             ))
           )}
+          {connectors.length > 3 && (
+            <button
+              className="bridge-see-more"
+              aria-expanded={expanded.connectors}
+              onClick={() =>
+                setExpanded((current) => ({
+                  ...current,
+                  connectors: !current.connectors,
+                }))
+              }
+            >
+              {expanded.connectors ? "Show less" : `See ${connectors.length - 3} more`}
+            </button>
+          )}
         </section>
         <section>
           <header>
@@ -98,7 +121,7 @@ export function BridgeOverview({
           {!events.length ? (
             <p className="bridge-empty">No external events received.</p>
           ) : (
-            events.map((event) => (
+            events.slice(0, expanded.events ? undefined : 3).map((event) => (
               <article className="bridge-event" key={event.id}>
                 <div>
                   <span>
@@ -132,6 +155,20 @@ export function BridgeOverview({
               </article>
             ))
           )}
+          {events.length > 3 && (
+            <button
+              className="bridge-see-more"
+              aria-expanded={expanded.events}
+              onClick={() =>
+                setExpanded((current) => ({
+                  ...current,
+                  events: !current.events,
+                }))
+              }
+            >
+              {expanded.events ? "Show less" : `See ${events.length - 3} more`}
+            </button>
+          )}
         </section>
       </div>
       <section className="bridge-drafts">
@@ -142,7 +179,7 @@ export function BridgeOverview({
         {!drafts.length ? (
           <p className="bridge-empty">No reply drafts.</p>
         ) : (
-          drafts.map((draft) => (
+          drafts.slice(0, expanded.drafts ? undefined : 3).map((draft) => (
             <article key={draft.id}>
               <div>
                 <strong>
@@ -165,6 +202,20 @@ export function BridgeOverview({
                 ))}
             </article>
           ))
+        )}
+        {drafts.length > 3 && (
+          <button
+            className="bridge-see-more"
+            aria-expanded={expanded.drafts}
+            onClick={() =>
+              setExpanded((current) => ({
+                ...current,
+                drafts: !current.drafts,
+              }))
+            }
+          >
+            {expanded.drafts ? "Show less" : `See ${drafts.length - 3} more`}
+          </button>
         )}
       </section>
     </>
