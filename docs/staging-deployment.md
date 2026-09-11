@@ -9,74 +9,61 @@ This checklist prepares a private staging environment. It does not authorize a p
 - Database: existing Neon PostgreSQL database
 - Authentication: bearer access tokens plus an HttpOnly refresh cookie
 - Access: Super-Admin invitation and approval only; public self-registration is not available
-- Business Operating Agent: hosted reasoning for selected analysis routes with deterministic fallback
+- Business Operating Agent: existing TypeScript reasoning with hosted AI and the Python service disabled for the first deployment
 - External channels: disabled (`EXTERNAL_CHANNELS_ENABLED=false`, Meta inbound/outbound disabled)
 
 Because the Vercel and Render hosts are different sites, the refresh cookie must use `Secure=true` and `SameSite=none`. Do not set `COOKIE_DOMAIN`: neither host may set a cookie for the other provider's domain.
 
-## Required environment variables
+## Environment-variable ownership
 
 ### Vercel
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_API_URL` | Public Render API URL ending in `/api/v1` |
+| Variable | Required | Secret | Purpose |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | Yes | No | Public Render API URL ending in `/api/v1` |
 
 `NEXT_PUBLIC_*` values are embedded in browser code. Never put a password, token, database URL, or private key in them.
 
-### Render
+### Render backend: required for first staging
 
-| Variable | Purpose |
-| --- | --- |
-| `NODE_ENV` | Must be `production` |
-| `PORT` | Supplied by Render; the app reads it automatically |
-| `FRONTEND_URL` | Exact HTTPS Vercel staging origin, without a trailing slash |
-| `TRUST_PROXY` | Must be `true` behind Render's proxy |
-| `EXTERNAL_CHANNELS_ENABLED` | Must be `false` for private staging |
-| `JSON_BODY_LIMIT` | Global JSON request limit, recommended `1mb` |
-| `API_RATE_LIMIT_WINDOW_MS` | Global API limiter window |
-| `API_RATE_LIMIT_MAX` | Global requests allowed per IP/window |
-| `DATABASE_URL` | Neon pooled runtime URL with `sslmode=require` |
-| `DIRECT_URL` | Neon direct migration URL with `sslmode=require` |
-| `JWT_ACCESS_SECRET` | Random secret of at least 32 characters |
-| `JWT_ACCESS_EXPIRES_IN` | Access-token duration, recommended `15m` |
-| `REFRESH_TOKEN_SECRET` | A different random secret of at least 32 characters |
-| `REFRESH_TOKEN_EXPIRES_IN` | Refresh duration, recommended `30d` |
-| `COOKIE_NAME` | Refresh-cookie name, recommended `b2brain_refresh` |
-| `COOKIE_SECURE` | Must be `true` |
-| `COOKIE_SAME_SITE` | Must be `none` for Vercel-to-Render staging |
-| `COOKIE_DOMAIN` | Leave unset for provider-owned domains |
-| `PASSWORD_HASH_COST` | Password cost, recommended `12` |
-| `SUPER_ADMIN_EMAIL` | Approved B² Brain platform administrator email |
-| `BRIDGE_ENCRYPTION_KEY` | Strong random key for encrypted connector credentials |
-| `META_WHATSAPP_ENABLED` | Must be `false` |
-| `META_WHATSAPP_OUTBOUND_ENABLED` | Must be `false` |
-| `ENQUIRY_AI_MODE` | Keep `deterministic` while external customer channels are disabled |
-| `ENQUIRY_AI_KILL_SWITCH` | Keep `true` for private staging |
-| `WORKSPACE_AI_PROVIDER` | Hosted provider selector, currently `openai` |
-| `WORKSPACE_AI_KILL_SWITCH` | Emergency hosted-reasoning shutdown switch |
-| `WORKSPACE_AI_DETERMINISTIC_ONLY` | `false` to permit selected hosted analysis routes |
-| `WORKSPACE_AI_MODEL` | Hosted structured-output model name |
-| `WORKSPACE_AI_BASE_URL` | Hosted provider API base URL |
-| `OPENAI_API_KEY` | Hosted provider secret; Render only |
-| `WORKSPACE_AI_TIMEOUT_MS` | Per-provider-call timeout |
-| `WORKSPACE_AI_MAX_RETRIES` | Bounded provider retry count |
-| `WORKSPACE_AI_MAX_INPUT_CHARS` | Maximum grounded context size |
-| `WORKSPACE_AI_MAX_OUTPUT_TOKENS` | Maximum model output tokens |
-| `WORKSPACE_AI_DAILY_TOKEN_LIMIT` | Per-organization daily token ceiling |
-| `WORKSPACE_AI_MONTHLY_TOKEN_LIMIT` | Per-organization monthly token ceiling |
-| `WORKSPACE_AI_DAILY_REQUEST_LIMIT` | Per-organization daily hosted-request ceiling |
-| `WORKSPACE_AI_MAX_TOOL_ITERATIONS` | Must remain `1`; proposed actions are not auto-executed |
-| `WORKSPACE_AI_CIRCUIT_FAILURE_THRESHOLD` | Consecutive failures before circuit opens |
-| `WORKSPACE_AI_CIRCUIT_RESET_MS` | Circuit cooling period |
-| `WORKSPACE_AI_INPUT_COST_PER_MILLION_USD` | Provider input-token cost for internal estimation |
-| `WORKSPACE_AI_OUTPUT_COST_PER_MILLION_USD` | Provider output-token cost for internal estimation |
-| `SMTP_HOST` | SMTP hostname |
-| `SMTP_PORT` | SMTP port |
-| `SMTP_SECURE` | `true` for implicit TLS, otherwise `false` for STARTTLS |
-| `SMTP_USER` | SMTP account username |
-| `SMTP_PASSWORD` | SMTP account password or app password |
-| `EMAIL_FROM` | Verified sender identity |
+| Variable | Secret | Safe first-staging setting/purpose |
+| --- | --- | --- |
+| `NODE_ENV` | No | `production` |
+| `PORT` | No | Supplied by Render; do not override unless required |
+| `FRONTEND_URL` | No | Exact stable HTTPS Vercel origin, without a trailing slash |
+| `TRUST_PROXY` | No | `true`; Express trusts one Render proxy hop |
+| `DATABASE_URL` | Yes | Neon pooled runtime URL with `sslmode=require` |
+| `DIRECT_URL` | Yes | Neon direct migration URL with `sslmode=require` |
+| `JWT_ACCESS_SECRET` | Yes | Independent random value of at least 32 characters |
+| `REFRESH_TOKEN_SECRET` | Yes | Different independent random value of at least 32 characters |
+| `SUPER_ADMIN_EMAIL` | Sensitive configuration | Approved platform administrator email |
+| `BRIDGE_ENCRYPTION_KEY` | Yes | Independent strong key for encrypted connector credentials |
+
+These validated defaults may be set explicitly for operational clarity: `JSON_BODY_LIMIT=1mb`, `API_RATE_LIMIT_WINDOW_MS=900000`, `API_RATE_LIMIT_MAX=1000`, `JWT_ACCESS_EXPIRES_IN=15m`, `REFRESH_TOKEN_EXPIRES_IN=30d`, `COOKIE_NAME=b2brain_refresh`, `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=none`, `PASSWORD_HASH_COST=12`. Leave `COOKIE_DOMAIN` unset on provider-owned domains.
+
+### First-deployment kill switches (required)
+
+| Variable | Required value | Secret |
+| --- | --- | --- |
+| `EXTERNAL_CHANNELS_ENABLED` | `false` | No |
+| `META_WHATSAPP_ENABLED` | `false` | No |
+| `META_WHATSAPP_OUTBOUND_ENABLED` | `false` | No |
+| `META_LEAD_ADS_ENABLED` | `false` | No |
+| `META_LEAD_GRAPH_ENABLED` | `false` | No |
+| `ENQUIRY_AI_MODE` | `deterministic` | No |
+| `ENQUIRY_AI_KILL_SWITCH` | `true` | No |
+| `WORKSPACE_AGENT_REASONING_BACKEND` | `typescript` | No |
+| `PYTHON_AGENT_ENABLED` | `false` | No |
+| `WORKSPACE_AI_PROVIDER` | `disabled` | No |
+| `WORKSPACE_AI_KILL_SWITCH` | `true` | No |
+| `WORKSPACE_AI_DETERMINISTIC_ONLY` | `true` | No |
+
+### Optional services
+
+- Email invitations/password reset: `SMTP_HOST` (non-secret), `SMTP_PORT` (non-secret), `SMTP_SECURE` (non-secret), `SMTP_USER` (secret), `SMTP_PASSWORD` (secret), and `EMAIL_FROM` (non-secret). Without valid SMTP credentials, external mail is not delivered.
+- Python Agent, later only: `PYTHON_AGENT_SERVICE_URL` (sensitive), `PYTHON_AGENT_SERVICE_SECRET` (secret), `PYTHON_AGENT_TIMEOUT_MS`, and `PYTHON_AGENT_MAX_ITERATIONS`. They may remain absent while `PYTHON_AGENT_ENABLED=false` and `WORKSPACE_AGENT_REASONING_BACKEND=typescript`.
+- Hosted AI, later only: `OPENAI_API_KEY` (secret), `ENQUIRY_AI_MODEL`, `WORKSPACE_AI_MODEL`, provider base URLs, timeouts, retries, token/request limits, circuit-breaker settings, tool-iteration limit, and cost estimates. Provider credentials and model names may remain absent while the kill switches above are active.
+- Meta/WhatsApp Test Mode uses synthetic configuration and needs no real Meta secret. Real activation later requires the applicable `META_WHATSAPP_*` or `META_LEAD_*` verification/app/access secrets and identifiers. Keep them absent for first staging.
 
 Do not reuse the JWT, refresh-token, and bridge-encryption secrets.
 
@@ -91,6 +78,10 @@ Do not reuse the JWT, refresh-token, and bridge-encryption secrets.
 7. Never run `prisma migrate dev`, `prisma db push`, or reset against staging.
 8. Review migration SQL, then run only `npm run prisma:deploy --workspace @b2brain/backend`.
 9. If platform roles/services are absent, run `npm run seed:platform --workspace @b2brain/backend`. This seed is idempotent platform configuration and must not contain tenant business records.
+10. Before connecting, inspect only the parsed hostname and database name (never print the full URL) and confirm the database name is not `b2brain_v2_dev`.
+11. Run `npx prisma migrate status --schema backend/prisma/schema.prisma` with the staging URLs supplied through the operator's secure environment. Confirm all 71 migration directories are applied.
+
+Runtime traffic uses the pooled `DATABASE_URL`; Prisma migrations use the direct `DIRECT_URL` declared by the schema. Before migration, create a Neon branch/restore point and record it in the release log. This task never runs either command against production.
 
 ## Synthetic staging data only
 
@@ -111,20 +102,20 @@ The repository includes `render.yaml`, but do not apply the Blueprint until all 
 1. Connect the Git repository and create a Node web service.
 2. Keep the repository root as Render's root directory.
 3. Disable automatic deployment for the first private staging release.
-4. Build command: `npm ci && npm run build:production --workspace @b2brain/backend`
-5. Pre-deploy command: `npm run prisma:deploy --workspace @b2brain/backend`
-6. Start command: `npm run start --workspace @b2brain/backend`
-7. Health-check path: `/api/v1/ready`
-8. Add every Render environment variable listed above.
-9. Deploy and wait for `/api/v1/health` and `/api/v1/ready` to return HTTP 200.
-10. Confirm the Render environment shows Meta and external-channel flags as disabled before opening access.
-11. Confirm logs are structured JSON and redact authorization, cookies, passwords, token hashes, API keys and secrets.
+4. Build command: `npm ci --include=dev && npm run build:production --workspace @b2brain/backend`
+5. Start command: `npm run start --workspace @b2brain/backend`
+6. Health-check path: `/api/v1/ready`; this deliberately checks database connectivity. `/api/v1/health` is the non-database liveness endpoint.
+7. Add every required Render environment variable listed above.
+8. Confirm the Render environment shows all external, Meta, hosted-AI, and Python switches disabled before opening access.
+9. Confirm logs are structured JSON and redact authorization, cookies, passwords, token hashes, API keys and full URLs.
 
-Render pre-deploy commands require an eligible paid service. If the selected plan does not support them, run the exact `prisma:deploy` command as a controlled one-off job immediately before deploying the web service. Do not replace it with `migrate dev` or `db push`.
+The checked-in Blueprint selects the free plan and therefore intentionally omits `preDeployCommand`. A paid web service may configure `npm run prisma:deploy --workspace @b2brain/backend` as its Render pre-deploy command; Render runs it before activating the new version and keeps the previous successful deploy serving if it fails.
+
+For a free service, do not hide migration inside the build or start command. Immediately before manually deploying the new backend commit, use a trusted local/CI environment with Node 22, the same commit checked out, dependencies installed, and staging `DATABASE_URL`/`DIRECT_URL` supplied securely. Run migration status, then `npm run prisma:deploy --workspace @b2brain/backend`, then migration status again. Deploy only after it reports all 71 migrations applied. If migration fails, do not deploy the new backend; keep the current service active, preserve the logs, and investigate or restore from the prepared Neon recovery point. Never retry with `migrate dev`, `db push`, or `migrate reset`.
 
 ## Vercel checklist
 
-1. Import the same Git repository as a new Vercel project.
+1. Use the existing Vercel project; do not create another one. Confirm its stable production URL in the Vercel dashboard before copying it to Render.
 2. Set Root Directory to `frontend`.
 3. Select the Next.js framework preset.
 4. Keep the build command as `npm run build` and output configuration as the Next.js default.
@@ -132,6 +123,12 @@ Render pre-deploy commands require an eligible paid service. If the selected pla
 6. Deploy the production environment to obtain the stable staging URL.
 7. Copy that exact origin into Render as `FRONTEND_URL`, then redeploy Render.
 8. Redeploy Vercel once more if the Render URL changed.
+
+After deployment, inspect the browser Network panel on sign-in and confirm requests target the Render HTTPS host rather than `localhost`. The API client sends credentials; successful sign-in must set the Render-hosted HttpOnly refresh cookie with `Secure` and `SameSite=None`. Verify refresh on a non-dashboard route, browser Back/Forward, sign-out cookie removal, and unauthenticated protected-route redirection.
+
+## Python Agent deployment boundary
+
+The Python reasoning service is not part of the first staging deployment. The TypeScript backend remains fully functional with `WORKSPACE_AGENT_REASONING_BACKEND=typescript` and `PYTHON_AGENT_ENABLED=false`. Do not configure its URL/secret, add an `agent-service` Render service, or enable a hosted provider now. Deploy it separately in a later reviewed change if Python reasoning is authorized.
 
 Do not use a temporary Vercel preview URL as `FRONTEND_URL`; preview hostnames change. Use the stable project production URL for private staging.
 
@@ -150,9 +147,8 @@ Do not use a temporary Vercel preview URL as `FRONTEND_URL`; preview hostnames c
 11. Test password reset and invitation email delivery.
 12. Inspect browser console, Render logs, and Neon monitoring for errors without copying secrets into tickets or chat.
 13. Ask a simple deterministic agent question and confirm token usage remains zero.
-14. Ask a complex analysis question and confirm it is labeled AI-assisted, cites organization facts and respects usage limits.
-15. Turn `WORKSPACE_AI_KILL_SWITCH=true`, redeploy, and confirm the same complex request produces a clearly labeled deterministic fallback; restore it only after the check.
-16. Confirm `/webhooks/intake`, `/webhooks/whatsapp`, and `/public/forms` return 404 while external channels are disabled.
+14. Ask a complex analysis question and confirm it produces a clearly labeled deterministic response without a hosted-provider call.
+15. Confirm `/webhooks/intake`, `/webhooks/whatsapp`, and `/public/forms` return 404 while external channels are disabled.
 
 ## Private-beta gate
 
@@ -173,6 +169,8 @@ Do not use a temporary Vercel preview URL as `FRONTEND_URL`; preview hostnames c
 3. In Render, roll back to the last successful deploy.
 4. Re-run `/health`, `/ready`, sign-in, and a read-only dashboard smoke test.
 
+Application rollback cannot reverse an already-applied database migration. Roll back application code only when the migrated schema remains backward-compatible.
+
 ### Database rollback
 
 Prisma production migrations are forward-only. Do not delete migration rows or run destructive down scripts manually.
@@ -183,9 +181,11 @@ Prisma production migrations are forward-only. Do not delete migration rows or r
 4. Update both Render database URLs if a restored Neon branch has a different endpoint.
 5. Verify migration status and the complete smoke test before reopening staging.
 
-### Emergency AI rollback
+### Future hosted-AI rollback
 
-1. Set `WORKSPACE_AI_KILL_SWITCH=true` in Render and redeploy.
+Hosted AI is disabled for the first deployment. If it is enabled in a later release:
+
+1. Set `WORKSPACE_AI_KILL_SWITCH=true`, `WORKSPACE_AI_PROVIDER=disabled`, and `WORKSPACE_AI_DETERMINISTIC_ONLY=true` in Render, then redeploy.
 2. Verify deterministic customer counts, finance summaries, health calculations and other tools still work.
 3. Complex analysis must show the verified-data fallback and must not lose the original request.
 4. Investigate provider errors using redacted request IDs and usage diagnostics; never paste prompts, keys or complete business payloads into tickets.
