@@ -14,6 +14,7 @@ const groups: NavigationGroup[] = [
     { key: "crm", label: "Customers", icon: "C", service: "CRM", permission: "CRM_VIEW" },
     { key: "sales", label: "Sales", icon: "S", service: "SALES", permission: "DEAL_VIEW" },
     { key: "projects", label: "Projects", icon: "P", service: "PROJECTS", permission: "PROJECT_VIEW" },
+    { key: "employees", label: "People", icon: "E", service: "PEOPLE", permission: "EMPLOYEE_VIEW" },
     { key: "calendar", label: "Calendar", icon: "K", service: "CALENDAR", permission: "CALENDAR_VIEW" },
   ] },
   { label: "Money", items: [{ key: "finance", label: "Finance", icon: "F", service: "FINANCE", permission: "FINANCE_VIEW" }] },

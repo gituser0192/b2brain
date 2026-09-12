@@ -6,6 +6,7 @@ export interface Employee {
   workEmail: string | null; workPhone: string | null; jobTitle: string;
   department: string | null; employmentType: EmploymentType; status: EmployeeStatus;
   startDate: string; endDate: string | null; deletedAt: string | null;
+  updatedAt?: string;
   linkedUser: { id: string; email: string } | null;
   manager: { id: string; firstName: string; lastName: string | null } | null;
 }

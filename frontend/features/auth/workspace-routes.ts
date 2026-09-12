@@ -6,6 +6,7 @@ export const primaryViewRoutes: Partial<Record<ActiveView, string>> = {
   projects: "/projects",
   finance: "/finance",
   automation: "/automation",
+  employees: "/people",
   b2agent: "/agent",
   settings: "/settings",
   people: "/settings?section=team",

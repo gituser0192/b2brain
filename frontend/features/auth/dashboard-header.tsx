@@ -22,6 +22,7 @@ const titles: Partial<Record<ActiveView, string>> = {
   overview: "Dashboard", inquiries: "Leads and inquiries", crm: "Customers", sales: "Sales",
   projects: "Projects", calendar: "Calendar", finance: "Finance", b2agent: "Business Operating Agent",
   analysis: "Business Analysis", actions: "Action Centre", automation: "Automation",
+  employees: "People",
   people: "Team and Access", settings: "Settings", b2help: "Help and Support",
 };
 

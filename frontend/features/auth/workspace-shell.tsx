@@ -17,6 +17,7 @@ const guarded: Partial<Record<ActiveView, { service?: string; permission?: strin
   projects: { service: "PROJECTS", permission: "PROJECT_VIEW" },
   finance: { service: "FINANCE", permission: "FINANCE_VIEW" },
   automation: { service: "AUTOMATION", permission: "AUTOMATION_VIEW" },
+  employees: { service: "PEOPLE", permission: "EMPLOYEE_VIEW" },
   b2agent: { service: "B2BRAIN_AGENT" },
   people: { permission: "MEMBERSHIP_VIEW" },
   roles: { permission: "ROLE_VIEW" },
@@ -27,6 +28,7 @@ function viewFromPath(pathname: string, legacyView: string | null, settingsSecti
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/finance")) return "finance";
   if (pathname.startsWith("/automation")) return "automation";
+  if (pathname.startsWith("/people")) return "employees";
   if (pathname.startsWith("/agent")) return "b2agent";
   if (pathname.startsWith("/settings")) {
     if (settingsSection === "team") return "people";

@@ -29,7 +29,7 @@ export const serviceMaturityRegistry = {
   ORDERS: beta("Beta order-management capability; no primary workspace shortcut is available yet."),
   INVENTORY: beta("Beta inventory capability; no primary workspace shortcut is available yet."),
   PROCUREMENT: beta("Beta procurement capability; no primary workspace shortcut is available yet."),
-  PEOPLE: beta("Beta employee-management capability; no primary workspace shortcut is available yet."),
+  PEOPLE: beta("Beta workspace for organization-scoped employee records.", true),
   SUPPORT: beta("Beta support capability; no primary workspace shortcut is available yet."),
   WEBSITES: beta("Beta website-management capability; no primary workspace shortcut is available yet."),
   MARKETING: beta("Beta marketing capability; no primary workspace shortcut is available yet."),
