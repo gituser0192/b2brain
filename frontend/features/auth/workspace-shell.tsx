@@ -18,22 +18,28 @@ const guarded: Partial<Record<ActiveView, { service?: string; permission?: strin
   finance: { service: "FINANCE", permission: "FINANCE_VIEW" },
   automation: { service: "AUTOMATION", permission: "AUTOMATION_VIEW" },
   b2agent: { service: "B2BRAIN_AGENT" },
+  people: { permission: "MEMBERSHIP_VIEW" },
+  roles: { permission: "ROLE_VIEW" },
 };
 
-function viewFromPath(pathname: string, legacyView: string | null): ActiveView {
+function viewFromPath(pathname: string, legacyView: string | null, settingsSection: string | null): ActiveView {
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/finance")) return "finance";
   if (pathname.startsWith("/automation")) return "automation";
   if (pathname.startsWith("/agent")) return "b2agent";
-  if (pathname.startsWith("/settings")) return "settings";
+  if (pathname.startsWith("/settings")) {
+    if (settingsSection === "team") return "people";
+    if (settingsSection === "roles") return "roles";
+    return "settings";
+  }
   return pathname === "/dashboard" && legacyView ? legacyView as ActiveView : "overview";
 }
 export function WorkspaceShell({ children }: Readonly<{ children: ReactNode }>) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeView = viewFromPath(pathname, searchParams.get("view"));
+  const activeView = viewFromPath(pathname, searchParams.get("view"), searchParams.get("section"));
   const { session, isLoading, logout, authorizedRequest } = useAuth();
   const [enabledServices, setEnabledServices] = useState<string[] | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
