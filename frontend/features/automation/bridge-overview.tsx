@@ -3,7 +3,18 @@
 import { useState } from "react";
 import type { BridgeConnector, BridgeDraft, BridgeEvent } from "./bridge-types";
 
+function connectorStatus(connector: BridgeConnector) {
+  if (connector.status === "PAUSED") return "Paused";
+  if (connector.status === "ERROR") return "Needs attention";
+  if (connector.status === "ACTIVE" && ["B2BRAIN_SIMULATOR", "META_LEAD_ADS", "META_WHATSAPP_CLOUD"].includes(connector.provider)) return "Test ready";
+  if (connector.status === "ACTIVE") return "Connected";
+  if (connector.credentialsConfiguredAt) return "Setup in progress";
+  return "Not connected";
+}
+
 export function BridgeOverview({
+  view,
+  canManage,
   connectors,
   events,
   drafts,
@@ -13,6 +24,8 @@ export function BridgeOverview({
   onReply,
   onSendDraft,
 }: {
+  view: "connections" | "approvals" | "activity";
+  canManage: boolean;
   connectors: BridgeConnector[];
   events: BridgeEvent[];
   drafts: BridgeDraft[];
@@ -33,15 +46,15 @@ export function BridgeOverview({
 
   return (
     <>
-      <section className="bridge-metrics">
+      {view === "activity" && <section className="bridge-metrics">
         {Object.entries(metrics).map(([key, value]) => (
           <article key={key}>
             <span>{key}</span>
             <strong>{value}</strong>
           </article>
         ))}
-      </section>
-      <div className="bridge-columns">
+      </section>}
+      {view === "connections" && <div className="bridge-columns bridge-columns-single">
         <section>
           <header>
             <strong>Connectors</strong>
@@ -54,7 +67,7 @@ export function BridgeOverview({
               <article className="connector-card" key={connector.id}>
                 <div>
                   <strong>{connector.name}</strong>
-                  <i>{connector.status}</i>
+                  <i>{connectorStatus(connector)}</i>
                 </div>
                 <p>
                   {connector.type} · {connector.provider}
@@ -63,6 +76,8 @@ export function BridgeOverview({
                   {connector.mode.replaceAll("_", " ")} ·{" "}
                   {connector._count.events} events
                 </small>
+                {canManage && <details className="connector-advanced">
+                  <summary>Advanced details</summary>
                 {connector.type === "WHATSAPP" && (
                   <>
                     <small>
@@ -81,7 +96,8 @@ export function BridgeOverview({
                     <code>/api/v1/webhooks/intake/{connector.webhookKey}</code>
                   </>
                 )}
-                {connector.type === "WEBSITE" && (
+                </details>}
+                {connector.type === "WEBSITE" && canManage && (
                   <footer>
                     <button onClick={() => onWebsiteForm(connector.id)}>
                       Configure lead form
@@ -113,6 +129,8 @@ export function BridgeOverview({
             </button>
           )}
         </section>
+      </div>}
+      {(view === "activity" || view === "approvals") && <div className="bridge-columns bridge-columns-single">
         <section>
           <header>
             <strong>Integration event inbox</strong>
@@ -132,7 +150,7 @@ export function BridgeOverview({
                 <strong>{event.eventName}</strong>
                 <p>Trace {event.traceId}</p>
                 {event.failureMessage && <small>{event.failureMessage}</small>}
-                {event.status === "AWAITING_APPROVAL" && (
+                {event.status === "AWAITING_APPROVAL" && canManage && view === "approvals" && (
                   <footer>
                     <button onClick={() => onDecision(event.id, "APPROVE")}>
                       Approve & route
@@ -145,7 +163,7 @@ export function BridgeOverview({
                     </button>
                   </footer>
                 )}
-                {event.payload.phone && (
+                {event.payload.phone && canManage && view === "approvals" && (
                   <footer>
                     <button onClick={() => onReply(event)}>
                       Draft WhatsApp reply
@@ -170,8 +188,8 @@ export function BridgeOverview({
             </button>
           )}
         </section>
-      </div>
-      <section className="bridge-drafts">
+      </div>}
+      {view === "approvals" && <section className="bridge-drafts">
         <header>
           <strong>WhatsApp reply approvals</strong>
           <span>{drafts.length}</span>
@@ -189,7 +207,7 @@ export function BridgeOverview({
               </div>
               <p>{draft.body}</p>
               {draft.failureMessage && <small>{draft.failureMessage}</small>}
-              {draft.status === "PENDING_APPROVAL" &&
+              {canManage && draft.status === "PENDING_APPROVAL" &&
                 (draft.connector.provider.toUpperCase() ===
                 "B2BRAIN_SIMULATOR" ? (
                   <small>
@@ -217,7 +235,7 @@ export function BridgeOverview({
             {expanded.drafts ? "Show less" : `See ${drafts.length - 3} more`}
           </button>
         )}
-      </section>
+      </section>}
     </>
   );
 }

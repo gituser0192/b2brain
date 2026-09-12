@@ -6,7 +6,7 @@ test("guided Meta Lead Ads test-mode setup is responsive and safely gated", asyn
   await page.route("**/api/v1/automation-bridge/connectors/*/meta/**", async route => {
     const url = new URL(route.request().url()), path = url.pathname, method = route.request().method(), reply = (data: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
     if (path.endsWith("/meta/status")) return reply({ connectorStatus: "DRAFT", mode: "TEST", setupState, page: setupState === "DRAFT" || setupState === "AUTHORIZED" ? null : { name: "Synthetic Test Page", maskedId: "••••0001" }, forms, permissionsValid: setupState !== "DRAFT" && setupState !== "AUTHORIZED", subscriptionVerified, lastVerifiedAt: subscriptionVerified ? "2026-09-06T12:00:00.000Z" : null, lastTestAt: setupState === "READY_TEST" ? "2026-09-06T12:01:00.000Z" : null, lastSuccessfulLeadAt: null, canActivateProduction: false });
-    if (path.endsWith("/meta/authorize")) return reply({ authorizationUrl: "/automation?meta_code=fake-approved&meta_state=synthetic-state-with-sufficient-entropy-1234567890" });
+    if (path.endsWith("/meta/authorize")) return reply({ authorizationUrl: "/automation?section=connections&meta_code=fake-approved&meta_state=synthetic-state-with-sufficient-entropy-1234567890" });
     if (path.endsWith("/meta/callback")) { setupState = "AUTHORIZED"; return reply({ mode: "TEST", pages: [{ id: "900000000000001", name: "Synthetic Test Page", permissions: ["leads_retrieval", "pages_manage_metadata", "pages_show_list"] }] }); }
     if (path.endsWith("/meta/page") && method === "PUT") { setupState = "PAGE_SELECTED"; return reply({ forms: [{ id: "910000000000001", name: "Synthetic Enquiry Form" }] }); }
     if (path.endsWith("/meta/forms") && method === "PUT") { setupState = "FORMS_SELECTED"; forms = [{ id: "910000000000001", name: "Synthetic Enquiry Form" }]; return reply({}); }
@@ -14,7 +14,7 @@ test("guided Meta Lead Ads test-mode setup is responsive and safely gated", asyn
     if (path.endsWith("/meta/test")) return reply({ processed: true, synthetic: true, externalActionPerformed: false });
     return route.fallback();
   });
-  await page.goto("/automation");
+  await page.goto("/automation?section=connections");
   const setup = page.locator(".meta-lead-setup");
   await expect(setup.getByText("TEST MODE", { exact: true })).toBeVisible();
   await setup.getByRole("button", { name: "Connect Meta" }).click();

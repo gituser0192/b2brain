@@ -7,6 +7,7 @@
   gap: 1rem;
   padding: 1.4rem;
 }
+.dashboard-main:has(.automation-workspace) > .dashboard-header { background: #f7f9fc; }
 .automation-header {
   align-items: flex-start;
   background: linear-gradient(125deg, #07162c, #0c3159);
@@ -146,6 +147,92 @@
   color: #7d8b9b;
   font-size: 0.48rem;
 }
+.automation-section-nav {
+  background: #fff;
+  border: 1px solid #dce5ef;
+  border-radius: 0.8rem;
+  display: flex;
+  gap: 0.25rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.3rem;
+  scrollbar-width: thin;
+}
+.automation-section-nav a {
+  border-radius: 0.55rem;
+  color: #53677e;
+  flex: 1 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.65rem 0.8rem;
+  text-align: center;
+  text-decoration: none;
+}
+.automation-section-nav a[aria-current="page"] {
+  background: #eaf5ff;
+  color: #087ce3;
+}
+.automation-section-nav a:focus-visible {
+  outline: 3px solid rgba(8, 124, 227, 0.3);
+  outline-offset: 1px;
+}
+.automation-section { min-width: 0; }
+.automation-section > :first-child { margin-top: 0; }
+.automation-overview { display: grid; gap: 1rem; }
+.automation-overview-state {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #dce5ef;
+  border-radius: 0.8rem;
+  color: #64748b;
+  display: flex;
+  gap: 0.65rem;
+  justify-content: center;
+  min-height: 12rem;
+}
+.automation-summary {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.automation-summary article,
+.automation-overview-grid > section,
+.automation-recommendation {
+  background: #fff;
+  border: 1px solid #dce5ef;
+  border-radius: 0.8rem;
+}
+.automation-summary article { display: grid; gap: 0.4rem; padding: 1rem; }
+.automation-summary span { color: #64748b; font-size: 0.65rem; }
+.automation-summary strong { color: #102139; font-size: 1.45rem; }
+.automation-summary a,
+.automation-overview-grid a,
+.automation-recommendation a { color: #087ce3; font-size: 0.64rem; font-weight: 700; text-decoration: none; }
+.automation-recommendation {
+  align-items: center;
+  background: #eef7ff;
+  border-color: #cbe4f8;
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+}
+.automation-recommendation span { color: #087ce3; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.automation-recommendation h3 { color: #102139; font-size: 1rem; margin: 0.25rem 0; }
+.automation-recommendation p { color: #64748b; font-size: 0.65rem; margin: 0; }
+.automation-recommendation > a { background: #087ce3; border-radius: 0.55rem; color: #fff; padding: 0.65rem 0.8rem; }
+.automation-overview-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.automation-overview-grid > section { min-width: 0; padding: 1rem; }
+.automation-overview-grid header { align-items: center; display: flex; justify-content: space-between; }
+.automation-overview-grid h3 { color: #102139; font-size: 0.8rem; margin: 0; }
+.automation-overview-grid article { align-items: center; border-top: 1px solid #edf1f5; display: flex; gap: 0.75rem; justify-content: space-between; margin-top: 0.7rem; padding-top: 0.7rem; }
+.automation-overview-grid article strong,
+.automation-overview-grid article span,
+.automation-overview-grid p { color: #64748b; font-size: 0.65rem; overflow-wrap: anywhere; }
+.automation-overview-grid article strong { color: #263a53; font-weight: 650; }
+.bridge-columns-single { grid-template-columns: minmax(0, 1fr); }
+.connector-advanced { margin-top: 0.55rem; }
+.connector-advanced summary { color: #53677e; cursor: pointer; font-size: 0.62rem; font-weight: 700; }
+.connector-advanced[open] summary { margin-bottom: 0.4rem; }
 @media (max-width: 950px) {
   .automation-foundations {
     grid-template-columns: 1fr 1fr;
@@ -153,6 +240,7 @@
   .automation-guardrails {
     grid-template-columns: 1fr 1fr;
   }
+  .automation-summary { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 600px) {
   .automation-foundations,
@@ -163,6 +251,12 @@
     gap: 1rem;
     flex-direction: column;
   }
+  .automation-workspace { padding: 0.8rem; }
+  .automation-section-nav { margin-inline: -0.2rem; }
+  .automation-section-nav a { flex: 0 0 auto; }
+  .automation-summary,
+  .automation-overview-grid { grid-template-columns: 1fr; }
+  .automation-recommendation { align-items: flex-start; flex-direction: column; gap: 0.8rem; }
 }
 
 /* Automation policies and execution history */

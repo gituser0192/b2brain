@@ -59,7 +59,7 @@ export function WhatsappBusinessSetup({ connectorId, canManage }: { connectorId:
       void authorizedRequest<{ success: true; data: { accounts: Account[] } }>(`/automation-bridge/connectors/${connectorId}/whatsapp-setup/callback`, { method: "POST", body: JSON.stringify({ state, code }) })
         .then((response) => {
           setAccounts(response.data.accounts);
-          router.replace("/automation");
+          router.replace("/automation?section=connections");
           setNotice("Test authorization completed. Choose a synthetic business account.");
         })
         .catch((error) => setNotice(error instanceof ApiError ? error.message : "WhatsApp test authorization failed."))
@@ -83,7 +83,7 @@ export function WhatsappBusinessSetup({ connectorId, canManage }: { connectorId:
 
   async function connect() {
     await run(async () => {
-      const response = await authorizedRequest<{ success: true; data: { authorizationUrl: string } }>(`/automation-bridge/connectors/${connectorId}/whatsapp-setup/authorize`, { method: "POST", body: JSON.stringify({ returnPath: "/automation" }) });
+      const response = await authorizedRequest<{ success: true; data: { authorizationUrl: string } }>(`/automation-bridge/connectors/${connectorId}/whatsapp-setup/authorize`, { method: "POST", body: JSON.stringify({ returnPath: "/automation?section=connections" }) });
       router.push(response.data.authorizationUrl);
     });
   }

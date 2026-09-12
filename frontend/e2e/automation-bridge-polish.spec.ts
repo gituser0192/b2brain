@@ -29,7 +29,7 @@ test("Automation Bridge expands and collapses long record lists", async ({ page 
       }),
     }),
   );
-  await page.goto("/automation");
+  await page.goto("/automation?section=connections");
 
   const connectorList = page.locator(".bridge-columns > section").first();
   await expect(connectorList.locator(".connector-card")).toHaveCount(3);

@@ -51,7 +51,7 @@ test("finance, automation, operating agent and settings load", async ({ syntheti
   await expect(page.getByText("E2E-INV-001", { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/finance$/);
   await page.getByRole("link", { name: /Automation$/ }).click();
-  await expect(page.getByRole("heading", { name: "Build intelligence on a controlled frame." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Keep routine work moving." })).toBeVisible();
   await page.getByRole("link", { name: "Business Agent" }).click();
   await expect(page.getByText("Business Operating Agent").first()).toBeVisible();
   await page.getByRole("link", { name: /Settings$/ }).click();
@@ -95,7 +95,7 @@ test("migrated deep links, legacy links, active state and auth restoration remai
   let refreshRequests = 0;
   await installSyntheticApi(page);
   page.on("request", (request) => { if (request.url().endsWith("/auth/refresh")) refreshRequests += 1; });
-  for (const [route, heading] of [["/crm", "Customers"], ["/projects", "Projects & tasks"], ["/finance", "Finance"], ["/automation", "Build intelligence on a controlled frame."], ["/agent", "Ask B² Brain"], ["/settings", "Settings"]] as const) {
+  for (const [route, heading] of [["/crm", "Customers"], ["/projects", "Projects & tasks"], ["/finance", "Finance"], ["/automation", "Keep routine work moving."], ["/agent", "Ask B² Brain"], ["/settings", "Settings"]] as const) {
     await page.goto(route);
     await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
     await page.reload();

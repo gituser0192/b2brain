@@ -29,7 +29,7 @@ const connectorBlank = {
     message: "",
     raw: {},
   };
-export function BridgeManager() {
+export function BridgeManager({ view }: { view: "connections" | "approvals" | "activity" }) {
   const { authorizedRequest, session } = useAuth(),
     queryClient = useQueryClient(),
     [connectors, setConnectors] = useState<BridgeConnector[]>([]),
@@ -59,19 +59,20 @@ export function BridgeManager() {
     }),
     [simulatorMessage, setSimulatorMessage] = useState({ externalMessageId: "", from: "", contactName: "", message: "" }),
     [simulatorResult, setSimulatorResult] = useState("");
+  const canManage = session?.membership.permissions.includes("AUTOMATION_MANAGE") ?? false;
   const load = useCallback(async () => {
     const [r, d] = await Promise.all([
       authorizedRequest<BridgePayload>("/automation-bridge"),
-      authorizedRequest<{ success: true; data: BridgeDraft[] }>(
-        "/automation-bridge/message-drafts",
-      ),
+      view === "approvals"
+        ? authorizedRequest<{ success: true; data: BridgeDraft[] }>("/automation-bridge/message-drafts")
+        : Promise.resolve({ success: true as const, data: [] as BridgeDraft[] }),
     ]);
     setConnectors(r.data.connectors);
     setEvents(r.data.events);
     setMetrics(r.data.metrics);
     setDrafts(d.data);
     setSelected((x) => x || r.data.connectors[0]?.id || "");
-  }, [authorizedRequest]);
+  }, [authorizedRequest, view]);
   useEffect(() => {
     const t = setTimeout(
       () =>
@@ -226,17 +227,16 @@ export function BridgeManager() {
     }
   }
   return (
-    <section className="bridge-manager">
+    <section className={`bridge-manager bridge-manager-${view}`}>
       <header>
         <div>
-          <p>Event and execution layer</p>
-          <h3>B² Automation Bridge</h3>
+          <p>{view === "connections" ? "Business channels" : view === "approvals" ? "Review queue" : "Automation history"}</p>
+          <h3>{view === "connections" ? "Connections" : view === "approvals" ? "Approvals" : "Activity"}</h3>
           <span>
-            Provider-neutral intake, idempotency, approval, quarantine, retry,
-            and traceability.
+            {view === "connections" ? "Configure test and business channels available to this workspace." : view === "approvals" ? "Review work that requires a person before it can continue." : "Inspect completed, failed, and quarantined integration activity."}
           </span>
         </div>
-        <div>
+        {view === "connections" && canManage && <div>
           <button onClick={() => setOpen("connector")}>New connector</button>
           <button
             disabled={!connectors.some((c) => c.type === "WHATSAPP")}
@@ -270,7 +270,7 @@ export function BridgeManager() {
           >
             Simulate WhatsApp
           </button>
-        </div>
+        </div>}
       </header>
       {error && !open && <div className="form-alert" role="alert">{error}</div>}
       {secret && (
@@ -281,9 +281,11 @@ export function BridgeManager() {
         </div>
       )}
       <BridgeOverview
+        view={view}
+        canManage={canManage}
         connectors={connectors}
-        events={events}
-        drafts={drafts}
+        events={view === "approvals" ? events.filter((item) => item.status === "AWAITING_APPROVAL") : events}
+        drafts={view === "approvals" ? drafts.filter((item) => item.status === "PENDING_APPROVAL") : drafts}
         metrics={metrics}
         onWebsiteForm={(id) => {
           setSelected(id);
@@ -293,10 +295,10 @@ export function BridgeManager() {
         onReply={(item) => void createReply(item)}
         onSendDraft={(id) => void sendDraft(id)}
       />
-      {connectors.filter(item => item.type === "SOCIAL" && item.provider === "META_LEAD_ADS").map(item => <MetaLeadSetup key={item.id} connectorId={item.id} />)}
-      {connectors.filter(item => item.type === "WHATSAPP" && item.provider === "META_WHATSAPP_CLOUD").map(item => <WhatsappBusinessSetup key={item.id} connectorId={item.id} canManage={Boolean(session?.membership.permissions.includes("AUTOMATION_MANAGE"))} />)}
-      <WhatsappFollowUpWorkspace />
-      <BridgeDialogs
+      {view === "connections" && connectors.filter(item => item.type === "SOCIAL" && item.provider === "META_LEAD_ADS").map(item => <MetaLeadSetup key={item.id} connectorId={item.id} canManage={canManage} />)}
+      {view === "connections" && connectors.filter(item => item.type === "WHATSAPP" && item.provider === "META_WHATSAPP_CLOUD").map(item => <WhatsappBusinessSetup key={item.id} connectorId={item.id} canManage={canManage} />)}
+      {view === "approvals" && <WhatsappFollowUpWorkspace />}
+      {view === "connections" && <BridgeDialogs
         open={open}
         connectors={connectors}
         selected={selected}
@@ -319,7 +321,7 @@ export function BridgeManager() {
         onSaveCredentials={() => void saveCredentials()}
         onSaveWebsiteForm={() => void saveWebsiteForm()}
         onSimulateWhatsapp={() => void simulateWhatsapp()}
-      />
+      />}
     </section>
   );
 }
