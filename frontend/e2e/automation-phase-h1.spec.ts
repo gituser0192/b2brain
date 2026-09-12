@@ -70,13 +70,13 @@ test("read-only users cannot expose Automation management controls", async ({ pa
 
   await installSyntheticApi(page, { permissions: ["AUTOMATION_VIEW"], metaAutomation: true });
   await page.route("**/api/v1/automation-bridge/connectors/*/meta/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { connectorStatus: "DRAFT", mode: "TEST", setupState: "DRAFT", page: null, forms: [], permissionsValid: false, subscriptionVerified: false, lastVerifiedAt: null, lastTestAt: null, lastSuccessfulLeadAt: null, canActivateProduction: false } }) }));
-  await page.goto("/automation?section=connections");
+  await page.goto("/automation?section=connections&channel=meta");
   await expect(page.getByRole("button", { name: "Connect Meta" })).toBeDisabled();
 });
 
 test("disabled Automation service shows the shell access boundary", async ({ page }) => {
   await installSyntheticApi(page, { enabledServices: ["CRM", "FINANCE"] });
-  await page.goto("/automation?section=connections");
+  await page.goto("/automation?section=connections&channel=meta");
   await expect(page.locator(".dashboard-notice.error")).toContainText("Access unavailable");
   await expect(page.getByRole("navigation", { name: "Automation sections" })).toHaveCount(0);
 });
@@ -96,7 +96,7 @@ test("Automation navigation is keyboard accessible, responsive, and the sticky h
 test("existing Meta and WhatsApp Test Mode setup remains reachable", async ({ page }) => {
   await installSyntheticApi(page, { metaAutomation: true });
   await page.route("**/api/v1/automation-bridge/connectors/*/meta/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { connectorStatus: "DRAFT", mode: "TEST", setupState: "DRAFT", page: null, forms: [], permissionsValid: false, subscriptionVerified: false, lastVerifiedAt: null, lastTestAt: null, lastSuccessfulLeadAt: null, canActivateProduction: false } }) }));
-  await page.goto("/automation?section=connections");
+  await page.goto("/automation?section=connections&channel=meta");
   await expect(page.getByText("Meta Lead Ads", { exact: true })).toBeVisible();
   await expect(page.getByText("TEST MODE", { exact: true })).toBeVisible();
 });
@@ -104,6 +104,6 @@ test("existing Meta and WhatsApp Test Mode setup remains reachable", async ({ pa
 test("existing WhatsApp Business Test Mode setup remains reachable", async ({ page }) => {
   await installSyntheticApi(page, { whatsappAutomation: true });
   await page.route("**/api/v1/automation-bridge/connectors/*/whatsapp-setup/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { connectorStatus: "DRAFT", mode: "TEST", setupState: "NOT_CONFIGURED", accounts: [], selectedAccount: null, selectedNumber: null, grantedScopes: [], permissionsValid: false, webhookReady: false, authorizationVerifiedAt: null, numberVerifiedAt: null, lastTestAt: null, outboundEnabled: false, canActivateProduction: false } }) }));
-  await page.goto("/automation?section=connections");
+  await page.goto("/automation?section=connections&channel=whatsapp");
   await expect(page.getByText("WhatsApp Business — Test Mode", { exact: true })).toBeVisible();
 });

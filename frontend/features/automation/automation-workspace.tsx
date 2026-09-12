@@ -8,22 +8,28 @@ import { AutomationOverview } from "./automation-overview";
 import { BridgeManager } from "./bridge-manager";
 import { FollowUpAutomationManager } from "./follow-up-automation-manager";
 import { PolicyManager } from "./policy-manager";
-import { EmailDeliveryManager } from "./email-delivery-manager";
 import { CollectionScheduleManager } from "./collection-schedule-manager";
 import { KnowledgeManager } from "./knowledge-manager";
 
 const sections = ["overview", "connections", "automations", "approvals", "activity"] as const;
 type AutomationSection = (typeof sections)[number];
+const channels = ["whatsapp", "meta", "website", "email"] as const;
+type AutomationChannel = (typeof channels)[number];
 
 function sectionHref(section: AutomationSection) {
   return section === "overview" ? "/automation" : `/automation?section=${section}`;
 }
 
 export function AutomationWorkspace() {
-  const requestedSection = useSearchParams().get("section");
+  const searchParams = useSearchParams();
+  const requestedSection = searchParams.get("section");
   const section: AutomationSection = sections.includes(requestedSection as AutomationSection)
     ? requestedSection as AutomationSection
     : "overview";
+  const requestedChannel = searchParams.get("channel");
+  const channel: AutomationChannel | null = section === "connections" && channels.includes(requestedChannel as AutomationChannel)
+    ? requestedChannel as AutomationChannel
+    : null;
 
   return (
     <section className="automation-workspace">
@@ -46,7 +52,7 @@ export function AutomationWorkspace() {
 
       <div className="automation-section" data-automation-section={section}>
         {section === "overview" && <AutomationOverview />}
-        {section === "connections" && <><BridgeManager view="connections" /><EmailDeliveryManager /></>}
+        {section === "connections" && <BridgeManager view="connections" channel={channel} />}
         {section === "automations" && <>
           <AgentManager />
           {/* TODO: Move Business Knowledge to the Business Agent in a dedicated future phase. */}

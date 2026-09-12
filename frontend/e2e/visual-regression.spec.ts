@@ -160,6 +160,7 @@ test("Automation bridge and connector configuration visual baseline", async ({ p
   await installSyntheticApi(page);
   await page.goto("/automation?section=connections");
   await expect(page.getByRole("heading", { name: "Connections", exact: true })).toBeVisible();
+  await page.getByText("Advanced connector management").click();
   await page.getByRole("button", { name: "New connector" }).click();
   await expect(page.getByRole("heading", { name: "Create connector" })).toBeVisible();
   await expect(page).toHaveScreenshot("automation-connector-dialog.png", { mask: [page.locator(".dashboard-date")] });
@@ -168,6 +169,7 @@ test("Automation bridge and connector configuration visual baseline", async ({ p
 test("Automation WhatsApp simulator configuration visual baseline", async ({ page }) => {
   await installSyntheticApi(page, { richAutomation: true });
   await page.goto("/automation?section=connections");
+  await page.getByText("Advanced connector management").click();
   await page.getByRole("button", { name: "Simulate WhatsApp" }).click();
   await expect(page.getByRole("heading", { name: "WhatsApp CRM Intake Simulator" })).toBeVisible();
   await expect(page.locator(".agent-dialog")).toHaveScreenshot("automation-whatsapp-simulator-dialog.png", { mask: [page.getByLabel("External WhatsApp message ID")] });

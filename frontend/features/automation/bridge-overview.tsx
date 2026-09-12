@@ -1,15 +1,42 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { BridgeConnector, BridgeDraft, BridgeEvent } from "./bridge-types";
 
 function connectorStatus(connector: BridgeConnector) {
   if (connector.status === "PAUSED") return "Paused";
   if (connector.status === "ERROR") return "Needs attention";
   if (connector.status === "ACTIVE" && ["B2BRAIN_SIMULATOR", "META_LEAD_ADS", "META_WHATSAPP_CLOUD"].includes(connector.provider)) return "Test ready";
+  if (connector.status === "ACTIVE" && ["WEBSITE", "EMAIL"].includes(connector.type)) return "Setup in progress";
   if (connector.status === "ACTIVE") return "Connected";
   if (connector.credentialsConfiguredAt) return "Setup in progress";
-  return "Not connected";
+  return "Not configured";
+}
+
+type ConnectionChannel = "whatsapp" | "meta" | "website" | "email";
+const channelCopy: Record<ConnectionChannel, { name: string; purpose: string; note: string }> = {
+  whatsapp: { name: "WhatsApp Business", purpose: "Receive customer messages through Test Mode or the CRM simulator.", note: "Test Mode and Simulator are not live WhatsApp connections. Outbound messaging remains disabled." },
+  meta: { name: "Meta Lead Ads", purpose: "Prepare lead capture with the guided synthetic setup.", note: "Test Mode uses fake authorization. Real Meta activation remains disabled." },
+  website: { name: "Website", purpose: "Receive website enquiries and create draft orders.", note: "Signed server-to-server intake; orders remain Draft, Unpaid and Unfulfilled." },
+  email: { name: "Email", purpose: "Control approved email delivery and sending policy.", note: "A connector or sent history does not prove SMTP is currently available." },
+};
+
+function belongsTo(connector: BridgeConnector, channel: ConnectionChannel) {
+  if (channel === "whatsapp") return connector.type === "WHATSAPP";
+  if (channel === "meta") return connector.type === "SOCIAL" && connector.provider === "META_LEAD_ADS";
+  return connector.type === channel.toUpperCase();
+}
+
+function channelStatus(connectors: BridgeConnector[], channel: ConnectionChannel) {
+  const matches = connectors.filter((connector) => belongsTo(connector, channel));
+  if (!matches.length) return "Not configured";
+  if (matches.some((connector) => connector.status === "ERROR")) return "Needs attention";
+  if (matches.some((connector) => connector.status === "PAUSED")) return "Paused";
+  if (matches.some((connector) => connector.status === "ACTIVE" && ["B2BRAIN_SIMULATOR", "META_LEAD_ADS", "META_WHATSAPP_CLOUD"].includes(connector.provider))) return "Test ready";
+  if (["website", "email"].includes(channel) && matches.some((connector) => connector.status === "ACTIVE")) return "Setup in progress";
+  if (matches.some((connector) => connector.status === "ACTIVE")) return "Connected";
+  return "Setup in progress";
 }
 
 export function BridgeOverview({
@@ -19,6 +46,7 @@ export function BridgeOverview({
   events,
   drafts,
   metrics,
+  channel,
   onWebsiteForm,
   onDecision,
   onReply,
@@ -30,6 +58,7 @@ export function BridgeOverview({
   events: BridgeEvent[];
   drafts: BridgeDraft[];
   metrics: Record<string, number>;
+  channel?: ConnectionChannel | null;
   onWebsiteForm: (id: string) => void;
   onDecision: (
     id: string,
@@ -54,24 +83,36 @@ export function BridgeOverview({
           </article>
         ))}
       </section>}
-      {view === "connections" && <div className="bridge-columns bridge-columns-single">
+      {view === "connections" && !channel && <><section className="connection-summary" aria-label="Connection summary">
+        {["Connected", "Test ready", "Setup needed", "Needs attention"].map((label) => {
+          const statuses = (Object.keys(channelCopy) as ConnectionChannel[]).map((item) => channelStatus(connectors, item));
+          const count = label === "Setup needed" ? statuses.filter((status) => ["Not configured", "Setup in progress"].includes(status)).length : statuses.filter((status) => status === label).length;
+          return <article key={label}><span>{label}</span><strong>{count}</strong></article>;
+        })}
+      </section><section className="connection-cards" aria-label="Business channels">
+        {(Object.keys(channelCopy) as ConnectionChannel[]).map((item) => {
+          const status = channelStatus(connectors, item);
+          const configured = connectors.some((connector) => belongsTo(connector, item));
+          return <article key={item}><header><div><span>{channelCopy[item].name}</span><i>{status}</i></div><p>{channelCopy[item].purpose}</p></header><div className="connection-card-note">{channelCopy[item].note}</div><Link href={`/automation?section=connections&channel=${item}`}>{configured ? status === "Needs attention" ? "Review issue" : "Manage" : "Start setup"}</Link></article>;
+        })}
+      </section></>}
+      {view === "connections" && channel === "website" && <section className="connection-detail"><header><p>Website channel</p><h3>Website enquiries and draft orders</h3><span>These integrations accept signed server-to-server events when external channels are enabled. Browser-reported payment success is never trusted.</span></header><div className="connection-detail-notice">Orders remain Draft, Unpaid and Unfulfilled until verified business workflows update them. Setup may require a website administrator.</div></section>}
+      {view === "connections" && channel && channel !== "email" && <div className="bridge-columns bridge-columns-single">
         <section>
           <header>
-            <strong>Connectors</strong>
-            <span>{connectors.length}</span>
+            <strong>{channelCopy[channel].name} connections</strong>
+            <span>{connectors.filter((connector) => belongsTo(connector, channel)).length}</span>
           </header>
-          {!connectors.length ? (
-            <p className="bridge-empty">No connectors configured.</p>
+          {!connectors.some((connector) => belongsTo(connector, channel)) ? (
+            <p className="bridge-empty">No {channelCopy[channel].name} connection is configured.</p>
           ) : (
-            connectors.slice(0, expanded.connectors ? undefined : 3).map((connector) => (
+            connectors.filter((connector) => belongsTo(connector, channel)).slice(0, expanded.connectors ? undefined : 3).map((connector) => (
               <article className="connector-card" key={connector.id}>
                 <div>
                   <strong>{connector.name}</strong>
                   <i>{connectorStatus(connector)}</i>
                 </div>
-                <p>
-                  {connector.type} · {connector.provider}
-                </p>
+                <p>{connector.provider === "B2BRAIN_SIMULATOR" ? "Simulator" : connectorStatus(connector)}</p>
                 <small>
                   {connector.mode.replaceAll("_", " ")} ·{" "}
                   {connector._count.events} events
@@ -114,7 +155,7 @@ export function BridgeOverview({
               </article>
             ))
           )}
-          {connectors.length > 3 && (
+          {connectors.filter((connector) => belongsTo(connector, channel)).length > 3 && (
             <button
               className="bridge-see-more"
               aria-expanded={expanded.connectors}
@@ -125,7 +166,7 @@ export function BridgeOverview({
                 }))
               }
             >
-              {expanded.connectors ? "Show less" : `See ${connectors.length - 3} more`}
+              {expanded.connectors ? "Show less" : `See ${connectors.filter((connector) => belongsTo(connector, channel)).length - 3} more`}
             </button>
           )}
         </section>

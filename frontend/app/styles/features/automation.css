@@ -528,6 +528,63 @@
   outline: 3px solid rgb(8 124 227 / 24%);
   outline-offset: 2px;
 }
+.connection-back {
+  border: 1px solid #c9d8e8;
+  border-radius: 9px;
+  color: #126db9;
+  font-weight: 750;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+.connection-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 18px 0;
+}
+.connection-summary article,
+.connection-cards > article,
+.connection-detail {
+  background: #fff;
+  border: 1px solid #dce4ef;
+  border-radius: 14px;
+  min-width: 0;
+}
+.connection-summary article { padding: 15px 17px; }
+.connection-summary span { color: #68798f; display: block; font-size: 12px; }
+.connection-summary strong { display: block; font-size: 24px; margin-top: 5px; }
+.connection-loading { color: #68798f; padding: 24px 0; }
+.connection-cards {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.connection-cards > article { display: flex; flex-direction: column; padding: 20px; }
+.connection-cards header > div { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.connection-cards header span { font-size: 18px; font-weight: 800; }
+.connection-cards header i { background: #edf3f8; border-radius: 999px; flex: 0 0 auto; font-size: 10px; font-style: normal; font-weight: 800; padding: 6px 8px; }
+.connection-cards header p,
+.connection-card-note,
+.connection-detail span { color: #66778d; line-height: 1.5; overflow-wrap: anywhere; }
+.connection-card-note { background: #f6f9fc; border-radius: 9px; font-size: 12px; margin: auto 0 15px; padding: 11px; }
+.connection-cards a { align-self: flex-start; background: #087ce3; border-radius: 9px; color: #fff; font-weight: 750; padding: 10px 14px; text-decoration: none; }
+.connection-cards a:focus-visible,
+.connection-back:focus-visible,
+.connection-advanced-management summary:focus-visible { outline: 3px solid rgb(8 124 227 / 25%); outline-offset: 2px; }
+.connection-detail { margin: 18px 0; padding: 20px; }
+.connection-detail h3,
+.connection-detail p { margin: 0; }
+.connection-detail h3 { margin: 6px 0; }
+.connection-detail > header > p { color: #087ce3; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.connection-detail-notice { background: #fff7e8; border-radius: 9px; color: #69562d; margin-top: 14px; padding: 12px; }
+.connection-advanced-management { background: #fff; border: 1px solid #dce4ef; border-radius: 12px; margin-top: 18px; padding: 15px 18px; }
+.connection-advanced-management summary { color: #173451; cursor: pointer; font-weight: 800; }
+.connection-advanced-management p { color: #68798f; font-size: 12px; }
+.connection-advanced-management > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.connection-advanced-management button { background: #fff; border: 1px solid #bfd0e2; border-radius: 8px; color: #185788; padding: 9px 12px; }
+.advanced-connector-list { border-top: 1px solid #e1e8f0; margin-top: 16px; padding-top: 4px; }
+.connector-card footer { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.connector-card footer button { background: #fff; border: 1px solid #bfd0e2; border-radius: 7px; color: #185788; padding: 7px 9px; }
 .bridge-metrics {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -673,6 +730,7 @@
   margin: 0 0 14px;
 }
 @media (max-width: 900px) {
+  .connection-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bridge-columns {
     grid-template-columns: 1fr;
   }
@@ -737,6 +795,10 @@
   padding: 7px 10px;
 }
 @media (max-width: 600px) {
+  .connection-cards { grid-template-columns: 1fr; }
+  .connection-cards a,
+  .connection-back,
+  .connection-advanced-management button { box-sizing: border-box; text-align: center; width: 100%; }
   .bridge-manager > header {
     padding: 18px;
   }
