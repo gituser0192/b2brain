@@ -24,7 +24,7 @@ test("Overview stays compact, truthful, and does not trigger external actions", 
   const reads = new Map<string, number>();
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname.replace("/api/v1", "");
-    if (["/automation-bridge", "/automation-bridge/message-drafts", "/agents", "/agents/runs/centre"].includes(path)) {
+    if (["/automation-bridge", "/automation-bridge/message-drafts", "/agents", "/agents/runs/centre", "/follow-up-automation"].includes(path)) {
       reads.set(path, (reads.get(path) ?? 0) + 1);
     }
   });
@@ -46,13 +46,14 @@ test("Overview stays compact, truthful, and does not trigger external actions", 
     "/automation-bridge/message-drafts": 1,
     "/agents": 1,
     "/agents/runs/centre": 1,
+    "/follow-up-automation": 1,
   });
   await expect(page.locator(".automation-workspace")).toHaveScreenshot("automation-phase-h1-overview.png");
 });
 
 test("Overview reports API failure without inventing activity", async ({ page }) => {
   await installSyntheticApi(page);
-  for (const path of ["automation-bridge", "automation-bridge/message-drafts", "agents", "agents/runs/centre"]) {
+  for (const path of ["automation-bridge", "automation-bridge/message-drafts", "agents", "agents/runs/centre", "follow-up-automation"]) {
     await page.route(`**/api/v1/${path}`, (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ success: false }) }));
   }
   await page.goto("/automation");

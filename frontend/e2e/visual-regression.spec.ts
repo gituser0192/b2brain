@@ -177,18 +177,20 @@ test("Automation WhatsApp simulator configuration visual baseline", async ({ pag
 
 test("Automation follow-up and policy empty states visual baseline", async ({ page }) => {
   await installSyntheticApi(page);
-  await page.goto("/automation?section=automations");
+  await page.goto("/automation?section=automations&workflow=follow-ups");
   const followUps = page.locator(".follow-up-automation");
-  const policies = page.locator(".policy-manager");
   await expect(followUps.getByText("No sequences configured")).toBeVisible();
-  await expect(policies.getByText("No automation policies yet")).toBeVisible();
   await expect(followUps).toHaveScreenshot("automation-follow-up-empty.png");
+  await page.goto("/automation?section=automations");
+  await page.getByText("Advanced automation controls").click();
+  const policies = page.locator(".policy-manager");
+  await expect(policies.getByText("No automation policies yet")).toBeVisible();
   await expect(policies).toHaveScreenshot("automation-policy-empty.png");
 });
 
 test("Automation collection schedule empty state visual baseline", async ({ page }) => {
   await installSyntheticApi(page);
-  await page.goto("/automation?section=automations");
+  await page.goto("/automation?section=automations&workflow=collections");
   const schedule = page.locator(".collection-schedule-manager");
   await expect(schedule.getByText("No Finance agent found")).toBeVisible();
   await expect(schedule).toHaveScreenshot("automation-collection-schedule-empty.png");
@@ -210,6 +212,7 @@ test("Automation error state visual baseline", async ({ page }) => {
   await installSyntheticApi(page);
   await page.route("**/api/v1/automation-policies", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Synthetic automation failure." }) }));
   await page.goto("/automation?section=automations");
+  await page.getByText("Advanced automation controls").click();
   const policies = page.locator(".policy-manager");
   await expect(policies.getByText("Unable to load automation policies.")).toBeVisible();
   await expect(policies).toHaveScreenshot("automation-error.png");

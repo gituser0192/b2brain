@@ -7,8 +7,9 @@ import type { BridgeConnector, BridgeDraft, BridgeEvent, BridgePayload } from ".
 
 type Agent = { id: string; name: string; status: string; supportedService: string };
 type Run = { id: string; status: string; agent: { name: string }; createdAt: string };
-type OverviewData = { connectors: BridgeConnector[]; events: BridgeEvent[]; drafts: BridgeDraft[]; agents: Agent[]; runs: Run[] };
-const empty: OverviewData = { connectors: [], events: [], drafts: [], agents: [], runs: [] };
+type FollowUps = { metrics: { activeSequences: number } };
+type OverviewData = { connectors: BridgeConnector[]; events: BridgeEvent[]; drafts: BridgeDraft[]; agents: Agent[]; runs: Run[]; followUps: FollowUps };
+const empty: OverviewData = { connectors: [], events: [], drafts: [], agents: [], runs: [], followUps: { metrics: { activeSequences: 0 } } };
 
 function connectionStatus(connector: BridgeConnector) {
   if (connector.status === "PAUSED") return "Paused";
@@ -39,14 +40,16 @@ export function AutomationOverview() {
       authorizedRequest<{ success: true; data: BridgeDraft[] }>("/automation-bridge/message-drafts"),
       authorizedRequest<{ success: true; data: Agent[] }>("/agents"),
       authorizedRequest<{ success: true; data: { items: Run[] } }>("/agents/runs/centre"),
+      authorizedRequest<{ success: true; data: FollowUps }>("/follow-up-automation"),
     ]);
-    const [bridge, drafts, agents, runs] = results;
+    const [bridge, drafts, agents, runs, followUps] = results;
     setData({
       connectors: bridge.status === "fulfilled" ? bridge.value.data.connectors : [],
       events: bridge.status === "fulfilled" ? bridge.value.data.events : [],
       drafts: drafts.status === "fulfilled" ? drafts.value.data : [],
       agents: agents.status === "fulfilled" ? agents.value.data : [],
       runs: runs.status === "fulfilled" ? runs.value.data.items : [],
+      followUps: followUps.status === "fulfilled" ? followUps.value.data : empty.followUps,
     });
     if (results.every((result) => result.status === "rejected")) setError("Automation information is unavailable right now.");
     else if (results.some((result) => result.status === "rejected")) setError("Some automation information is temporarily unavailable.");
@@ -60,7 +63,8 @@ export function AutomationOverview() {
 
   if (loading) return <div className="automation-overview-state" role="status"><span className="spinner dark" />Loading automation summary…</div>;
 
-  const activeAgents = data.agents.filter((agent) => agent.status === "ACTIVE");
+  const configuredAgents = data.agents.filter((agent) => agent.status === "ACTIVE");
+  const runningAutomations = data.followUps.metrics.activeSequences;
   const pendingDrafts = data.drafts.filter((draft) => draft.status === "PENDING_APPROVAL");
   const pendingEvents = data.events.filter((event) => event.status === "AWAITING_APPROVAL");
   const attention = data.events.filter((event) => ["FAILED", "QUARANTINED"].includes(event.status));
@@ -83,7 +87,7 @@ export function AutomationOverview() {
     {error && <div className="dashboard-notice error" role="alert">{error}</div>}
     <section className="automation-summary" aria-label="Automation summary">
       <article><span>Connections configured</span><strong>{data.connectors.length}</strong><Link href="/automation?section=connections">View all connections</Link></article>
-      <article><span>Active agents</span><strong>{activeAgents.length}</strong><Link href="/automation?section=automations">Manage automations</Link></article>
+      <article><span>Running automations</span><strong>{runningAutomations}</strong><Link href="/automation?section=automations">Manage automations</Link></article>
       <article><span>Approvals waiting</span><strong>{pendingDrafts.length + pendingEvents.length}</strong><Link href="/automation?section=approvals">Review approvals</Link></article>
       <article><span>Needs attention</span><strong>{attention.length}</strong><Link href="/automation?section=activity">View activity</Link></article>
     </section>
@@ -93,7 +97,7 @@ export function AutomationOverview() {
     </section>
     <div className="automation-overview-grid">
       <section><header><h3>Connections</h3><Link href="/automation?section=connections">View all</Link></header>{data.connectors.length ? data.connectors.slice(0, 3).map((item) => <article key={item.id}><strong>{item.name}</strong><span>{connectionStatus(item)}</span></article>) : <p>No connections configured.</p>}</section>
-      <section><header><h3>Running automations</h3><Link href="/automation?section=automations">Manage</Link></header>{activeAgents.length ? activeAgents.slice(0, 3).map((item) => <article key={item.id}><strong>{item.name}</strong><span>{item.supportedService}</span></article>) : <p>No automations are running.</p>}</section>
+      <section><header><h3>Automation status</h3><Link href="/automation?section=automations">Manage</Link></header>{runningAutomations > 0 ? <article><strong>Customer follow-ups</strong><span>{runningAutomations} active sequence{runningAutomations === 1 ? "" : "s"}</span></article> : <p>No verified automations are running.</p>}{configuredAgents.length > 0 && <p>{configuredAgents.length} active agent definition{configuredAgents.length === 1 ? " is" : "s are"} configured, but configuration alone does not mean work is running.</p>}</section>
       <section><header><h3>Waiting for approval</h3><Link href="/automation?section=approvals">Review</Link></header>{pendingDrafts.length + pendingEvents.length ? <><p>{pendingDrafts.length} message drafts</p><p>{pendingEvents.length} integration items</p></> : <p>Nothing is waiting for approval.</p>}</section>
       <section><header><h3>Recent activity</h3><Link href="/automation?section=activity">View all</Link></header>{recent.length ? recent.map((item) => <article key={item.id}><strong>{item.text}</strong></article>) : <p>No recent automation activity.</p>}</section>
     </div>

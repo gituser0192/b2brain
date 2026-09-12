@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AgentManager } from "./agent-manager";
 import { AgentRunCentre } from "./agent-run-centre";
 import { AutomationOverview } from "./automation-overview";
+import { AutomationOutcomes } from "./automation-outcomes";
 import { BridgeManager } from "./bridge-manager";
 import { FollowUpAutomationManager } from "./follow-up-automation-manager";
 import { PolicyManager } from "./policy-manager";
@@ -15,6 +16,8 @@ const sections = ["overview", "connections", "automations", "approvals", "activi
 type AutomationSection = (typeof sections)[number];
 const channels = ["whatsapp", "meta", "website", "email"] as const;
 type AutomationChannel = (typeof channels)[number];
+const workflows = ["leads", "collections", "follow-ups"] as const;
+type AutomationWorkflow = (typeof workflows)[number];
 
 function sectionHref(section: AutomationSection) {
   return section === "overview" ? "/automation" : `/automation?section=${section}`;
@@ -29,6 +32,10 @@ export function AutomationWorkspace() {
   const requestedChannel = searchParams.get("channel");
   const channel: AutomationChannel | null = section === "connections" && channels.includes(requestedChannel as AutomationChannel)
     ? requestedChannel as AutomationChannel
+    : null;
+  const requestedWorkflow = searchParams.get("workflow");
+  const workflow: AutomationWorkflow | null = section === "automations" && workflows.includes(requestedWorkflow as AutomationWorkflow)
+    ? requestedWorkflow as AutomationWorkflow
     : null;
 
   return (
@@ -53,14 +60,12 @@ export function AutomationWorkspace() {
       <div className="automation-section" data-automation-section={section}>
         {section === "overview" && <AutomationOverview />}
         {section === "connections" && <BridgeManager view="connections" channel={channel} />}
-        {section === "automations" && <>
-          <AgentManager />
-          {/* TODO: Move Business Knowledge to the Business Agent in a dedicated future phase. */}
-          <KnowledgeManager />
-          <CollectionScheduleManager />
-          <PolicyManager />
-          <FollowUpAutomationManager />
-        </>}
+        {section === "automations" && <AutomationOutcomes
+          workflow={workflow}
+          advanced={{ agents: <AgentManager />, knowledge: <KnowledgeManager />, policies: <PolicyManager /> }}
+          collections={<CollectionScheduleManager />}
+          followUps={<FollowUpAutomationManager />}
+        />}
         {section === "approvals" && <BridgeManager view="approvals" />}
         {section === "activity" && <><AgentRunCentre /><BridgeManager view="activity" /></>}
       </div>
