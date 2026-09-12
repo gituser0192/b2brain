@@ -1,0 +1,24 @@
+/* Platform-only maturity presentation. Core legacy platform layout remains global. */
+.service-assignment .maturity-badge,
+.plan-service-picker .maturity-badge { margin-left: 0; }
+
+@media (max-width: 900px) {
+  .platform-main > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .platform-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+  .platform-stats span { min-width: 0; }
+}
+
+@media (max-width: 520px) {
+  .platform-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .assignment-list article { align-items: flex-start; gap: 12px; }
+  .assignment-list article > div { min-width: 0; }
+  .assignment-list p { overflow-wrap: anywhere; }
+}

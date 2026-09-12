@@ -37,3 +37,21 @@
   .settings-checklist li { align-items: flex-start; flex-direction: column; gap: 4px; }
   .settings-checklist span { text-align: left; }
 }
+
+.maturity-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  border: 1px solid #bfd3e8;
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #234568;
+  font-size: 11px;
+  font-weight: 800;
+}
+.maturity-badge.available { border-color: #9bd6b0; background: #edf9f1; color: #18723a; }
+.maturity-badge.beta { border-color: #e7c57c; background: #fff8e7; color: #815b08; }
+.maturity-warning,
+.maturity-navigation-note,
+.maturity-explanation { color: #815b08; font-size: 12px; }
+.maturity-explanation { margin: 10px 0; }

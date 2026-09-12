@@ -11,6 +11,7 @@ import "./styles/features/dashboard.css";
 import "./styles/features/automation.css";
 import "./styles/features/finance.css";
 import "./styles/features/settings.css";
+import "./styles/features/platform.css";
 import "./styles/features/projects.css";
 import "./styles/features/crm.css";
 import "./styles/customer-enquiry-agent.css";

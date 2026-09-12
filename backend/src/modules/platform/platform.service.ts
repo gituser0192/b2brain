@@ -5,6 +5,7 @@ import type { CreatePlatformInvitationInput, OrganizationPlanAssignmentInput, Se
 import type { OrganizationAccessInput } from "./platform.validation.js";
 import { EmailService } from "../../shared/email/email.service.js";
 import { env } from "../../config/env.js";
+import { serviceMaturityFor } from "../services/service-maturity.js";
 
 export class PlatformService {
   constructor(private readonly repository = new PlatformRepository(), private readonly email = new EmailService()) {}
@@ -32,6 +33,7 @@ export class PlatformService {
         status: service.status,
         iconKey: service.iconKey,
         routePath: service.routePath,
+        maturity: serviceMaturityFor(service.code),
         enabledOrganizationCount: service._count.organizationServices,
       })),
       invitations: invitations.map((invitation) => ({

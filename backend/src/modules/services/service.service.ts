@@ -1,6 +1,8 @@
 import { ServiceRepository } from "./service.repository.js";
+import { serviceMaturityFor } from "./service-maturity.js";
 
 function serviceSummary(service: Awaited<ReturnType<ServiceRepository["catalog"]>>[number]) {
+  const maturity = serviceMaturityFor(service.code);
   return {
     id: service.id,
     code: service.code,
@@ -8,6 +10,7 @@ function serviceSummary(service: Awaited<ReturnType<ServiceRepository["catalog"]
     description: service.description,
     iconKey: service.iconKey,
     routePath: service.routePath,
+    maturity,
     featureFlags: service.featureFlags.map((flag) => ({ code: flag.code, name: flag.name, description: flag.description, defaultOn: flag.defaultOn })),
   };
 }
@@ -29,6 +32,7 @@ export class ServiceCatalogueService {
           description: record.service.description,
           iconKey: record.service.iconKey,
           routePath: record.service.routePath,
+          maturity: serviceMaturityFor(record.service.code),
           featureFlags: record.service.featureFlags.map((flag) => ({
             code: flag.code,
             name: flag.name,
@@ -51,6 +55,7 @@ export class ServiceCatalogueService {
       description: record.service.description,
       iconKey: record.service.iconKey,
       routePath: record.service.routePath,
+      maturity: serviceMaturityFor(record.service.code),
     }));
   }
 }
