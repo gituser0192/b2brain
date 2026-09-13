@@ -54,8 +54,8 @@ test("Super Admin section navigation is non-mutating and supports history", asyn
 test("Super Admin workflows are grouped and planned sections are honest", async ({ page }) => {
   await installSyntheticApi(page, { platformAdmin: true });
   await page.goto("/super-admin?section=organizations");
-  await expect(page.getByRole("heading", { name: "Invite an organization owner" })).toBeVisible();
-  await expect(page.getByText("Account & entitlements")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Invite organization owner" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Organization directory" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Apply plan" })).toHaveCount(0);
   await page.goto("/super-admin?section=plans");
   await expect(page.getByRole("heading", { name: "Service plans" })).toBeVisible();

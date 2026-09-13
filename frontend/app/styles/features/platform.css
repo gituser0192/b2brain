@@ -64,6 +64,62 @@
 .platform-grid-services .organization-plan-assignment { display: none; }
 .platform-planned { max-width: 48rem; }
 
+.platform-organizations { display: grid; gap: 1rem; grid-template-columns: minmax(19rem, 0.8fr) minmax(24rem, 1.2fr); }
+.organization-directory-panel,
+.organization-detail { min-width: 0; }
+.organization-tools { display: grid; gap: 0.7rem; grid-template-columns: minmax(0, 1fr) 9rem; margin-bottom: 0.8rem; }
+.organization-tools label > span { color: #607089; display: block; font-size: 0.65rem; font-weight: 700; margin-bottom: 0.3rem; }
+.organization-tools input,
+.organization-tools select { background: white; border: 1px solid #d8e1eb; border-radius: 0.65rem; min-height: 2.6rem; padding: 0 0.75rem; width: 100%; }
+.platform-organizations .organization-directory { max-height: 25rem; overflow-y: auto; }
+.platform-organizations .organization-directory > a { align-items: center; border-bottom: 1px solid #edf1f5; color: inherit; display: grid; gap: 0.65rem; grid-template-columns: 2.4rem minmax(0, 1fr) auto; padding: 0.85rem 0.55rem; text-decoration: none; }
+.platform-organizations .organization-directory > a:hover,
+.platform-organizations .organization-directory > a.active { background: #edf7ff; }
+.platform-organizations .organization-directory > a:focus-visible,
+.organization-related-links a:focus-visible,
+.organization-mobile-back:focus-visible { outline: 3px solid #168be0; outline-offset: 2px; }
+.platform-organizations .organization-directory > a > span { align-items: center; background: #e9f3ff; border-radius: 0.55rem; color: #126db3; display: flex; font-size: 0.68rem; font-weight: 800; height: 2.4rem; justify-content: center; }
+.platform-organizations .organization-directory a div { display: grid; gap: 0.15rem; min-width: 0; }
+.platform-organizations .organization-directory a small { color: #6f7e91; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.organization-detail { background: white; border: 1px solid #dfe6ee; border-radius: 1rem; padding: 1.1rem; }
+.organization-detail > header { align-items: flex-start; border-bottom: 1px solid #e8edf3; display: flex; justify-content: space-between; padding-bottom: 1rem; }
+.organization-detail > header p { color: #168be0; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; margin: 0; text-transform: uppercase; }
+.organization-detail > header h2 { margin: 0.3rem 0; }
+.organization-detail > header span { color: #68788e; font-size: 0.72rem; }
+.organization-detail-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 1rem 0; }
+.organization-detail-grid article { background: #f7f9fc; border: 1px solid #e5ebf2; border-radius: 0.75rem; display: grid; gap: 0.25rem; padding: 0.8rem; }
+.organization-detail-grid article > span,
+.organization-detail-grid small { color: #6b7b90; font-size: 0.68rem; overflow-wrap: anywhere; }
+.organization-related-links { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.organization-related-links a { border: 1px solid #bdd5ec; border-radius: 0.65rem; color: #086fbe; font-weight: 700; padding: 0.65rem 0.8rem; text-decoration: none; }
+.organization-access-actions { border-top: 1px solid #e8edf3; margin-top: 1rem; padding-top: 1rem; }
+.organization-access-actions p { color: #168be0; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; margin: 0; text-transform: uppercase; }
+.organization-access-actions h3 { margin: 0.3rem 0; }
+.organization-access-actions span { color: #63738a; font-size: 0.72rem; }
+.organization-access-actions > div:last-child { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.85rem; }
+.organization-access-actions button,
+.platform-confirmation button { border: 0; border-radius: 0.6rem; cursor: pointer; font-weight: 750; min-height: 2.5rem; padding: 0.65rem 0.9rem; }
+.organization-access-actions button { background: #e9f3ff; color: #075c9b; }
+.organization-access-actions .remove,
+.platform-confirmation .remove { background: #a92d38; color: white; }
+.organization-mobile-back { display: none; }
+.platform-invitations { margin-top: 1rem; }
+.platform-invitations > form { grid-template-columns: minmax(12rem, 1.2fr) minmax(10rem, 1fr); }
+.platform-invitations > form > div { grid-column: 1 / -1; }
+.platform-invitations > form > button { align-self: end; }
+.invite-link-result { align-items: flex-start; display: grid; gap: 0.25rem; }
+.invite-link-result span { overflow-wrap: anywhere; }
+.platform-dialog-backdrop { align-items: center; background: rgba(7, 19, 38, 0.6); display: flex; inset: 0; justify-content: center; padding: 1rem; position: fixed; z-index: 100; }
+.platform-confirmation { background: white; border-radius: 1rem; box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.25); max-width: 30rem; padding: 1.4rem; width: 100%; }
+.platform-confirmation > p { color: #168be0; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; margin: 0; text-transform: uppercase; }
+.platform-confirmation h2 { margin: 0.4rem 0; }
+.platform-confirmation > span { color: #5f6e81; display: block; line-height: 1.6; }
+.platform-confirmation footer { display: flex; gap: 0.65rem; justify-content: flex-end; margin-top: 1.2rem; }
+.platform-confirmation button:first-child { background: #eef2f6; color: #26364b; }
+.platform-confirmation button:last-child { background: #147dd1; color: white; }
+.platform-confirmation button:focus-visible,
+.organization-access-actions button:focus-visible { outline: 3px solid #45b5ff; outline-offset: 2px; }
+
 @media (max-width: 900px) {
   .platform-shell { overflow-x: hidden; }
   .platform-sidebar { min-width: 0; }
@@ -82,11 +138,22 @@
   }
   .platform-stats span { min-width: 0; }
   .platform-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .platform-organizations { grid-template-columns: minmax(16rem, 0.8fr) minmax(20rem, 1.2fr); }
 }
 
 @media (max-width: 520px) {
   .platform-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .platform-preview-grid { grid-template-columns: 1fr; }
+  .platform-organizations { display: block; }
+  .platform-organizations.show-detail .organization-directory-panel { display: none; }
+  .platform-organizations:not(.show-detail) .organization-detail { display: none; }
+  .organization-mobile-back { display: inline-block; margin-bottom: 1rem; }
+  .organization-detail-grid { grid-template-columns: 1fr; }
+  .organization-tools { grid-template-columns: 1fr; }
+  .platform-invitations > form { grid-template-columns: 1fr; }
+  .platform-invitations > form > div { grid-column: auto; }
+  .platform-confirmation footer { flex-direction: column-reverse; }
+  .platform-confirmation footer button { width: 100%; }
   .assignment-list article { align-items: flex-start; gap: 12px; }
   .assignment-list article > div { min-width: 0; }
   .assignment-list p { overflow-wrap: anywhere; }

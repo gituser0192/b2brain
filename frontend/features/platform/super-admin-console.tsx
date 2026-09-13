@@ -24,6 +24,8 @@ interface ServicePlan { id: string; code: string; name: string; description: str
 interface PlatformInvitation { id: string; email: string; organizationName: string; status: string; expiresAt: string; createdAt: string; type: "NEW_ORGANIZATION" | "REACTIVATE_ORGANIZATION"; }
 interface OverviewResponse { success: true; data: { organizations: PlatformOrganization[]; services: PlatformService[]; invitations: PlatformInvitation[]; plans: ServicePlan[] }; }
 interface InviteResponse { success: true; data: { invitation: PlatformInvitation; signupPath: string; signupUrl: string; emailDelivered: boolean }; }
+type OrganizationFilter = "ALL" | "ACTIVE" | "SUSPENDED" | "TRIAL" | "ATTENTION";
+type Confirmation = { kind: "revoke"; invitation: PlatformInvitation } | { kind: "suspend" | "reactivate" | "remove"; organization: PlatformOrganization };
 
 const BILLING_WARNING_CUTOFF = Date.now() + 7 * 86400000;
 const PAYMENT_PREVIEW_COUNT = 3;
@@ -45,6 +47,7 @@ export function SuperAdminConsole() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section") ?? "overview";
+  const requestedOrganizationId = searchParams.get("organization");
   const section: PlatformSection = PLATFORM_SECTIONS.includes(requestedSection as PlatformSection) ? requestedSection as PlatformSection : "overview";
   const { session, isLoading, authorizedRequest, logout } = useAuth();
   const [organizations, setOrganizations] = useState<PlatformOrganization[]>([]);
@@ -52,8 +55,13 @@ export function SuperAdminConsole() {
   const [invitations, setInvitations] = useState<PlatformInvitation[]>([]);
   const [plans, setPlans] = useState<ServicePlan[]>([]);
   const [inviteForm, setInviteForm] = useState({ email: "", organizationName: "" });
-  const [inviteLink, setInviteLink] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [organizationSearch, setOrganizationSearch] = useState("");
+  const [organizationFilter, setOrganizationFilter] = useState<OrganizationFilter>("ALL");
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const confirmationTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const selectedIdRef = useRef("");
   const [loading, setLoading] = useState(true);
@@ -87,7 +95,7 @@ export function SuperAdminConsole() {
       }
     } catch (reason) { setLoadFailed(true); setError(reason instanceof ApiError ? reason.message : "Unable to load the platform console."); }
     finally { setLoading(false); }
-  }, [authorizedRequest]);
+  }, [authorizedRequest, setAssignment, setInvitations, setLoadFailed, setLoading, setOrganizations, setPaymentForm, setPlans, setSelectedId, setServices]);
 
   useEffect(() => {
     if (!isLoading && !session) router.replace("/login");
@@ -103,7 +111,7 @@ export function SuperAdminConsole() {
   }, [requestedSection, router, section]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
-  const selected = useMemo(() => organizations.find((item) => item.id === selectedId), [organizations, selectedId]);
+  const selected = useMemo(() => organizations.find((item) => item.id === (section === "organizations" ? requestedOrganizationId : requestedOrganizationId ?? selectedId)), [organizations, requestedOrganizationId, section, selectedId]);
   const billingAttention = useMemo(() => {
     return organizations.filter((organization) => organization.plan && (["PAST_DUE", "EXPIRED"].includes(organization.plan.status) || (["ACTIVE", "TRIAL"].includes(organization.plan.status) && Boolean(organization.plan.expiresAt && new Date(organization.plan.expiresAt).getTime() <= BILLING_WARNING_CUTOFF))));
   }, [organizations]);
@@ -129,6 +137,20 @@ export function SuperAdminConsole() {
       : suspendedOrganizations.length > 0
         ? { title: "Review suspended organizations", detail: `${suspendedOrganizations.length} organization${suspendedOrganizations.length === 1 ? " is" : "s are"} suspended.`, href: "/super-admin?section=organizations" }
         : { title: "Review organizations", detail: "No urgent platform item is currently identified.", href: "/super-admin?section=organizations" };
+  const organizationNotFound = section === "organizations" && Boolean(requestedOrganizationId) && !selected;
+  const filteredOrganizations = useMemo(() => {
+    const query = organizationSearch.trim().toLowerCase();
+    return organizations.filter((organization) => {
+      const matchesSearch = !query || [organization.name, organization.owner?.firstName, organization.owner?.lastName, organization.owner?.email].some((value) => value?.toLowerCase().includes(query));
+      const needsAttention = Boolean(organization.plan && ["PAST_DUE", "EXPIRED"].includes(organization.plan.status));
+      const matchesFilter = organizationFilter === "ALL"
+        || (organizationFilter === "ACTIVE" && organization.status === "ACTIVE")
+        || (organizationFilter === "SUSPENDED" && organization.status === "SUSPENDED")
+        || (organizationFilter === "TRIAL" && organization.plan?.status === "TRIAL")
+        || (organizationFilter === "ATTENTION" && needsAttention);
+      return matchesSearch && matchesFilter;
+    });
+  }, [organizationFilter, organizationSearch, organizations]);
   async function toggle(serviceId: string, enabled: boolean) {
     if (!selected) return;
     setUpdatingId(serviceId); setError("");
@@ -139,10 +161,12 @@ export function SuperAdminConsole() {
     finally { setUpdatingId(""); }
   }
   async function createInvitation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setInviting(true); setError(""); setInviteLink("");
+    event.preventDefault();
+    if (inviting) return;
+    setInviting(true); setError(""); setInviteSuccess("");
     try {
       const response = await authorizedRequest<InviteResponse>("/platform/invitations", { method: "POST", body: JSON.stringify(inviteForm) });
-      setInviteLink(response.data.signupUrl);
+      setInviteSuccess(response.data.emailDelivered ? "Invitation created and email delivery was accepted." : "Invitation created. Email delivery is not confirmed; review the pending invitation below.");
       setInviteForm({ email: "", organizationName: "" });
       await load();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to create invitation."); }
@@ -150,20 +174,40 @@ export function SuperAdminConsole() {
   }
   async function revokeInvitation(id: string) {
     setError("");
-    try { await authorizedRequest(`/platform/invitations/${id}`, { method: "DELETE" }); await load(); }
-    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to revoke invitation."); }
+    try { await authorizedRequest(`/platform/invitations/${id}`, { method: "DELETE" }); await load(); return true; }
+    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to revoke invitation."); return false; }
   }
   async function setAccess(status: "ACTIVE" | "SUSPENDED") {
-    if (!selected) return;
+    if (!selected) return false;
     setError("");
-    try { await authorizedRequest(`/platform/organizations/${selected.id}/access`, { method: "PATCH", body: JSON.stringify({ status }) }); await load(); }
-    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update account access."); }
+    try { await authorizedRequest(`/platform/organizations/${selected.id}/access`, { method: "PATCH", body: JSON.stringify({ status }) }); await load(); return true; }
+    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to update account access."); return false; }
   }
   async function removeAccount() {
-    if (!selected || !window.confirm(`Remove ${selected.name}? Login sessions and service access will be disabled.`)) return;
+    if (!selected) return false;
     setError("");
-    try { await authorizedRequest(`/platform/organizations/${selected.id}`, { method: "DELETE" }); setSelectedId(""); await load(); }
-    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to remove organization account."); }
+    try { await authorizedRequest(`/platform/organizations/${selected.id}`, { method: "DELETE" }); setSelectedId(""); router.replace("/super-admin?section=organizations"); await load(); return true; }
+    catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to remove organization account."); return false; }
+  }
+  async function confirmAction() {
+    if (!confirmation || actionPending) return;
+    setActionPending(true);
+    try {
+      const succeeded = confirmation.kind === "revoke"
+        ? await revokeInvitation(confirmation.invitation.id)
+        : confirmation.kind === "remove"
+          ? await removeAccount()
+          : await setAccess(confirmation.kind === "suspend" ? "SUSPENDED" : "ACTIVE");
+      if (succeeded) closeConfirmation();
+    } finally { setActionPending(false); }
+  }
+  function openConfirmation(next: Confirmation, trigger: HTMLButtonElement) {
+    confirmationTriggerRef.current = trigger;
+    setConfirmation(next);
+  }
+  function closeConfirmation() {
+    setConfirmation(null);
+    window.setTimeout(() => confirmationTriggerRef.current?.focus(), 0);
   }
   function editPlan(plan?: ServicePlan) {
     setEditingPlanId(plan?.id ?? "");
@@ -213,17 +257,36 @@ export function SuperAdminConsole() {
         <article className="platform-attention"><p>Recommended next action</p><h2>{attention.title}</h2><span>{attention.detail}</span><Link href={attention.href}>Review now</Link></article>
         <div className="platform-preview-grid"><section><div className="panel-title"><div><p>Recent customers</p><h2>Organizations</h2></div><Link href="/super-admin?section=organizations">View organizations</Link></div>{organizations.slice(0, 5).map((item) => <article key={item.id}><strong>{item.name}</strong><span>{item.status.replaceAll("_", " ").toLowerCase()}</span></article>)}{organizations.length === 0 && <p>No organizations registered.</p>}</section><section><div className="panel-title"><div><p>Owner access</p><h2>Pending invitations</h2></div><Link href="/super-admin?section=organizations">Review invitations</Link></div>{pendingInvitations.slice(0, 5).map((item) => <article key={item.id}><strong>{item.organizationName}</strong><span>{item.email}</span></article>)}{pendingInvitations.length === 0 && <p>No pending invitations.</p>}</section><section><div className="panel-title"><div><p>Subscriptions</p><h2>Needs attention</h2></div><Link href="/super-admin?section=plans">Manage plans</Link></div>{billingAttention.slice(0, 5).map((item) => <article key={item.id}><strong>{item.name}</strong><span>{item.plan?.status.replaceAll("_", " ").toLowerCase()}</span></article>)}{billingAttention.length === 0 && <p>No billing alerts.</p>}</section><section><div className="panel-title"><div><p>Service maturity</p><h2>Availability</h2></div><Link href="/super-admin?section=services">Review services</Link></div><article><strong>{maturitySummary.available} Available</strong><span>{maturitySummary.beta} Beta services</span></article><Link href="/super-admin?section=operations">Open operations</Link></section></div>
       </section>}
-      {section === "organizations" && !loadFailed && <section className="platform-invitations">
-        <form onSubmit={createInvitation}><div><p>Controlled onboarding</p><h2>Invite an organization owner</h2><span>Only this approved email can use the one-time registration link.</span></div><label><span>Organization</span><input value={inviteForm.organizationName} onChange={(event) => setInviteForm({ ...inviteForm, organizationName: event.target.value })} placeholder="Company name" required maxLength={120} /></label><label><span>Owner email</span><input type="email" value={inviteForm.email} onChange={(event) => setInviteForm({ ...inviteForm, email: event.target.value })} placeholder="owner@company.com" required /></label><button disabled={inviting}>{inviting ? "Creating…" : "Create invitation"}</button></form>
-        {inviteLink && <div className="invite-link-result"><div><strong>Private signup or reactivation link created</strong><span>{inviteLink}</span></div><button onClick={() => void navigator.clipboard.writeText(inviteLink)}>Copy link</button></div>}
-        {invitations.length > 0 && <div className="pending-platform-invites"><div className="panel-title"><div><p>Pending approval</p><h3>Open invitations</h3></div><span>{invitations.length}</span></div>{invitations.map((invitation) => <article key={invitation.id}><div><strong>{invitation.organizationName}</strong><span>{invitation.email} · {invitation.type === "REACTIVATE_ORGANIZATION" ? "Reactivation" : "New account"}</span></div><small>Expires {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invitation.expiresAt))}</small><button onClick={() => void revokeInvitation(invitation.id)}>Revoke</button></article>)}</div>}
+      {section === "organizations" && !loadFailed && <section className={`platform-organizations ${selected || organizationNotFound ? "show-detail" : ""}`}>
+        <div className="organization-directory-panel">
+          <div className="panel-title"><div><p>Customer accounts</p><h2>Organization directory</h2></div><span>{filteredOrganizations.length} shown</span></div>
+          <div className="organization-tools">
+            <label><span>Search organizations</span><input type="search" value={organizationSearch} onChange={(event) => setOrganizationSearch(event.target.value)} placeholder="Name or owner" /></label>
+            <label><span>Filter</span><select value={organizationFilter} onChange={(event) => setOrganizationFilter(event.target.value as OrganizationFilter)}><option value="ALL">All</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="TRIAL">Trial</option><option value="ATTENTION">Needs attention</option></select></label>
+          </div>
+          <div className="organization-directory" role="list">{organizations.length === 0 ? <div className="platform-empty">No organizations registered.</div> : filteredOrganizations.length === 0 ? <div className="platform-empty">No organizations match this search or filter.</div> : filteredOrganizations.map((organization) => <Link role="listitem" key={organization.id} href={`/super-admin?section=organizations&organization=${encodeURIComponent(organization.id)}`} className={selected?.id === organization.id ? "active" : ""} aria-current={selected?.id === organization.id ? "true" : undefined}><span aria-hidden="true">{organization.name.slice(0, 2).toUpperCase()}</span><div><strong>{organization.name}</strong><small>{organization.owner?.email ?? "Owner unavailable"}</small><small>{organization.plan?.plan.name ?? "No plan"} · {organization.enabledServiceIds.length} services</small></div><em className={`account-status ${organization.status.toLowerCase()}`}>{organization.status.replaceAll("_", " ")}</em></Link>)}</div>
+          <section className="platform-invitations">
+            <form onSubmit={createInvitation}><div><p>Controlled onboarding</p><h2>Invite organization owner</h2><span>Only the invited email can use the link. The invitation does not activate an organization until accepted.</span></div><label><span>Organization name</span><input value={inviteForm.organizationName} onChange={(event) => setInviteForm({ ...inviteForm, organizationName: event.target.value })} placeholder="Company name" required maxLength={120} /></label><label><span>Owner email</span><input type="email" value={inviteForm.email} onChange={(event) => setInviteForm({ ...inviteForm, email: event.target.value })} placeholder="owner@company.com" required /></label><button disabled={inviting}>{inviting ? "Creating invitation…" : "Invite organization owner"}</button></form>
+            {inviteSuccess && <div className="invite-link-result" role="status"><strong>Invitation created</strong><span>{inviteSuccess}</span></div>}
+            <div className="pending-platform-invites"><div className="panel-title"><div><p>Owner access</p><h3>Pending invitations</h3></div><span>{pendingInvitations.length}</span></div>{pendingInvitations.length === 0 ? <p>No pending invitations.</p> : pendingInvitations.slice(0, 10).map((invitation) => <article key={invitation.id}><div><strong>{invitation.organizationName}</strong><span>{invitation.email} · {invitation.type === "REACTIVATE_ORGANIZATION" ? "Reactivation" : "New organization"}</span></div><small>Pending · expires {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invitation.expiresAt))}</small><button type="button" onClick={(event) => openConfirmation({ kind: "revoke", invitation }, event.currentTarget)}>Revoke</button></article>)}</div>
+          </section>
+        </div>
+        <div className="organization-detail" aria-live="polite">
+          {organizationNotFound ? <div className="platform-empty"><h2>Organization not found</h2><p>The selected organization is unavailable or no longer accessible.</p><Link href="/super-admin?section=organizations">Back to organizations</Link></div> : !selected ? <div className="platform-empty"><h2>Select an organization</h2><p>Choose a customer account to review access without changing your own organization membership.</p></div> : <>
+            <Link className="organization-mobile-back" href="/super-admin?section=organizations">← Back to organizations</Link>
+            <header><div><p>Administrative target</p><h2>{selected.name}</h2><span>Created {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(selected.createdAt))}</span></div><span className={`account-status ${selected.status.toLowerCase()}`}>{selected.status.replaceAll("_", " ")}</span></header>
+            <div className="organization-detail-grid"><article><span>Owner</span><strong>{selected.owner ? `${selected.owner.firstName} ${selected.owner.lastName ?? ""}`.trim() : "Unavailable"}</strong><small>{selected.owner?.email ?? "No owner returned"}</small></article><article><span>Subscription</span><strong>{selected.plan?.plan.name ?? "No assigned plan"}</strong><small>{selected.plan?.status.replaceAll("_", " ") ?? "Manual access only"}</small></article><article><span>Enabled services</span><strong>{selected.enabledServiceIds.length}</strong><small>{selectedMaturitySummary.available} Available · {selectedMaturitySummary.beta} Beta</small></article><article><span>Active members</span><strong>{selected.activeMemberCount}</strong><small>Verified workspace memberships</small></article></div>
+            <div className="organization-related-links"><Link href={`/super-admin?section=plans&organization=${encodeURIComponent(selected.id)}`}>Plans and Billing</Link><Link href={`/super-admin?section=services&organization=${encodeURIComponent(selected.id)}`}>Services</Link></div>
+            <section className="organization-access-actions"><div><p>Account access</p><h3>Login and workspace access</h3><span>Suspension blocks access without deleting business data. Restoring access does not change plans or services.</span></div>{selected.owner?.isPlatformAdmin ? <p>Protected Super Admin organization</p> : <div>{selected.status === "ACTIVE" ? <button type="button" onClick={(event) => openConfirmation({ kind: "suspend", organization: selected }, event.currentTarget)}>Suspend access</button> : <button type="button" onClick={(event) => openConfirmation({ kind: "reactivate", organization: selected }, event.currentTarget)}>Restore access</button>}<button type="button" className="remove" onClick={(event) => openConfirmation({ kind: "remove", organization: selected }, event.currentTarget)}>Remove account</button></div>}</section>
+          </>}
+        </div>
       </section>}
       {section === "plans" && !loadFailed && <section className="platform-plans">
         <div className="panel-title"><div><p>Commercial packaging</p><h3>Service plans</h3></div><button onClick={() => editPlan()}>+ New plan</button></div>
         {plans.length === 0 ? <div className="platform-empty">No service plans created.</div> : <div className="plan-grid">{plans.map((plan) => <article key={plan.id}><header><span>{plan.code}</span><i className={`account-status ${plan.status.toLowerCase()}`}>{plan.status}</i></header><h3>{plan.name}</h3><p>{plan.description ?? "No description provided."}</p><div className="plan-pricing"><strong>{plan.currency} {plan.monthlyPrice.toLocaleString("en-IN")}</strong><span>/ month</span><small>{plan.currency} {plan.yearlyPrice.toLocaleString("en-IN")} yearly</small></div><footer><span>{plan.serviceIds.length} services · {plan.organizationCount} organizations</span><button onClick={() => editPlan(plan)}>Edit</button></footer></article>)}</div>}
         {showPlanEditor && <form className="plan-editor" onSubmit={savePlan}><header><div><p>Plan definition</p><h3>{editingPlanId ? "Edit service plan" : "Create service plan"}</h3></div><button type="button" onClick={() => setShowPlanEditor(false)}>×</button></header><div className="plan-fields"><label><span>Code</span><input value={planForm.code} onChange={(event) => setPlanForm({ ...planForm, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_") })} required /></label><label><span>Name</span><input value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} required /></label><label><span>Status</span><select value={planForm.status} onChange={(event) => setPlanForm({ ...planForm, status: event.target.value as typeof planForm.status })}><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select></label><label><span>Monthly price</span><input type="number" min="0" step="0.01" value={planForm.monthlyPrice} onChange={(event) => setPlanForm({ ...planForm, monthlyPrice: Number(event.target.value) })} required /></label><label><span>Yearly price</span><input type="number" min="0" step="0.01" value={planForm.yearlyPrice} onChange={(event) => setPlanForm({ ...planForm, yearlyPrice: Number(event.target.value) })} required /></label><label><span>Currency</span><input value={planForm.currency} maxLength={3} onChange={(event) => setPlanForm({ ...planForm, currency: event.target.value.toUpperCase() })} required /></label></div><label><span>Description</span><textarea value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} rows={2} /></label><p className="maturity-explanation">Beta services are assignable only for approved testing. Internal foundation and Planned services cannot be assigned here.</p><div className="plan-service-picker">{services.filter((service) => service.status === "ACTIVE").map((service) => { const blocked = service.maturity?.sellability === "NOT_SELLABLE"; return <label key={service.id}><input type="checkbox" checked={planForm.serviceIds.includes(service.id)} disabled={blocked} aria-describedby={`plan-maturity-${service.id}`} onChange={(event) => setPlanForm({ ...planForm, serviceIds: event.target.checked ? [...planForm.serviceIds, service.id] : planForm.serviceIds.filter((id) => id !== service.id) })} /><span><strong>{service.name}</strong><small>{service.code} · {service.maturity?.maturityLabel ?? "Maturity unregistered"}</small><small id={`plan-maturity-${service.id}`}>{service.maturity?.availabilityNote}</small></span></label>; })}</div><footer><button type="button" onClick={() => setShowPlanEditor(false)}>Cancel</button><button>Save plan</button></footer></form>}
       </section>}
-      {!loadFailed && ["organizations", "plans", "services"].includes(section) && <section className={`platform-grid platform-grid-${section}`}>
+      {!loadFailed && ["plans", "services"].includes(section) && <section className={`platform-grid platform-grid-${section}`}>
         <div className="organization-directory"><div className="panel-title"><div><p>Tenants</p><h3>Organizations</h3></div></div>{organizations.length === 0 ? <div className="platform-empty">No organizations registered.</div> : organizations.map((organization) => <button key={organization.id} className={selectedId === organization.id ? "active" : ""} onClick={() => setSelectedId(organization.id)}><span>{organization.name.slice(0, 2).toUpperCase()}</span><div><strong>{organization.name}</strong><small>{organization.owner?.email ?? "Owner unavailable"}</small></div><em className={`account-status ${organization.status.toLowerCase()}`}>{organization.status.replaceAll("_", " ")}</em></button>)}</div>
         <div className="service-assignment"><div className="panel-title"><div><p>Account & entitlements</p><h3>{selected ? selected.name : "Select an organization"}</h3></div>{selected && <span>{selected.enabledServiceIds.length} enabled · {selectedMaturitySummary.available} Available · {selectedMaturitySummary.beta} Beta</span>}</div>
           {selected && <div className="organization-access-bar"><div><span>Owner</span><strong>{selected.owner ? `${selected.owner.firstName} ${selected.owner.lastName ?? ""}` : "Unavailable"}</strong><small>{selected.owner?.email}</small></div><div><span>Login status</span><strong>{selected.status.replaceAll("_", " ")}</strong>{selected.owner?.isPlatformAdmin && <small>Protected Super Admin organization</small>}</div><div className="access-actions">{selected.status !== "ACTIVE" && <button className="approve" onClick={() => void setAccess("ACTIVE")}>{selected.status === "PENDING_APPROVAL" ? "Approve login" : "Restore access"}</button>}{selected.status === "ACTIVE" && !selected.owner?.isPlatformAdmin && <button onClick={() => void setAccess("SUSPENDED")}>Suspend</button>}{!selected.owner?.isPlatformAdmin && <button className="remove" onClick={() => void removeAccount()}>Remove account</button>}</div></div>}
@@ -233,6 +296,7 @@ export function SuperAdminConsole() {
       </section>}
       {section === "operations" && <section className="platform-planned"><p>Existing platform operations</p><h2>Operations workspace</h2><span>Open the existing operational console for platform-level work.</span><button onClick={() => router.push("/operations")}>Open operations</button></section>}
       {["support", "agents", "audit", "settings"].includes(section) && <section className="platform-planned" role="status"><p>Planned</p><h2>{SECTION_LABELS[section]}</h2><span>This platform area is not implemented yet. No records or actions have been fabricated.</span></section>}
+      {confirmation && <div className="platform-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) closeConfirmation(); }}><section className="platform-confirmation" role="dialog" aria-modal="true" aria-labelledby="platform-confirmation-title" aria-describedby="platform-confirmation-description" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) closeConfirmation(); if (event.key === "Tab") { const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")); const next = event.shiftKey ? buttons.at(-1) : buttons[0]; if ((event.shiftKey && document.activeElement === buttons[0]) || (!event.shiftKey && document.activeElement === buttons.at(-1))) { event.preventDefault(); next?.focus(); } } }}><p>Confirm platform action</p><h2 id="platform-confirmation-title">{confirmation.kind === "revoke" ? "Revoke owner invitation?" : confirmation.kind === "suspend" ? `Suspend ${confirmation.organization.name}?` : confirmation.kind === "reactivate" ? `Restore ${confirmation.organization.name}?` : `Remove ${confirmation.organization.name}?`}</h2><span id="platform-confirmation-description">{confirmation.kind === "revoke" ? `The pending invitation for ${confirmation.invitation.email} will no longer be usable.` : confirmation.kind === "suspend" ? "Login sessions and workspace access will be blocked. Business data is retained." : confirmation.kind === "reactivate" ? "Workspace access will be restored. Existing plans and services are not changed." : "The existing backend disables memberships and service access, then archives this organization account. Business records are not presented as permanently deleted."}</span><footer><button type="button" autoFocus disabled={actionPending} onClick={closeConfirmation}>Cancel</button><button type="button" className={confirmation.kind === "remove" ? "remove" : ""} disabled={actionPending} onClick={() => void confirmAction()}>{actionPending ? "Working…" : confirmation.kind === "revoke" ? "Revoke invitation" : confirmation.kind === "suspend" ? "Suspend access" : confirmation.kind === "reactivate" ? "Restore access" : "Remove account"}</button></footer></section></div>}
     </main>
   </div>;
 }
