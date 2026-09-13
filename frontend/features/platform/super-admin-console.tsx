@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 
@@ -26,6 +27,12 @@ interface InviteResponse { success: true; data: { invitation: PlatformInvitation
 
 const BILLING_WARNING_CUTOFF = Date.now() + 7 * 86400000;
 const PAYMENT_PREVIEW_COUNT = 3;
+const PLATFORM_SECTIONS = ["overview", "organizations", "plans", "services", "operations", "support", "agents", "audit", "settings"] as const;
+type PlatformSection = (typeof PLATFORM_SECTIONS)[number];
+const SECTION_LABELS: Record<PlatformSection, string> = {
+  overview: "Overview", organizations: "Organizations", plans: "Plans and Billing", services: "Services",
+  operations: "Operations", support: "Support", agents: "Platform Agents", audit: "Audit Log", settings: "Platform Settings",
+};
 
 function PaymentHistory({ payments }: { payments: NonNullable<PlatformOrganization["plan"]>["payments"] }) {
   const [expanded, setExpanded] = useState(false);
@@ -36,6 +43,9 @@ function PaymentHistory({ payments }: { payments: NonNullable<PlatformOrganizati
 
 export function SuperAdminConsole() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedSection = searchParams.get("section") ?? "overview";
+  const section: PlatformSection = PLATFORM_SECTIONS.includes(requestedSection as PlatformSection) ? requestedSection as PlatformSection : "overview";
   const { session, isLoading, authorizedRequest, logout } = useAuth();
   const [organizations, setOrganizations] = useState<PlatformOrganization[]>([]);
   const [services, setServices] = useState<PlatformService[]>([]);
@@ -45,7 +55,9 @@ export function SuperAdminConsole() {
   const [inviteLink, setInviteLink] = useState("");
   const [inviting, setInviting] = useState(false);
   const [selectedId, setSelectedId] = useState("");
+  const selectedIdRef = useRef("");
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [updatingId, setUpdatingId] = useState("");
   const [error, setError] = useState("");
   const [editingPlanId, setEditingPlanId] = useState("");
@@ -55,13 +67,14 @@ export function SuperAdminConsole() {
   const [paymentForm, setPaymentForm] = useState({ amount: "", paidAt: new Date().toISOString().slice(0, 16), reference: "", note: "" });
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     try {
       const response = await authorizedRequest<OverviewResponse>("/platform/overview");
       setOrganizations(response.data.organizations);
       setServices(response.data.services);
       setInvitations(response.data.invitations);
       setPlans(response.data.plans);
-      const nextSelectedId = selectedId || response.data.organizations[0]?.id || "";
+      const nextSelectedId = selectedIdRef.current || response.data.organizations[0]?.id || "";
       const nextSelected = response.data.organizations.find((item) => item.id === nextSelectedId);
       setSelectedId(nextSelectedId);
       if (nextSelected?.plan) {
@@ -72,9 +85,9 @@ export function SuperAdminConsole() {
         setAssignment({ planId: defaultPlan?.id ?? "", status: "ACTIVE", billingCycle: "MONTHLY", startsAt: new Date().toISOString().slice(0, 16), trialEndsAt: "", expiresAt: "" });
         setPaymentForm((current) => ({ ...current, amount: defaultPlan?.monthlyPrice.toString() ?? "" }));
       }
-    } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to load the platform console."); }
+    } catch (reason) { setLoadFailed(true); setError(reason instanceof ApiError ? reason.message : "Unable to load the platform console."); }
     finally { setLoading(false); }
-  }, [authorizedRequest, selectedId]);
+  }, [authorizedRequest]);
 
   useEffect(() => {
     if (!isLoading && !session) router.replace("/login");
@@ -85,6 +98,10 @@ export function SuperAdminConsole() {
     const task = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(task);
   }, [session, load]);
+  useEffect(() => {
+    if (requestedSection !== section) router.replace("/super-admin?section=overview");
+  }, [requestedSection, router, section]);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
   const selected = useMemo(() => organizations.find((item) => item.id === selectedId), [organizations, selectedId]);
   const billingAttention = useMemo(() => {
@@ -101,6 +118,17 @@ export function SuperAdminConsole() {
       beta: services.filter((service) => assigned.has(service.id) && service.maturity?.maturity === "BETA").length,
     };
   }, [selected, services]);
+  const pendingInvitations = useMemo(() => invitations.filter((item) => item.status === "PENDING"), [invitations]);
+  const activeOrganizations = useMemo(() => organizations.filter((item) => item.status === "ACTIVE"), [organizations]);
+  const activeSubscriptions = useMemo(() => organizations.filter((item) => item.plan?.status === "ACTIVE"), [organizations]);
+  const suspendedOrganizations = useMemo(() => organizations.filter((item) => item.status === "SUSPENDED"), [organizations]);
+  const attention = pendingInvitations.length > 0
+    ? { title: "Review pending invitations", detail: `${pendingInvitations.length} owner invitation${pendingInvitations.length === 1 ? " is" : "s are"} waiting.`, href: "/super-admin?section=organizations" }
+    : billingAttention.length > 0
+      ? { title: "Review billing alerts", detail: `${billingAttention.length} subscription${billingAttention.length === 1 ? " needs" : "s need"} attention.`, href: "/super-admin?section=plans" }
+      : suspendedOrganizations.length > 0
+        ? { title: "Review suspended organizations", detail: `${suspendedOrganizations.length} organization${suspendedOrganizations.length === 1 ? " is" : "s are"} suspended.`, href: "/super-admin?section=organizations" }
+        : { title: "Review organizations", detail: "No urgent platform item is currently identified.", href: "/super-admin?section=organizations" };
   async function toggle(serviceId: string, enabled: boolean) {
     if (!selected) return;
     setUpdatingId(serviceId); setError("");
@@ -174,31 +202,37 @@ export function SuperAdminConsole() {
     <aside className="platform-sidebar">
       <div className="dashboard-logo"><Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} /><span><strong>B² Brain</strong><small>Super Admin</small></span></div>
       <div className="platform-identity"><span>Platform control</span><strong>{session.user.firstName} {session.user.lastName}</strong><small>{session.user.email}</small></div>
-      <nav><button className="active"><span>O</span>Organizations</button><button onClick={() => router.push("/operations")}><span>W</span>Operations</button><button disabled><span>A</span>AI Agents <small>Soon</small></button><button disabled><span>H</span>Audit log <small>Soon</small></button></nav>
+      <nav aria-label="Platform administration">{PLATFORM_SECTIONS.map((item) => <Link key={item} href={item === "overview" ? "/super-admin" : `/super-admin?section=${item}`} className={section === item ? "active" : ""} aria-current={section === item ? "page" : undefined}><span aria-hidden="true">{SECTION_LABELS[item].slice(0, 1)}</span>{SECTION_LABELS[item]}{["support", "agents", "audit", "settings"].includes(item) && <small>Planned</small>}</Link>)}</nav>
       <div className="platform-sidebar-actions"><button onClick={() => router.push("/dashboard")}>Organization workspace</button><button onClick={() => void logout().then(() => router.replace("/login"))}>Sign out</button></div>
     </aside>
-    <main className="platform-main">
-      <header><div><p>Restricted platform administration</p><h1>Organization access</h1><span>Enabled controls customer access. Maturity describes how complete and production-ready the service is.</span></div><div className="platform-stats"><span><strong>{organizations.length}</strong> organizations</span><span><strong>{maturitySummary.available}</strong> Available</span><span><strong>{maturitySummary.beta}</strong> Beta</span><span><strong>{billingAttention.length}</strong> billing alerts</span></div></header>
+    <main className={`platform-main platform-section-${section}`}>
+      <header><div><p>Restricted platform administration</p><h1>{SECTION_LABELS[section]}</h1><span>Manage verified platform access, subscriptions and service availability.</span></div>{section === "overview" && <div className="platform-stats"><span><strong>{organizations.length}</strong> organizations</span><span><strong>{pendingInvitations.length}</strong> pending invitations</span><span><strong>{billingAttention.length}</strong> billing alerts</span><span><strong>{maturitySummary.available}</strong> Available · {maturitySummary.beta} Beta</span></div>}</header>
       {error && <div className="dashboard-notice error">{error}</div>}
-      {billingAttention.length > 0 && <section className="billing-alerts"><strong>Billing needs attention</strong><span>{billingAttention.map((organization) => `${organization.name}: ${organization.plan?.status === "ACTIVE" ? "expires soon" : organization.plan?.status.replaceAll("_", " ").toLowerCase()}`).join(" · ")}</span></section>}
-      <section className="platform-invitations">
+      {section === "overview" && !loadFailed && <section className="platform-overview" aria-label="Platform overview">
+        <div className="platform-overview-metrics"><article><span>Active organizations</span><strong>{activeOrganizations.length}</strong></article><article><span>Active subscriptions</span><strong>{activeSubscriptions.length}</strong></article><article><span>Pending invitations</span><strong>{pendingInvitations.length}</strong></article><article><span>Billing alerts</span><strong>{billingAttention.length}</strong></article></div>
+        <article className="platform-attention"><p>Recommended next action</p><h2>{attention.title}</h2><span>{attention.detail}</span><Link href={attention.href}>Review now</Link></article>
+        <div className="platform-preview-grid"><section><div className="panel-title"><div><p>Recent customers</p><h2>Organizations</h2></div><Link href="/super-admin?section=organizations">View organizations</Link></div>{organizations.slice(0, 5).map((item) => <article key={item.id}><strong>{item.name}</strong><span>{item.status.replaceAll("_", " ").toLowerCase()}</span></article>)}{organizations.length === 0 && <p>No organizations registered.</p>}</section><section><div className="panel-title"><div><p>Owner access</p><h2>Pending invitations</h2></div><Link href="/super-admin?section=organizations">Review invitations</Link></div>{pendingInvitations.slice(0, 5).map((item) => <article key={item.id}><strong>{item.organizationName}</strong><span>{item.email}</span></article>)}{pendingInvitations.length === 0 && <p>No pending invitations.</p>}</section><section><div className="panel-title"><div><p>Subscriptions</p><h2>Needs attention</h2></div><Link href="/super-admin?section=plans">Manage plans</Link></div>{billingAttention.slice(0, 5).map((item) => <article key={item.id}><strong>{item.name}</strong><span>{item.plan?.status.replaceAll("_", " ").toLowerCase()}</span></article>)}{billingAttention.length === 0 && <p>No billing alerts.</p>}</section><section><div className="panel-title"><div><p>Service maturity</p><h2>Availability</h2></div><Link href="/super-admin?section=services">Review services</Link></div><article><strong>{maturitySummary.available} Available</strong><span>{maturitySummary.beta} Beta services</span></article><Link href="/super-admin?section=operations">Open operations</Link></section></div>
+      </section>}
+      {section === "organizations" && !loadFailed && <section className="platform-invitations">
         <form onSubmit={createInvitation}><div><p>Controlled onboarding</p><h2>Invite an organization owner</h2><span>Only this approved email can use the one-time registration link.</span></div><label><span>Organization</span><input value={inviteForm.organizationName} onChange={(event) => setInviteForm({ ...inviteForm, organizationName: event.target.value })} placeholder="Company name" required maxLength={120} /></label><label><span>Owner email</span><input type="email" value={inviteForm.email} onChange={(event) => setInviteForm({ ...inviteForm, email: event.target.value })} placeholder="owner@company.com" required /></label><button disabled={inviting}>{inviting ? "Creating…" : "Create invitation"}</button></form>
         {inviteLink && <div className="invite-link-result"><div><strong>Private signup or reactivation link created</strong><span>{inviteLink}</span></div><button onClick={() => void navigator.clipboard.writeText(inviteLink)}>Copy link</button></div>}
         {invitations.length > 0 && <div className="pending-platform-invites"><div className="panel-title"><div><p>Pending approval</p><h3>Open invitations</h3></div><span>{invitations.length}</span></div>{invitations.map((invitation) => <article key={invitation.id}><div><strong>{invitation.organizationName}</strong><span>{invitation.email} · {invitation.type === "REACTIVATE_ORGANIZATION" ? "Reactivation" : "New account"}</span></div><small>Expires {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invitation.expiresAt))}</small><button onClick={() => void revokeInvitation(invitation.id)}>Revoke</button></article>)}</div>}
-      </section>
-      <section className="platform-plans">
+      </section>}
+      {section === "plans" && !loadFailed && <section className="platform-plans">
         <div className="panel-title"><div><p>Commercial packaging</p><h3>Service plans</h3></div><button onClick={() => editPlan()}>+ New plan</button></div>
         {plans.length === 0 ? <div className="platform-empty">No service plans created.</div> : <div className="plan-grid">{plans.map((plan) => <article key={plan.id}><header><span>{plan.code}</span><i className={`account-status ${plan.status.toLowerCase()}`}>{plan.status}</i></header><h3>{plan.name}</h3><p>{plan.description ?? "No description provided."}</p><div className="plan-pricing"><strong>{plan.currency} {plan.monthlyPrice.toLocaleString("en-IN")}</strong><span>/ month</span><small>{plan.currency} {plan.yearlyPrice.toLocaleString("en-IN")} yearly</small></div><footer><span>{plan.serviceIds.length} services · {plan.organizationCount} organizations</span><button onClick={() => editPlan(plan)}>Edit</button></footer></article>)}</div>}
         {showPlanEditor && <form className="plan-editor" onSubmit={savePlan}><header><div><p>Plan definition</p><h3>{editingPlanId ? "Edit service plan" : "Create service plan"}</h3></div><button type="button" onClick={() => setShowPlanEditor(false)}>×</button></header><div className="plan-fields"><label><span>Code</span><input value={planForm.code} onChange={(event) => setPlanForm({ ...planForm, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_") })} required /></label><label><span>Name</span><input value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} required /></label><label><span>Status</span><select value={planForm.status} onChange={(event) => setPlanForm({ ...planForm, status: event.target.value as typeof planForm.status })}><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select></label><label><span>Monthly price</span><input type="number" min="0" step="0.01" value={planForm.monthlyPrice} onChange={(event) => setPlanForm({ ...planForm, monthlyPrice: Number(event.target.value) })} required /></label><label><span>Yearly price</span><input type="number" min="0" step="0.01" value={planForm.yearlyPrice} onChange={(event) => setPlanForm({ ...planForm, yearlyPrice: Number(event.target.value) })} required /></label><label><span>Currency</span><input value={planForm.currency} maxLength={3} onChange={(event) => setPlanForm({ ...planForm, currency: event.target.value.toUpperCase() })} required /></label></div><label><span>Description</span><textarea value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} rows={2} /></label><p className="maturity-explanation">Beta services are assignable only for approved testing. Internal foundation and Planned services cannot be assigned here.</p><div className="plan-service-picker">{services.filter((service) => service.status === "ACTIVE").map((service) => { const blocked = service.maturity?.sellability === "NOT_SELLABLE"; return <label key={service.id}><input type="checkbox" checked={planForm.serviceIds.includes(service.id)} disabled={blocked} aria-describedby={`plan-maturity-${service.id}`} onChange={(event) => setPlanForm({ ...planForm, serviceIds: event.target.checked ? [...planForm.serviceIds, service.id] : planForm.serviceIds.filter((id) => id !== service.id) })} /><span><strong>{service.name}</strong><small>{service.code} · {service.maturity?.maturityLabel ?? "Maturity unregistered"}</small><small id={`plan-maturity-${service.id}`}>{service.maturity?.availabilityNote}</small></span></label>; })}</div><footer><button type="button" onClick={() => setShowPlanEditor(false)}>Cancel</button><button>Save plan</button></footer></form>}
-      </section>
-      <section className="platform-grid">
+      </section>}
+      {!loadFailed && ["organizations", "plans", "services"].includes(section) && <section className={`platform-grid platform-grid-${section}`}>
         <div className="organization-directory"><div className="panel-title"><div><p>Tenants</p><h3>Organizations</h3></div></div>{organizations.length === 0 ? <div className="platform-empty">No organizations registered.</div> : organizations.map((organization) => <button key={organization.id} className={selectedId === organization.id ? "active" : ""} onClick={() => setSelectedId(organization.id)}><span>{organization.name.slice(0, 2).toUpperCase()}</span><div><strong>{organization.name}</strong><small>{organization.owner?.email ?? "Owner unavailable"}</small></div><em className={`account-status ${organization.status.toLowerCase()}`}>{organization.status.replaceAll("_", " ")}</em></button>)}</div>
         <div className="service-assignment"><div className="panel-title"><div><p>Account & entitlements</p><h3>{selected ? selected.name : "Select an organization"}</h3></div>{selected && <span>{selected.enabledServiceIds.length} enabled · {selectedMaturitySummary.available} Available · {selectedMaturitySummary.beta} Beta</span>}</div>
           {selected && <div className="organization-access-bar"><div><span>Owner</span><strong>{selected.owner ? `${selected.owner.firstName} ${selected.owner.lastName ?? ""}` : "Unavailable"}</strong><small>{selected.owner?.email}</small></div><div><span>Login status</span><strong>{selected.status.replaceAll("_", " ")}</strong>{selected.owner?.isPlatformAdmin && <small>Protected Super Admin organization</small>}</div><div className="access-actions">{selected.status !== "ACTIVE" && <button className="approve" onClick={() => void setAccess("ACTIVE")}>{selected.status === "PENDING_APPROVAL" ? "Approve login" : "Restore access"}</button>}{selected.status === "ACTIVE" && !selected.owner?.isPlatformAdmin && <button onClick={() => void setAccess("SUSPENDED")}>Suspend</button>}{!selected.owner?.isPlatformAdmin && <button className="remove" onClick={() => void removeAccount()}>Remove account</button>}</div></div>}
           {selected && <section className="organization-plan-assignment"><header><div><span>Assigned plan</span><strong>{selected.plan?.plan.name ?? "Manual services"}</strong></div>{selected.plan && <i className={`account-status ${selected.plan.status.toLowerCase()}`}>{selected.plan.status.replaceAll("_", " ")}</i>}</header>{selected.plan && <div className="subscription-summary"><span><small>Current charge</small><strong>{selected.plan.currency} {Number(selected.plan.amount).toLocaleString("en-IN")} / {selected.plan.billingCycle === "YEARLY" ? "year" : "month"}</strong></span><span><small>Next billing</small><strong>{selected.plan.nextBillingAt ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(selected.plan.nextBillingAt)) : "Not scheduled"}</strong></span><span><small>Access ends</small><strong>{selected.plan.expiresAt ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(selected.plan.expiresAt)) : "No expiry"}</strong></span></div>}<div><label><span>Plan</span><select value={assignment.planId} onChange={(event) => { const planId = event.target.value; const plan = plans.find((item) => item.id === planId); setAssignment({ ...assignment, planId }); if (plan) setPaymentForm((current) => ({ ...current, amount: (assignment.billingCycle === "YEARLY" ? plan.yearlyPrice : plan.monthlyPrice).toString() })); }}><option value="">Select a plan</option>{plans.filter((plan) => plan.status === "ACTIVE").map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><label><span>Billing cycle</span><select value={assignment.billingCycle} onChange={(event) => { const billingCycle = event.target.value as typeof assignment.billingCycle; const plan = plans.find((item) => item.id === assignment.planId); setAssignment({ ...assignment, billingCycle }); if (plan) setPaymentForm((current) => ({ ...current, amount: (billingCycle === "YEARLY" ? plan.yearlyPrice : plan.monthlyPrice).toString() })); }}><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label><span>Access type</span><select value={assignment.status} onChange={(event) => setAssignment({ ...assignment, status: event.target.value as typeof assignment.status })}><option value="ACTIVE">Active</option><option value="TRIAL">Trial</option><option value="PAST_DUE">Past due</option><option value="CANCELED">Canceled</option></select></label><label><span>Starts</span><input type="datetime-local" value={assignment.startsAt} onChange={(event) => setAssignment({ ...assignment, startsAt: event.target.value })} /></label><label><span>Trial ends</span><input type="datetime-local" value={assignment.trialEndsAt} onChange={(event) => setAssignment({ ...assignment, trialEndsAt: event.target.value })} /></label><label><span>Expires</span><input type="datetime-local" value={assignment.expiresAt} onChange={(event) => setAssignment({ ...assignment, expiresAt: event.target.value })} /></label><button disabled={!assignment.planId || selected.status !== "ACTIVE"} onClick={() => void assignPlan()}>Apply plan</button></div><p>Expired, past-due, and canceled subscriptions lose service access without deleting business data.</p>{selected.plan && <div className="billing-console"><form onSubmit={recordPayment}><h4>Record payment & renew</h4><label><span>Amount ({selected.plan.currency})</span><input type="number" min="0.01" step="0.01" value={paymentForm.amount} onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })} required /></label><label><span>Paid at</span><input type="datetime-local" value={paymentForm.paidAt} onChange={(event) => setPaymentForm({ ...paymentForm, paidAt: event.target.value })} required /></label><label><span>Reference</span><input value={paymentForm.reference} onChange={(event) => setPaymentForm({ ...paymentForm, reference: event.target.value })} placeholder="UPI / bank reference" /></label><label><span>Note</span><input value={paymentForm.note} onChange={(event) => setPaymentForm({ ...paymentForm, note: event.target.value })} placeholder="Optional internal note" /></label><button>Record & renew</button></form><PaymentHistory key={selected.plan.id} payments={selected.plan.payments} /></div>}</section>}
           {!selected ? <div className="platform-empty">Choose an organization to manage access.</div> : services.length === 0 ? <div className="service-empty"><div className="service-empty-icon"><span /><span /><span /></div><h3>No platform services registered</h3><p>Build a real module first. It can then be registered and assigned here—never through customer signup.</p></div> : <div className="assignment-list">{services.map((service) => { const enabled = selected.enabledServiceIds.includes(service.id); const blocked = service.maturity?.sellability === "NOT_SELLABLE"; return <article key={service.id}><div><span>{service.code}</span><h3>{service.name}</h3>{service.maturity && <span className={`maturity-badge ${service.maturity.maturity.toLowerCase()}`}>{service.maturity.maturityLabel}</span>}<p>{service.maturity?.availabilityNote ?? service.description ?? "No description provided."}</p>{service.maturity?.maturity === "BETA" && <p className="maturity-warning">Beta access is intended for approved testing.</p>}</div><label className="access-switch"><input type="checkbox" checked={enabled} disabled={blocked || updatingId === service.id || service.status !== "ACTIVE" || selected.status !== "ACTIVE"} aria-describedby={`assignment-maturity-${service.id}`} onChange={(event) => void toggle(service.id, event.target.checked)} /><span /><small id={`assignment-maturity-${service.id}`}>{blocked ? "Not assignable" : selected.status !== "ACTIVE" ? "Approve first" : service.status === "ACTIVE" ? enabled ? "Enabled" : "Disabled" : service.status}</small></label></article>; })}</div>}
         </div>
-      </section>
+      </section>}
+      {section === "operations" && <section className="platform-planned"><p>Existing platform operations</p><h2>Operations workspace</h2><span>Open the existing operational console for platform-level work.</span><button onClick={() => router.push("/operations")}>Open operations</button></section>}
+      {["support", "agents", "audit", "settings"].includes(section) && <section className="platform-planned" role="status"><p>Planned</p><h2>{SECTION_LABELS[section]}</h2><span>This platform area is not implemented yet. No records or actions have been fabricated.</span></section>}
     </main>
   </div>;
 }

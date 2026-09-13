@@ -5,8 +5,8 @@ test("Super Admin distinguishes entitlement from service maturity", async ({ pag
   await installSyntheticApi(page, { platformAdmin: true });
   await page.goto("/super-admin");
   await expect(page.getByText("7 Available", { exact: true })).toBeVisible();
-  await expect(page.getByText("14 Beta", { exact: true })).toBeVisible();
-  await expect(page.getByText("Enabled controls customer access. Maturity describes how complete and production-ready the service is.")).toBeVisible();
+  await expect(page.getByText("14 Beta services", { exact: true })).toBeVisible();
+  await page.goto("/super-admin?section=services");
   await expect(page.getByText("Beta access is intended for approved testing.").first()).toBeVisible();
   await expect(page.getByText("21 enabled", { exact: false })).toBeVisible();
   await expect(page).toHaveScreenshot(`service-maturity-super-admin-${testInfo.project.name}-win32.png`, { animations: "disabled" });

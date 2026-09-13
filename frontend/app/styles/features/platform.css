@@ -2,7 +2,74 @@
 .service-assignment .maturity-badge,
 .plan-service-picker .maturity-badge { margin-left: 0; }
 
+.platform-sidebar nav a {
+  align-items: center;
+  border-radius: 0.65rem;
+  color: #91a6bf;
+  display: flex;
+  font-size: 0.68rem;
+  gap: 0.65rem;
+  padding: 0.7rem;
+  text-decoration: none;
+}
+.platform-sidebar nav a > span {
+  align-items: center;
+  border: 1px solid #294665;
+  border-radius: 0.45rem;
+  display: flex;
+  flex: 0 0 1.8rem;
+  height: 1.8rem;
+  justify-content: center;
+}
+.platform-sidebar nav a.active { background: #11345e; color: white; }
+.platform-sidebar nav a small { color: #7893b4; margin-left: auto; }
+.platform-sidebar nav a:focus-visible { outline: 3px solid #45b5ff; outline-offset: 2px; }
+
+.platform-overview-metrics,
+.platform-preview-grid { display: grid; gap: 1rem; }
+.platform-overview-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.platform-overview-metrics > article,
+.platform-preview-grid > section,
+.platform-attention,
+.platform-planned {
+  background: white;
+  border: 1px solid #dfe6ee;
+  border-radius: 1rem;
+  padding: 1.1rem;
+}
+.platform-overview-metrics > article { display: flex; flex-direction: column; gap: 0.3rem; }
+.platform-overview-metrics span,
+.platform-preview-grid article span,
+.platform-attention span,
+.platform-planned span { color: #708095; font-size: 0.68rem; overflow-wrap: anywhere; }
+.platform-attention > span { display: block; }
+.platform-overview-metrics strong { font-size: 1.5rem; }
+.platform-attention { margin: 1rem 0; }
+.platform-attention p,
+.platform-planned p { color: #168be0; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; margin: 0; text-transform: uppercase; }
+.platform-attention h2,
+.platform-planned h2 { margin: 0.4rem 0; }
+.platform-attention a,
+.platform-planned button { display: inline-block; margin-top: 0.8rem; }
+.platform-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.platform-preview-grid .panel-title { align-items: start; }
+.platform-preview-grid article { border-top: 1px solid #edf1f5; display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; }
+.platform-grid-organizations .organization-plan-assignment,
+.platform-grid-organizations .assignment-list,
+.platform-grid-organizations .service-empty,
+.platform-grid-plans .organization-access-bar,
+.platform-grid-plans .assignment-list,
+.platform-grid-plans .service-empty,
+.platform-grid-services .organization-access-bar,
+.platform-grid-services .organization-plan-assignment { display: none; }
+.platform-planned { max-width: 48rem; }
+
 @media (max-width: 900px) {
+  .platform-shell { overflow-x: hidden; }
+  .platform-sidebar { min-width: 0; }
+  .platform-sidebar nav { flex-direction: row; max-width: calc(100vw - 3rem); overflow-x: auto; padding-bottom: 0.3rem; }
+  .platform-sidebar nav a { flex: 0 0 auto; white-space: nowrap; }
+  .platform-sidebar nav a small { margin-left: 0; }
   .platform-main > header {
     align-items: flex-start;
     flex-direction: column;
@@ -14,10 +81,12 @@
     width: 100%;
   }
   .platform-stats span { min-width: 0; }
+  .platform-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 520px) {
   .platform-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .platform-preview-grid { grid-template-columns: 1fr; }
   .assignment-list article { align-items: flex-start; gap: 12px; }
   .assignment-list article > div { min-width: 0; }
   .assignment-list p { overflow-wrap: anywhere; }
