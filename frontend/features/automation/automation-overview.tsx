@@ -27,7 +27,7 @@ function friendlyActivity(event: BridgeEvent) {
 }
 
 export function AutomationOverview() {
-  const { authorizedRequest } = useAuth();
+  const { authorizedRequest, session } = useAuth();
   const [data, setData] = useState<OverviewData>(empty);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -65,8 +65,11 @@ export function AutomationOverview() {
 
   const configuredAgents = data.agents.filter((agent) => agent.status === "ACTIVE");
   const runningAutomations = data.followUps.metrics.activeSequences;
-  const pendingDrafts = data.drafts.filter((draft) => draft.status === "PENDING_APPROVAL");
-  const pendingEvents = data.events.filter((event) => event.status === "AWAITING_APPROVAL");
+  const permissions = session?.membership.permissions ?? [];
+  const pendingDrafts = permissions.includes("APPROVAL_VIEW") ? data.drafts.filter((draft) => draft.status === "PENDING_APPROVAL") : [];
+  const pendingEvents = permissions.includes("APPROVAL_VIEW") ? data.events.filter((event) => event.status === "AWAITING_APPROVAL")
+    .filter((event) => event.kind !== "ORDER" || permissions.includes("FINANCE_VIEW"))
+    .filter((event) => event.kind !== "INQUIRY" || permissions.includes("INQUIRY_VIEW")) : [];
   const attention = data.events.filter((event) => ["FAILED", "QUARANTINED"].includes(event.status));
   const setupIncomplete = data.connectors.some((connector) => connectionStatus(connector) === "Setup in progress");
   const recommendation = data.connectors.length === 0

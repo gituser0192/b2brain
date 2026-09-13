@@ -664,6 +664,23 @@
   font-size: 24px;
   margin-top: 6px;
 }
+.approval-summary { align-items:center; background:#fff; border:1px solid #dce4ef; border-radius:14px; display:flex; gap:20px; justify-content:space-between; margin:18px 0 12px; padding:18px; }
+.approval-summary article { display:grid; gap:4px; }
+.approval-summary span,.approval-summary small,.approval-summary p { color:#64748b; font-size:12px; }
+.approval-summary strong { color:#102139; font-size:26px; }
+.approval-summary p { margin:0; max-width:520px; }
+.bridge-filter-row { display:flex; gap:8px; margin:12px 0 16px; overflow-x:auto; padding:2px; }
+.bridge-filter-row button { background:#fff; border:1px solid #cbd9e8; border-radius:999px; color:#43566e; cursor:pointer; flex:0 0 auto; padding:8px 12px; }
+.bridge-filter-row button[aria-pressed="true"] { background:#102f55; border-color:#102f55; color:#fff; }
+.bridge-filter-row button:focus-visible,.bridge-technical summary:focus-visible { outline:3px solid rgb(8 124 227 / 24%); outline-offset:2px; }
+.bridge-safety { background:#f6f9fc; border-radius:8px; display:flex; flex-wrap:wrap; gap:8px 18px; margin:10px 0; padding:10px; }
+.bridge-safety span { color:#64748b; font-size:11px; }
+.bridge-safety strong { color:#263a53; }
+.bridge-technical { border-top:1px solid #e7ecf2; margin-top:10px; padding-top:9px; }
+.bridge-technical summary { color:#52657a; cursor:pointer; font-size:11px; font-weight:700; }
+.bridge-technical dl { display:grid; gap:6px; margin:9px 0 0; }
+.bridge-technical dl div { display:grid; gap:2px; grid-template-columns:minmax(90px,.3fr) 1fr; }
+.bridge-technical dt,.bridge-technical dd { color:#64748b; font-size:11px; margin:0; overflow-wrap:anywhere; }
 .bridge-columns {
   display: grid;
   grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.75fr);
@@ -866,6 +883,9 @@
   .bridge-metrics {
     grid-template-columns: 1fr 1fr;
   }
+  .approval-summary { align-items:flex-start; flex-direction:column; }
+  .bridge-event footer { display:grid; gap:7px; }
+  .bridge-event footer button { margin:0; width:100%; }
   .bridge-columns > section,
   .bridge-drafts {
     padding: 15px;

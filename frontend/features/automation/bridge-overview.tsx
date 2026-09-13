@@ -42,10 +42,12 @@ function channelStatus(connectors: BridgeConnector[], channel: ConnectionChannel
 export function BridgeOverview({
   view,
   canManage,
+  canViewFinance,
+  canViewInquiry,
+  canViewTechnical,
   connectors,
   events,
   drafts,
-  metrics,
   channel,
   onWebsiteForm,
   onDecision,
@@ -54,10 +56,12 @@ export function BridgeOverview({
 }: {
   view: "connections" | "approvals" | "activity";
   canManage: boolean;
+  canViewFinance: boolean;
+  canViewInquiry: boolean;
+  canViewTechnical: boolean;
   connectors: BridgeConnector[];
   events: BridgeEvent[];
   drafts: BridgeDraft[];
-  metrics: Record<string, number>;
   channel?: ConnectionChannel | null;
   onWebsiteForm: (id: string) => void;
   onDecision: (
@@ -72,17 +76,29 @@ export function BridgeOverview({
     events: false,
     drafts: false,
   });
+  const [approvalFilter, setApprovalFilter] = useState("all");
+  const [activityFilter, setActivityFilter] = useState("all");
+  const permittedEvents = events.filter((event) => event.kind !== "ORDER" || canViewFinance).filter((event) => event.kind !== "INQUIRY" || canViewInquiry);
+  const visibleEvents = permittedEvents.filter((event) => {
+    if (view === "approvals") return approvalFilter === "all" || (approvalFilter === "messages" && Boolean(event.payload.phone)) || (approvalFilter === "finance" && event.kind === "ORDER") || (approvalFilter === "leads" && event.kind === "INQUIRY");
+    if (activityFilter === "completed") return event.status === "COMPLETED";
+    if (activityFilter === "attention") return ["AWAITING_APPROVAL", "QUARANTINED"].includes(event.status);
+    if (activityFilter === "failed") return event.status === "FAILED";
+    if (activityFilter === "test") return event.connector.name.toLowerCase().includes("simulator") || event.eventName.toLowerCase().includes("test");
+    return true;
+  });
+  const eventTitle = (event: BridgeEvent) => event.status === "FAILED" ? "Connection test failed" : event.status === "AWAITING_APPROVAL" ? "Item requires attention" : event.kind === "INQUIRY" ? "Lead enquiry received" : event.kind === "ORDER" ? "Order activity received" : event.status === "COMPLETED" ? "Automation completed" : "Automation activity received";
+  const eventArea = (event: BridgeEvent) => event.kind === "ORDER" ? "Finance" : event.kind === "INQUIRY" ? "Leads" : event.payload.phone ? "Messages" : "Automation";
 
   return (
     <>
-      {view === "activity" && <section className="bridge-metrics">
-        {Object.entries(metrics).map(([key, value]) => (
-          <article key={key}>
-            <span>{key}</span>
-            <strong>{value}</strong>
-          </article>
-        ))}
+      {view === "activity" && <section className="bridge-metrics" aria-label="Activity summary">
+        {[['Recent activity', permittedEvents.length], ['Completed', permittedEvents.filter(item => item.status === 'COMPLETED').length], ['Needs attention', permittedEvents.filter(item => ['AWAITING_APPROVAL', 'QUARANTINED'].includes(item.status)).length], ['Failed', permittedEvents.filter(item => item.status === 'FAILED').length]].map(([key, value]) => <article key={key}><span>{key}</span><strong>{value}</strong></article>)}
       </section>}
+      {view === "approvals" && <section className="approval-summary" aria-label="Approval summary"><article><span>Waiting for your decision</span><strong>{permittedEvents.length + drafts.length}</strong><small>Only pending items are counted.</small></article><p>Opening this queue or a technical disclosure does not send a message or change business data.</p></section>}
+      {(view === "approvals" || view === "activity") && <div className="bridge-filter-row" role="group" aria-label={`${view === 'approvals' ? 'Approval' : 'Activity'} filters`}>
+        {(view === "approvals" ? [["all", "All pending"], ["messages", "Messages"], ...(canViewFinance ? [["finance", "Finance"]] : []), ...(canViewInquiry ? [["leads", "Leads"]] : [])] : [["all", "All"], ["completed", "Completed"], ["attention", "Needs attention"], ["failed", "Failed"], ["test", "Test / Simulator"]]).map(([value, label]) => <button type="button" key={value} aria-pressed={(view === 'approvals' ? approvalFilter : activityFilter) === value} onClick={() => view === 'approvals' ? setApprovalFilter(value) : setActivityFilter(value)}>{label}</button>)}
+      </div>}
       {view === "connections" && !channel && <><section className="connection-summary" aria-label="Connection summary">
         {["Connected", "Test ready", "Setup needed", "Needs attention"].map((label) => {
           const statuses = (Object.keys(channelCopy) as ConnectionChannel[]).map((item) => channelStatus(connectors, item));
@@ -174,33 +190,34 @@ export function BridgeOverview({
       {(view === "activity" || view === "approvals") && <div className="bridge-columns bridge-columns-single">
         <section>
           <header>
-            <strong>Integration event inbox</strong>
-            <span>{events.length}</span>
+            <strong>{view === "approvals" ? "Items needing a decision" : "Recent automation activity"}</strong>
+            <span>{visibleEvents.length}</span>
           </header>
-          {!events.length ? (
-            <p className="bridge-empty">No external events received.</p>
+          {!visibleEvents.length ? (
+            <p className="bridge-empty">{view === "approvals" ? "No pending integration approvals." : "No activity matches this filter."}</p>
           ) : (
-            events.slice(0, expanded.events ? undefined : 3).map((event) => (
+            visibleEvents.slice(0, expanded.events ? undefined : 3).map((event) => (
               <article className="bridge-event" key={event.id}>
                 <div>
-                  <span>
-                    {event.connector.name} · {event.kind}
-                  </span>
-                  <i className={event.status.toLowerCase()}>{event.status}</i>
+                  <span>{eventArea(event)} · {event.connector.name}</span>
+                  <i className={event.status.toLowerCase()}>{event.status.toLowerCase().replaceAll("_", " ")}</i>
                 </div>
-                <strong>{event.eventName}</strong>
-                <p>Trace {event.traceId}</p>
+                <strong>{eventTitle(event)}</strong>
+                <p>{event.payload.contactName ?? event.payload.subject ?? (view === "approvals" ? "Review the verified details before deciding." : "The event was recorded by Automation.")}</p>
+                <small>{new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.createdAt))}</small>
                 {event.failureMessage && <small>{event.failureMessage}</small>}
+                <div className="bridge-safety"><span>External delivery: <strong>No delivery recorded</strong></span><span>Business data: <strong>{event.status === "COMPLETED" ? "Processing completed" : "No change claimed"}</strong></span></div>
+                {canViewTechnical && <details className="bridge-technical"><summary>Technical details</summary><dl><div><dt>Reference</dt><dd>{event.traceId}</dd></div><div><dt>Event type</dt><dd>{event.eventName}</dd></div><div><dt>Processing state</dt><dd>{event.status}</dd></div></dl></details>}
                 {event.status === "AWAITING_APPROVAL" && canManage && view === "approvals" && (
                   <footer>
                     <button onClick={() => onDecision(event.id, "APPROVE")}>
-                      Approve & route
+                      Approve draft
                     </button>
                     <button onClick={() => onDecision(event.id, "IGNORE")}>
-                      Ignore
+                      Reject
                     </button>
                     <button onClick={() => onDecision(event.id, "QUARANTINE")}>
-                      Quarantine
+                      Set aside for review
                     </button>
                   </footer>
                 )}
@@ -214,7 +231,7 @@ export function BridgeOverview({
               </article>
             ))
           )}
-          {events.length > 3 && (
+          {visibleEvents.length > 3 && (
             <button
               className="bridge-see-more"
               aria-expanded={expanded.events}
@@ -225,40 +242,39 @@ export function BridgeOverview({
                 }))
               }
             >
-              {expanded.events ? "Show less" : `See ${events.length - 3} more`}
+              {expanded.events ? "Show less" : `See ${visibleEvents.length - 3} more`}
             </button>
           )}
         </section>
       </div>}
       {view === "approvals" && <section className="bridge-drafts">
         <header>
-          <strong>WhatsApp reply approvals</strong>
+          <strong>Message drafts</strong>
           <span>{drafts.length}</span>
         </header>
         {!drafts.length ? (
-          <p className="bridge-empty">No reply drafts.</p>
+          <p className="bridge-empty">No message drafts are waiting for approval.</p>
         ) : (
           drafts.slice(0, expanded.drafts ? undefined : 3).map((draft) => (
             <article key={draft.id}>
               <div>
                 <strong>
-                  {draft.connector.name} → {draft.recipient}
+                  {draft.connector.name}
                 </strong>
                 <i>{draft.status}</i>
               </div>
               <p>{draft.body}</p>
               {draft.failureMessage && <small>{draft.failureMessage}</small>}
-              {canManage && draft.status === "PENDING_APPROVAL" &&
-                (draft.connector.provider.toUpperCase() ===
-                "B2BRAIN_SIMULATOR" ? (
+              {draft.status === "PENDING_APPROVAL" &&
+                (draft.connector.provider.toUpperCase() === "B2BRAIN_SIMULATOR" ? (
                   <small>
-                    Simulator preview only — external sending is disabled.
+                    Test draft only — Simulator preview; external sending is disabled.
                   </small>
-                ) : (
+                ) : canManage ? (
                   <button onClick={() => onSendDraft(draft.id)}>
                     Approve & send
                   </button>
-                ))}
+                ) : <small>External delivery requires an authorized decision.</small>)}
             </article>
           ))
         )}

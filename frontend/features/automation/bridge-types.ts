@@ -23,7 +23,7 @@ export type BridgeEvent = {
   createdAt: string;
   connector: { name: string };
   attempts: { id: string; status: string; errorMessage: string | null }[];
-  payload: { phone?: string | null };
+  payload: { phone?: string | null; contactName?: string | null; subject?: string | null };
 };
 export type BridgeDraft = {
   id: string;

@@ -39,7 +39,6 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
     [connectors, setConnectors] = useState<BridgeConnector[]>([]),
     [events, setEvents] = useState<BridgeEvent[]>([]),
     [drafts, setDrafts] = useState<BridgeDraft[]>([]),
-    [metrics, setMetrics] = useState<Record<string, number>>({}),
     [connector, setConnector] = useState(connectorBlank),
     [event, setEvent] = useState(eventBlank),
     [selected, setSelected] = useState(""),
@@ -66,25 +65,36 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
     [simulatorMessage, setSimulatorMessage] = useState({ externalMessageId: "", from: "", contactName: "", message: "" }),
     [simulatorResult, setSimulatorResult] = useState("");
   const canManage = session?.membership.permissions.includes("AUTOMATION_MANAGE") ?? false;
+  const permissions = session?.membership.permissions ?? [];
+  const canViewApprovals = permissions.includes("APPROVAL_VIEW");
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, d] = await Promise.all([
+      const [bridgeResult, draftResult] = await Promise.allSettled([
         authorizedRequest<BridgePayload>("/automation-bridge"),
-        view === "approvals"
+        view === "approvals" && canViewApprovals
           ? authorizedRequest<{ success: true; data: BridgeDraft[] }>("/automation-bridge/message-drafts")
           : Promise.resolve({ success: true as const, data: [] as BridgeDraft[] }),
       ]);
-      setConnectors(r.data.connectors);
-      setEvents(r.data.events);
-      setMetrics(r.data.metrics);
-      setDrafts(d.data);
-      setSelected((x) => x || r.data.connectors[0]?.id || "");
-      setError("");
+      const bridge = bridgeResult.status === "fulfilled" ? bridgeResult.value.data : null;
+      const nextDrafts = draftResult.status === "fulfilled" ? draftResult.value.data : [];
+      setConnectors(bridge?.connectors ?? []);
+      setEvents(bridge?.events ?? []);
+      setDrafts(nextDrafts);
+      setSelected((x) => x || bridge?.connectors[0]?.id || "");
+      const bridgeUnavailable = bridgeResult.status === "rejected";
+      const draftsUnavailable = view === "approvals" && draftResult.status === "rejected";
+      setError(
+        bridgeUnavailable && (view !== "approvals" || draftsUnavailable)
+          ? "Unable to load Automation Bridge."
+          : bridgeUnavailable || draftsUnavailable
+            ? "Some Automation information is temporarily unavailable."
+            : "",
+      );
     } finally {
       setLoading(false);
     }
-  }, [authorizedRequest, view]);
+  }, [authorizedRequest, canViewApprovals, view]);
   useEffect(() => {
     const t = setTimeout(
       () =>
@@ -251,6 +261,7 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
         {view === "connections" && channel && <Link className="connection-back" href="/automation?section=connections">← All connections</Link>}
       </header>
       {error && !open && <div className="form-alert" role="alert">{error}</div>}
+      {view === "approvals" && !canViewApprovals && <div className="dashboard-notice" role="status">Approval viewing permission is required.</div>}
       {secret && (
         <div className="bridge-secret">
           <strong>Webhook secret — copy now</strong>
@@ -259,13 +270,15 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
         </div>
       )}
       {loading && view === "connections" && <p className="connection-loading" role="status">Loading connection status…</p>}
-      {!loading && !(error && view === "connections") && <BridgeOverview
+      {!loading && !(error && view === "connections") && !(view === "approvals" && !canViewApprovals) && <BridgeOverview
         view={view}
         canManage={canManage}
+        canViewFinance={permissions.includes("FINANCE_VIEW")}
+        canViewInquiry={permissions.includes("INQUIRY_VIEW")}
+        canViewTechnical={canManage || permissions.includes("AUDIT_VIEW")}
         connectors={connectors}
         events={view === "approvals" ? events.filter((item) => item.status === "AWAITING_APPROVAL") : events}
         drafts={view === "approvals" ? drafts.filter((item) => item.status === "PENDING_APPROVAL") : drafts}
-        metrics={metrics}
         channel={channel}
         onWebsiteForm={(id) => {
           setSelected(id);
