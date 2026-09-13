@@ -11,6 +11,7 @@ import { FollowUpAutomationManager } from "./follow-up-automation-manager";
 import { PolicyManager } from "./policy-manager";
 import { CollectionScheduleManager } from "./collection-schedule-manager";
 import { KnowledgeManager } from "./knowledge-manager";
+import { WhatsappFollowUpWorkspace } from "./whatsapp-follow-up-workspace";
 
 const sections = ["overview", "connections", "automations", "approvals", "activity"] as const;
 type AutomationSection = (typeof sections)[number];
@@ -37,6 +38,8 @@ export function AutomationWorkspace() {
   const workflow: AutomationWorkflow | null = section === "automations" && workflows.includes(requestedWorkflow as AutomationWorkflow)
     ? requestedWorkflow as AutomationWorkflow
     : null;
+  const conversationView = section === "approvals" && searchParams.get("view") === "conversations";
+  const conversationId = conversationView ? searchParams.get("conversation") : null;
 
   return (
     <section className="automation-workspace">
@@ -66,7 +69,7 @@ export function AutomationWorkspace() {
           collections={<CollectionScheduleManager />}
           followUps={<FollowUpAutomationManager />}
         />}
-        {section === "approvals" && <BridgeManager view="approvals" />}
+        {section === "approvals" && (conversationView ? <WhatsappFollowUpWorkspace conversationId={conversationId} /> : <BridgeManager view="approvals" />)}
         {section === "activity" && <><AgentRunCentre /><BridgeManager view="activity" /></>}
       </div>
     </section>

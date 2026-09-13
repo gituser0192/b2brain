@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
 import { queryKeys } from "@/services/query-keys";
-import { WhatsappFollowUpWorkspace } from "./whatsapp-follow-up-workspace";
 import { BridgeOverview } from "./bridge-overview";
 import { BridgeDialogs, type BridgeDialogKind } from "./bridge-dialogs";
 import type { BridgeConnector, BridgeDraft, BridgeEvent, BridgePayload } from "./bridge-types";
@@ -262,6 +261,7 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
       </header>
       {error && !open && <div className="form-alert" role="alert">{error}</div>}
       {view === "approvals" && !canViewApprovals && <div className="dashboard-notice" role="status">Approval viewing permission is required.</div>}
+      {view === "approvals" && canViewApprovals && <Link className="conversation-entry" href="/automation?section=approvals&view=conversations"><strong>Customer conversations</strong><span>Review WhatsApp Test Mode and Simulator conversations →</span></Link>}
       {secret && (
         <div className="bridge-secret">
           <strong>Webhook secret — copy now</strong>
@@ -305,7 +305,6 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
           {connectors.length > 3 && <button className="bridge-see-more" aria-expanded={showAllConnectors} onClick={() => setShowAllConnectors((value) => !value)}>{showAllConnectors ? "Show less" : `See ${connectors.length - 3} more`}</button>}
         </section>
       </details>}
-      {view === "approvals" && <WhatsappFollowUpWorkspace />}
       {view === "connections" && <BridgeDialogs
         open={open}
         connectors={connectors}

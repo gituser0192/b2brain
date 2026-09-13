@@ -15,7 +15,10 @@ import type {
   WhatsappTemplateDraftInput,
   WhatsappCredentialsInput,
 } from "./bridge.validation.js";
+import type { WhatsappConversationListQuery } from "./whatsapp-conversation.validation.js";
 export type MetaPayload = MetaWhatsappWebhook;
+
+const maskContact = (value: string | null) => value ? `••••${value.replace(/\D/g, "").slice(-4)}` : "Contact unavailable";
 export class WhatsappService {
   constructor(private readonly processor = new InboundEventProcessor()) {}
   async credentials(
@@ -563,6 +566,90 @@ export class WhatsappService {
             (b.lastMessageAt?.getTime() ?? 0) -
             (a.lastMessageAt?.getTime() ?? 0),
         ),
+    };
+  }
+  async conversationSummaries(org: string, query: WhatsappConversationListQuery) {
+    const linked = await prisma.integrationEvent.groupBy({
+      by: ["resultId"],
+      where: { organizationId: org, resultType: "INQUIRY", resultId: { not: null }, connector: { type: "WHATSAPP" } },
+      _max: { createdAt: true },
+      orderBy: [{ _max: { createdAt: "desc" } }, { resultId: "asc" }],
+      skip: (query.page - 1) * query.limit,
+      take: query.limit + 1,
+    });
+    const linkedPage = linked.slice(0, query.limit);
+    const ids = linkedPage.flatMap((item) => item.resultId ? [item.resultId] : []);
+    const inquiries = await prisma.inquiry.findMany({
+      where: { id: { in: ids }, organizationId: org, source: "WHATSAPP", phone: { not: null }, deletedAt: null },
+      select: { id: true, contactName: true, phone: true, type: true, status: true, subject: true, message: true, updatedAt: true },
+    });
+    const byId = new Map(inquiries.map((item) => [item.id, item]));
+    const page = ids.flatMap((id) => byId.has(id) ? [byId.get(id)!] : []);
+    const [events, drafts] = ids.length ? await Promise.all([
+      prisma.integrationEvent.findMany({
+        where: { organizationId: org, resultType: "INQUIRY", resultId: { in: ids }, connector: { type: "WHATSAPP" } },
+        select: { resultId: true, payload: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: query.limit * 20,
+      }),
+      prisma.automationMessageDraft.findMany({
+        where: { organizationId: org, event: { resultType: "INQUIRY", resultId: { in: ids }, connector: { type: "WHATSAPP" } } },
+        select: { event: { select: { resultId: true } }, body: true, status: true, createdAt: true, sentAt: true },
+        orderBy: { createdAt: "desc" }, take: query.limit * 20,
+      }),
+    ]) : [[], []];
+    return {
+      conversations: page.map((inquiry) => {
+        const event = events.find((item) => item.resultId === inquiry.id);
+        const relatedDrafts = drafts.filter((item) => item.event?.resultId === inquiry.id);
+        const draft = relatedDrafts[0];
+        const payload = event?.payload as { message?: string | null } | undefined;
+        const latestDraftAt = draft ? (draft.sentAt ?? draft.createdAt) : null;
+        const lastActivityAt = latestDraftAt && latestDraftAt > inquiry.updatedAt ? latestDraftAt : inquiry.updatedAt;
+        return {
+          conversationId: inquiry.id,
+          displayName: inquiry.contactName,
+          maskedContact: maskContact(inquiry.phone),
+          channel: "WHATSAPP" as const,
+          classification: inquiry.type,
+          status: inquiry.status,
+          latestMessagePreview: draft && latestDraftAt && (!event || latestDraftAt > event.createdAt) ? draft.body : payload?.message ?? inquiry.message,
+          lastActivityAt: linkedPage.find((item) => item.resultId === inquiry.id)?._max.createdAt ?? lastActivityAt,
+          pendingApprovalCount: relatedDrafts.filter((item) => item.status === "PENDING_APPROVAL").length,
+          needsAttention: relatedDrafts.some((item) => item.status === "PENDING_APPROVAL") || ["NEW", "REVIEWING"].includes(inquiry.status),
+        };
+      }),
+      pagination: { page: query.page, limit: query.limit, hasMore: linked.length > query.limit },
+    };
+  }
+  async conversationDetail(org: string, conversationId: string) {
+    const inquiry = await prisma.inquiry.findFirst({
+      where: { id: conversationId, organizationId: org, source: "WHATSAPP", phone: { not: null }, deletedAt: null },
+      select: { id: true, contactName: true, phone: true, type: true, status: true, subject: true, message: true, customerId: true, updatedAt: true },
+    });
+    if (!inquiry) throw new AppError(404, "Conversation was not found.", "WHATSAPP_CONVERSATION_NOT_FOUND");
+    const events = await prisma.integrationEvent.findMany({
+      where: { organizationId: org, resultType: "INQUIRY", resultId: inquiry.id, connector: { type: "WHATSAPP" } },
+      select: { id: true, connectorId: true, payload: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 100,
+    });
+    if (!events.length) throw new AppError(404, "Conversation was not found.", "WHATSAPP_CONVERSATION_NOT_FOUND");
+    const [drafts, escalation, connectors] = await Promise.all([
+      prisma.automationMessageDraft.findMany({
+        where: { organizationId: org, eventId: { in: events.map((event) => event.id) }, connector: { type: "WHATSAPP" } },
+        select: { id: true, eventId: true, body: true, status: true, createdAt: true, sentAt: true, connector: { select: { name: true, provider: true } } },
+        orderBy: { createdAt: "desc" }, take: 100,
+      }),
+      prisma.inquiryTimeline.findFirst({ where: { organizationId: org, inquiryId: inquiry.id, summary: "WhatsApp conversation escalated to a human" }, select: { createdAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.integrationConnector.findMany({ where: { organizationId: org, type: "WHATSAPP", status: "ACTIVE", deletedAt: null }, select: { id: true, name: true, provider: true, credentialsConfiguredAt: true } }),
+    ]);
+    const messages = [
+      ...events.map((event) => ({ id: event.id, direction: "INBOUND" as const, body: (event.payload as { message?: string | null }).message ?? inquiry.message, status: "RECEIVED", occurredAt: event.createdAt })),
+      ...drafts.map((draft) => ({ id: draft.id, direction: "OUTBOUND" as const, body: draft.body, status: draft.status, occurredAt: draft.sentAt ?? draft.createdAt, provider: draft.connector.provider })),
+    ].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+    return {
+      conversation: { conversationId: inquiry.id, displayName: inquiry.contactName, maskedContact: maskContact(inquiry.phone), channel: "WHATSAPP" as const, classification: inquiry.type, status: inquiry.status, subject: inquiry.subject, customerId: inquiry.customerId, humanReviewRequested: Boolean(escalation) },
+      messages,
+      pendingApprovalCount: drafts.filter((draft) => draft.status === "PENDING_APPROVAL").length,
+      connectors,
+      pagination: { limit: 200, hasMore: events.length === 100 || drafts.length === 100 },
     };
   }
   async templateDraft(

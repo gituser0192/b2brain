@@ -26,6 +26,7 @@ import {
 import { WhatsappService } from "./whatsapp.service.js";
 import { WhatsappSimulatorService } from "./whatsapp-simulator.service.js";
 import { env } from "../../config/env.js";
+import { whatsappConversationIdSchema, whatsappConversationListQuerySchema } from "./whatsapp-conversation.validation.js";
 
 const service = new WhatsappService();
 const simulator = new WhatsappSimulatorService();
@@ -151,6 +152,18 @@ whatsappAdminRouter.get(
   requirePermission("AUTOMATION_VIEW"),
   async (request, response) =>
     response.json(success(await service.drafts(auth(request).organizationId))),
+);
+whatsappAdminRouter.get(
+  "/whatsapp-conversations",
+  ...inquiryAccess,
+  requirePermission("AUTOMATION_VIEW"),
+  async (request, response) => response.json(success(await service.conversationSummaries(auth(request).organizationId, whatsappConversationListQuerySchema.parse(request.query)))),
+);
+whatsappAdminRouter.get(
+  "/whatsapp-conversations/:conversationId",
+  ...inquiryAccess,
+  requirePermission("AUTOMATION_VIEW"),
+  async (request, response) => response.json(success(await service.conversationDetail(auth(request).organizationId, whatsappConversationIdSchema.parse(request.params.conversationId)))),
 );
 whatsappAdminRouter.get(
   "/whatsapp-workspace",
