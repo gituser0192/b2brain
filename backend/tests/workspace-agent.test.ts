@@ -67,6 +67,10 @@ const input = (message: string, id = "message-1") => ({
 describe("Ask B² Brain workspace agent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    serviceAccess.mockImplementation((value: { permissions: string[] }, _service: string, permission?: string) => {
+      if (permission && !value.permissions.includes(permission)) throw new AppError(403, "Forbidden", "FORBIDDEN");
+      return Promise.resolve("READ_WRITE");
+    });
     db.connectorFindFirst.mockResolvedValue({
       id: "connector-1",
       configuration: {},
@@ -167,16 +171,24 @@ describe("Ask B² Brain workspace agent", () => {
       reasoning: { source: "REAL_AI", requiresConfirmation: true },
     });
   });
-  it("creates a customer after an explicit request and audits it", async () => {
+  it("previews customer creation and executes it only after confirmation", async () => {
     db.customerFindFirst.mockResolvedValue(null);
     db.txCustomerCreate.mockResolvedValue({
       id: "customer-1",
       displayName: "Rahul",
     });
-    const result = await new WorkspaceAgentService().message(
+    const service = new WorkspaceAgentService();
+    const preview = await service.message(
       context,
       input("Add Rahul with phone number 9876543210 to CRM", "message-2"),
     );
+    expect(db.txCustomerCreate).not.toHaveBeenCalled();
+    expect(db.connectorCreate).not.toHaveBeenCalled();
+    expect(db.eventCreate).not.toHaveBeenCalled();
+    expect(db.auditCreate).not.toHaveBeenCalled();
+    expect(preview).toMatchObject({ needsConfirmation: true, confirmation: { action: "CUSTOMER_CREATE", preview: { name: "Rahul", phone: "9876543210" } } });
+    const token = (preview as { confirmation: { token: string } }).confirmation.token;
+    const result = await service.message(context, { ...input("Confirm action", "message-3"), confirmation: { token, decision: "CONFIRM" as const } });
     expect(db.txCustomerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -189,6 +201,10 @@ describe("Ask B² Brain workspace agent", () => {
     expect(result).toMatchObject({
       answer: "Rahul was added to CRM as a lead.",
     });
+    expect(db.txCustomerCreate).toHaveBeenCalledTimes(1);
+    db.eventFindFirst.mockResolvedValueOnce({ id: "confirmed-event", payload: { output: result } });
+    await expect(service.message(context, { ...input("Confirm action", "message-4"), confirmation: { token, decision: "CONFIRM" as const } })).rejects.toMatchObject({ code: "CONFIRMATION_REPLAYED" });
+    expect(db.txCustomerCreate).toHaveBeenCalledTimes(1);
   });
   it("Python fact collection rechecks current service access and authenticated tenant", async () => {
     const saved = { ...env };
@@ -283,6 +299,49 @@ describe("Ask B² Brain workspace agent", () => {
         }),
       }),
     );
+  });
+  it("returns empty history without creating connector infrastructure", async () => {
+    db.connectorFindFirst.mockResolvedValue(null);
+    await expect(new WorkspaceAgentService().history(context, input("x").conversationId)).resolves.toEqual([]);
+    expect(db.connectorCreate).not.toHaveBeenCalled();
+    expect(db.eventFindMany).not.toHaveBeenCalled();
+  });
+  it("initializes Agent infrastructure once on the first authorized message", async () => {
+    db.connectorFindFirst.mockResolvedValue(null);
+    db.connectorCreate.mockResolvedValue({ id: "connector-created" });
+    db.customerCount.mockResolvedValue(0);
+    await new WorkspaceAgentService().message(context, input("Count all customers", "first-message"));
+    expect(db.connectorCreate).toHaveBeenCalledTimes(1);
+    expect(db.eventCreate).toHaveBeenCalledTimes(1);
+  });
+  it("blocks disabled capabilities before creating Agent infrastructure", async () => {
+    serviceAccess.mockRejectedValueOnce(new AppError(403, "CRM is not enabled.", "SERVICE_NOT_ENABLED"));
+    await expect(new WorkspaceAgentService().message(context, input("Count all customers", "disabled-crm"))).rejects.toMatchObject({ code: "SERVICE_NOT_ENABLED" });
+    expect(db.connectorFindFirst).not.toHaveBeenCalled();
+    expect(db.connectorCreate).not.toHaveBeenCalled();
+    expect(db.eventCreate).not.toHaveBeenCalled();
+  });
+  it("cancels a customer preview without another database mutation", async () => {
+    const service = new WorkspaceAgentService();
+    const preview = await service.message(context, input("Add Rahul phone 9876543210", "preview-cancel"));
+    const token = (preview as { confirmation: { token: string } }).confirmation.token;
+    vi.clearAllMocks();
+    const result = await service.message(context, { ...input("Cancel action", "cancel-action"), confirmation: { token, decision: "CANCEL" as const } });
+    expect(result).toMatchObject({ cancelled: true });
+    expect(db.connectorFindFirst).not.toHaveBeenCalled();
+    expect(db.eventCreate).not.toHaveBeenCalled();
+    expect(db.auditCreate).not.toHaveBeenCalled();
+  });
+  it("requires confirmation before human escalation", async () => {
+    const result = await new WorkspaceAgentService().message({ ...context, permissions: [...context.permissions, "SUPPORT_MANAGE"] }, input("Security problem", "escalation-preview"));
+    expect(result).toMatchObject({ needsConfirmation: true, confirmation: { action: "HUMAN_ESCALATION", preview: { category: "TECHNICAL_SUPPORT", priority: "URGENT" } } });
+    expect(db.connectorCreate).not.toHaveBeenCalled();
+    expect(db.eventCreate).not.toHaveBeenCalled();
+    expect(db.auditCreate).not.toHaveBeenCalled();
+  });
+  it("preserves a verified zero customer count", async () => {
+    db.customerCount.mockResolvedValue(0);
+    await expect(new WorkspaceAgentService().message(context, input("Count all customers", "zero-count"))).resolves.toMatchObject({ metrics: [{ value: 0 }] });
   });
   it.each([
     ["today's brief", "brief"],

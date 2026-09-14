@@ -1,5 +1,5 @@
 export type AgentOutput = {
-  answer: string; duplicate?: boolean; metrics?: { label: string; value: number }[];
+  answer: string; duplicate?: boolean; cancelled?: boolean; needsConfirmation?: boolean; metrics?: { label: string; value: number | null; availability?: "VERIFIED" | "NO_DATA" | "UNAVAILABLE" | "FORBIDDEN" | "FAILED" }[];
   warnings?: string[]; suggestions?: string[];
   health?: { overall: number | null; components: { name: string; score: number; evidence: string }[]; warnings: string[]; recommendations: string[]; period: string };
   finance?: { currency: string; current: { revenue: number; expenses: number; profit: number }; margin: number | null; score: number | null };
@@ -8,14 +8,16 @@ export type AgentOutput = {
   escalation?: { id: string; requestNumber: string; status: string };
   setup?: { step: string; completed: boolean };
   managementSection?: "brief" | "goals" | "conversation";
+  confirmation?: { action: "CUSTOMER_CREATE" | "HUMAN_ESCALATION"; token: string; expiresAt: string; preview: { name?: string; phone?: string; type?: string; status?: string; category?: string; priority?: string } };
   reasoning?: { source: "REAL_AI" | "DETERMINISTIC_FALLBACK"; confidence: "LOW" | "MEDIUM" | "HIGH"; evidence: { id: string; label: string; value: string | number | null; period: string }[]; conclusions: string[]; recommendations: { action: string; reason: string; expectedImpact: string }[]; assumptions: string[]; missingData: string[]; proposedToolActions: string[]; requiresConfirmation: boolean; requiresHumanEscalation: boolean };
 };
 export type AgentItem = { id: string; createdAt: string; message: string; output: AgentOutput };
 export type BusinessBrief = {
   calculatedAt: string; period: string; meaningful: boolean;
-  health: { score: number | null; change: number | null; missingData: string[] };
+  health: { score: number | null; change: number | null; availability?: string; missingData: string[] };
   finance: { revenue: number; expenses: number; profit: number; previousRevenue: number; previousExpenses: number; previousProfit: number } | null;
-  activity: { newCustomers: number | null; newLeads: number | null; overdueFollowUps: number | null; overdueTasks: number | null; atRiskProjects: number; importantServiceRequests: number | null };
+  activity: { newCustomers: number | null; newLeads: number | null; overdueFollowUps: number | null; overdueTasks: number | null; atRiskProjects: number | null; importantServiceRequests: number | null };
+  availability?: Record<string, string>;
   alerts: { code: string; title: string; why: string; evidence: string; period: string; severity: string; action: string; view: string }[];
   recommendations: { title: string; reason: string; view: string }[];
 };

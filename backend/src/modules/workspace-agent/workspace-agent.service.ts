@@ -8,6 +8,8 @@ import { WorkspaceAgentProactiveService } from "./workspace-agent.proactive.serv
 import { routeWorkspaceRequest } from "./workspace-agent.router.js";
 import { env } from "../../config/env.js";
 import { verifyServiceAccess } from "../../middleware/auth.js";
+import { createWorkspaceAgentConfirmation, verifyWorkspaceAgentConfirmation } from "./workspace-agent.confirmation.js";
+import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability } from "./workspace-agent.capabilities.js";
 import {
   createWorkspaceReasoningProvider,
   type WorkspaceReasoningProvider,
@@ -28,6 +30,12 @@ const money = (value: number, currency: string) =>
     maximumFractionDigits: 0,
   }).format(value);
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
+const workspaceConnectorId = (organizationId: string) => {
+  const value = createHash("sha256").update(`b2brain-workspace-agent:${organizationId}`).digest("hex").slice(0, 32).split("");
+  value[12] = "4";
+  value[16] = ((Number.parseInt(value[16]!, 16) & 3) | 8).toString(16);
+  return `${value.slice(0, 8).join("")}-${value.slice(8, 12).join("")}-${value.slice(12, 16).join("")}-${value.slice(16, 20).join("")}-${value.slice(20).join("")}`;
+};
 
 export class WorkspaceAgentService {
   private readonly proactive = new WorkspaceAgentProactiveService();
@@ -207,8 +215,10 @@ export class WorkspaceAgentService {
       },
     });
     if (existing) return existing;
-    return prisma.integrationConnector.create({
-      data: {
+    try {
+      return await prisma.integrationConnector.create({
+        data: {
+        id: workspaceConnectorId(context.organizationId),
         organizationId: context.organizationId,
         name: "Ask B² Brain",
         type: "WEBSITE",
@@ -221,7 +231,20 @@ export class WorkspaceAgentService {
           .digest("hex"),
         createdById: context.userId,
         updatedById: context.userId,
-      },
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const created = await this.findConnector(context);
+      if (!created) throw error;
+      return created;
+    }
+  }
+
+  private async findConnector(context: Context) {
+    return prisma.integrationConnector.findFirst({
+      where: { organizationId: context.organizationId, provider: "B2BRAIN_WORKSPACE_AGENT", deletedAt: null },
+      select: { id: true },
     });
   }
 
@@ -315,8 +338,14 @@ export class WorkspaceAgentService {
   }
 
   private async health(context: Context) {
-    const can = (permission: string) =>
-      context.permissions.includes(permission);
+    const [crmAccess, followAccess, projectAccess, taskAccess, financeAccess] = await Promise.all([
+      workspaceAgentCapabilityAvailability(context, "CUSTOMER_COUNT"),
+      workspaceAgentCapabilityAvailability(context, "CRM_FOLLOW_UPS"),
+      workspaceAgentCapabilityAvailability(context, "PROJECTS"),
+      workspaceAgentCapabilityAvailability(context, "TASKS"),
+      workspaceAgentCapabilityAvailability(context, "FINANCE"),
+    ]);
+    const canCrm = crmAccess === "VERIFIED", canFollow = followAccess === "VERIFIED", canProjects = projectAccess === "VERIFIED", canTasks = taskAccess === "VERIFIED", canFinance = financeAccess === "VERIFIED";
     const [
       customers,
       overdueFollowUps,
@@ -325,12 +354,12 @@ export class WorkspaceAgentService {
       overdueTasks,
       finance,
     ] = await Promise.all([
-      can("CRM_VIEW")
+      canCrm
         ? prisma.customer.count({
             where: { organizationId: context.organizationId, deletedAt: null },
           })
         : null,
-      can("CRM_ACTIVITY_VIEW")
+      canFollow
         ? prisma.customerFollowUp.count({
             where: {
               organizationId: context.organizationId,
@@ -340,7 +369,7 @@ export class WorkspaceAgentService {
             },
           })
         : null,
-      can("PROJECT_VIEW")
+      canProjects
         ? prisma.project.count({
             where: {
               organizationId: context.organizationId,
@@ -349,7 +378,7 @@ export class WorkspaceAgentService {
             },
           })
         : null,
-      can("TASK_VIEW")
+      canTasks
         ? prisma.projectTask.count({
             where: {
               organizationId: context.organizationId,
@@ -358,7 +387,7 @@ export class WorkspaceAgentService {
             },
           })
         : null,
-      can("TASK_VIEW")
+      canTasks
         ? prisma.projectTask.count({
             where: {
               organizationId: context.organizationId,
@@ -368,7 +397,7 @@ export class WorkspaceAgentService {
             },
           })
         : null,
-      can("FINANCE_VIEW") ? this.finance(context) : null,
+      canFinance ? this.finance(context) : null,
     ]);
     const components = [
       finance?.score === null || finance?.score === undefined
@@ -400,7 +429,7 @@ export class WorkspaceAgentService {
               pendingTasks === 0
                 ? 70
                 : Math.max(0, 100 - (overdueTasks / pendingTasks) * 100),
-            evidence: `${projects ?? 0} active projects, ${overdueTasks} overdue of ${pendingTasks} open tasks.`,
+            evidence: `${projects === null ? "Active project count unavailable" : `${projects} active projects`}, ${overdueTasks} overdue of ${pendingTasks} open tasks.`,
           },
     ].filter(
       (item): item is { name: string; score: number; evidence: string } =>
@@ -445,13 +474,7 @@ export class WorkspaceAgentService {
     };
   }
 
-  private async createCustomer(context: Context, message: string) {
-    if (!context.permissions.includes("CRM_CREATE"))
-      throw new AppError(
-        403,
-        "You do not have permission to add CRM customers.",
-        "FORBIDDEN",
-      );
+  private customerPreview(context: Context, message: string) {
     const match = message.match(
       /add\s+([a-z][a-z .'-]{1,80}?)\s+(?:with\s+)?(?:phone(?:\s+number)?\s*)?(\+?\d[\d -]{6,16})\s*(?:to\s+crm)?/i,
     );
@@ -460,9 +483,19 @@ export class WorkspaceAgentService {
         needsConfirmation: true,
         answer:
           "Please provide the customer name and phone number, for example: “Add Rahul with phone number 9876543210 to CRM.”",
-      };
+      } as const;
     const displayName = match[1]!.trim();
     const phone = normalizePhone(match[2]!);
+    const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "CUSTOMER_CREATE", arguments: { displayName, phone } });
+    return {
+      answer: `Review ${displayName} before adding this person to CRM as a lead.`,
+      needsConfirmation: true,
+      confirmation: { action: "CUSTOMER_CREATE", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: { name: displayName, phone, type: "PERSON", status: "LEAD" } },
+    } as const;
+  }
+
+  private async createCustomer(context: Context, displayName: string, phone: string) {
+    await requireWorkspaceAgentCapability(context, "CUSTOMER_CREATE");
     const existing = await prisma.customer.findFirst({
       where: { organizationId: context.organizationId, phone, deletedAt: null },
       select: { id: true, displayName: true },
@@ -515,22 +548,46 @@ export class WorkspaceAgentService {
     };
   }
 
+  private escalationPreview(context: Context, message: string) {
+    const lower = message.toLowerCase();
+    const category = lower.includes("refund") || lower.includes("payment") ? "FINANCE" : "TECHNICAL_SUPPORT";
+    const priority = lower.includes("security") ? "URGENT" : "HIGH";
+    const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "HUMAN_ESCALATION", arguments: { category, description: message, priority } });
+    return {
+      answer: "This request may need the B² Brain human team. Review the escalation before creating it; no external action has occurred.",
+      needsConfirmation: true,
+      confirmation: { action: "HUMAN_ESCALATION", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: { category, priority } },
+    } as const;
+  }
+
   async message(
     context: Context,
     input: WorkspaceAgentMessage,
     reservedEvent?: { id: string },
   ) {
-    const startedAt = Date.now(),
-      route = routeWorkspaceRequest(input.message);
+    const startedAt = Date.now();
+    if (input.confirmation?.decision === "CANCEL") {
+      verifyWorkspaceAgentConfirmation(input.confirmation.token, context);
+      return { duplicate: false, answer: "The proposed action was cancelled. Nothing was changed.", cancelled: true };
+    }
+    const confirmed = input.confirmation ? verifyWorkspaceAgentConfirmation(input.confirmation.token, context) : null;
+    const route = confirmed ? { intent: confirmed.action, path: "WRITE_ACTION" as const, aiRequired: false } : routeWorkspaceRequest(input.message);
+    if (route.intent === "CUSTOMER_COUNT" || route.intent === "CUSTOMER_CREATE") await requireWorkspaceAgentCapability(context, route.intent);
+    if (route.intent === "FINANCE_SUMMARY" || route.intent === "FORECAST") await requireWorkspaceAgentCapability(context, "FINANCE");
+    if (route.intent === "HUMAN_ESCALATION") await requireWorkspaceAgentCapability(context, "SUPPORT_ESCALATION");
+    if (!confirmed && route.intent === "CUSTOMER_CREATE") return { duplicate: false, ...this.customerPreview(context, input.message) };
+    if (!confirmed && route.intent === "HUMAN_ESCALATION") return { duplicate: false, ...this.escalationPreview(context, input.message) };
     const connector = await this.connector(context);
+    const externalEventId = confirmed ? `confirmation:${confirmed.id}` : input.externalMessageId;
     const duplicate = reservedEvent ? null : await prisma.integrationEvent.findFirst({
       where: {
         organizationId: context.organizationId,
         connectorId: connector.id,
-        externalEventId: input.externalMessageId,
+        externalEventId,
       },
       select: { id: true, payload: true, status: true },
     });
+    if (confirmed && duplicate) throw new AppError(409, "This confirmation was already used.", "CONFIRMATION_REPLAYED");
     if (duplicate && (duplicate.payload as { output?: object }).output)
       return {
         duplicate: true,
@@ -550,7 +607,7 @@ export class WorkspaceAgentService {
         data: {
           organizationId: context.organizationId,
           connectorId: connector.id,
-          externalEventId: input.externalMessageId,
+          externalEventId,
           eventName: "workspace-agent.message",
           kind: "INQUIRY",
           status: "PROCESSING",
@@ -578,18 +635,11 @@ export class WorkspaceAgentService {
         );
       throw error;
     }
-    const lower = input.message.toLowerCase();
     let output: Record<string, unknown>;
     let reasoning: WorkspaceReasoningResult | null = null;
-    if (route.intent === "CUSTOMER_CREATE")
-      output = await this.createCustomer(context, input.message);
+    if (route.intent === "CUSTOMER_CREATE" && confirmed?.action === "CUSTOMER_CREATE")
+      output = await this.createCustomer(context, confirmed.arguments.displayName, confirmed.arguments.phone);
     else if (route.intent === "CUSTOMER_COUNT") {
-      if (!context.permissions.includes("CRM_VIEW"))
-        throw new AppError(
-          403,
-          "CRM access is not assigned to your account.",
-          "FORBIDDEN",
-        );
       const count = await prisma.customer.count({
         where: { organizationId: context.organizationId, deletedAt: null },
       });
@@ -604,13 +654,14 @@ export class WorkspaceAgentService {
           ? `Today's brief found ${brief.alerts.length} explainable alert${brief.alerts.length === 1 ? "" : "s"} and ${brief.recommendations.length} priority action${brief.recommendations.length === 1 ? "" : "s"}.`
           : "Today's brief found no meaningful changes requiring attention.",
         metrics: [
-          { label: "Business health", value: brief.health.score ?? 0 },
-          { label: "New customers", value: brief.activity.newCustomers ?? 0 },
+          { label: "Business health", value: brief.health.score, availability: brief.health.availability ?? (brief.health.score === null ? "UNAVAILABLE" : "VERIFIED") },
+          { label: "New customers", value: brief.activity.newCustomers, availability: brief.availability?.newCustomers ?? (brief.activity.newCustomers === null ? "UNAVAILABLE" : "VERIFIED") },
           {
             label: "Overdue follow-ups",
-            value: brief.activity.overdueFollowUps ?? 0,
+            value: brief.activity.overdueFollowUps,
+            availability: brief.availability?.overdueFollowUps ?? (brief.activity.overdueFollowUps === null ? "UNAVAILABLE" : "VERIFIED"),
           },
-          { label: "Overdue tasks", value: brief.activity.overdueTasks ?? 0 },
+          { label: "Overdue tasks", value: brief.activity.overdueTasks, availability: brief.availability?.overdueTasks ?? (brief.activity.overdueTasks === null ? "UNAVAILABLE" : "VERIFIED") },
         ],
         warnings: brief.health.missingData,
         managementSection: "brief",
@@ -639,26 +690,30 @@ export class WorkspaceAgentService {
     } else if (route.intent === "NEW_CUSTOMERS") {
       const brief = await this.proactive.brief(context);
       output = {
-        answer: `Today your organization added ${brief.activity.newCustomers ?? 0} new customer${brief.activity.newCustomers === 1 ? "" : "s"}, including ${brief.activity.newLeads ?? 0} new lead${brief.activity.newLeads === 1 ? "" : "s"}.`,
+        answer: brief.activity.newCustomers === null && brief.activity.newLeads === null
+          ? "Customer and lead activity is unavailable because the required service or permission is not available."
+          : `Today your organization added ${brief.activity.newCustomers === null ? "an unavailable number of" : brief.activity.newCustomers} new customer${brief.activity.newCustomers === 1 ? "" : "s"}, including ${brief.activity.newLeads === null ? "an unavailable number of" : brief.activity.newLeads} new lead${brief.activity.newLeads === 1 ? "" : "s"}.`,
         metrics: [
           {
             label: "New customers today",
-            value: brief.activity.newCustomers ?? 0,
+            value: brief.activity.newCustomers,
+            availability: brief.availability?.newCustomers ?? (brief.activity.newCustomers === null ? "UNAVAILABLE" : "VERIFIED"),
           },
-          { label: "New leads today", value: brief.activity.newLeads ?? 0 },
+          { label: "New leads today", value: brief.activity.newLeads, availability: brief.availability?.newLeads ?? (brief.activity.newLeads === null ? "UNAVAILABLE" : "VERIFIED") },
         ],
         managementSection: "brief",
       };
     } else if (route.intent === "OVERDUE_WORK") {
       const brief = await this.proactive.brief(context);
       output = {
-        answer: `There are ${brief.activity.overdueFollowUps ?? 0} overdue customer follow-up${brief.activity.overdueFollowUps === 1 ? "" : "s"} and ${brief.activity.overdueTasks ?? 0} overdue project task${brief.activity.overdueTasks === 1 ? "" : "s"}.`,
+        answer: `Overdue customer follow-ups: ${brief.activity.overdueFollowUps === null ? "unavailable" : brief.activity.overdueFollowUps}. Overdue project tasks: ${brief.activity.overdueTasks === null ? "unavailable" : brief.activity.overdueTasks}.`,
         metrics: [
           {
             label: "Overdue follow-ups",
-            value: brief.activity.overdueFollowUps ?? 0,
+            value: brief.activity.overdueFollowUps,
+            availability: brief.availability?.overdueFollowUps ?? (brief.activity.overdueFollowUps === null ? "UNAVAILABLE" : "VERIFIED"),
           },
-          { label: "Overdue tasks", value: brief.activity.overdueTasks ?? 0 },
+          { label: "Overdue tasks", value: brief.activity.overdueTasks, availability: brief.availability?.overdueTasks ?? (brief.activity.overdueTasks === null ? "UNAVAILABLE" : "VERIFIED") },
         ],
         managementSection: "brief",
       };
@@ -767,18 +822,15 @@ export class WorkspaceAgentService {
           "Let’s set up your business agent. Start by adding your business description, industry, services, pricing, hours, locations, goals and escalation preferences in the guided setup.",
         setup: { step: "BUSINESS_DESCRIPTION", completed: false },
       };
-    else if (route.intent === "HUMAN_ESCALATION") {
+    else if (route.intent === "HUMAN_ESCALATION" && confirmed?.action === "HUMAN_ESCALATION") {
       const request = await new ServiceRequestService().create(
         context.organizationId,
         context.userId,
         {
-          category:
-            lower.includes("refund") || lower.includes("payment")
-              ? "FINANCE"
-              : "TECHNICAL_SUPPORT",
+          category: confirmed.arguments.category,
           subject: "Ask B² Brain escalation",
-          description: input.message,
-          priority: lower.includes("security") ? "URGENT" : "HIGH",
+          description: confirmed.arguments.description,
+          priority: confirmed.arguments.priority,
         },
       );
       output = {
@@ -864,7 +916,8 @@ export class WorkspaceAgentService {
   }
 
   async history(context: Context, conversationId: string) {
-    const connector = await this.connector(context);
+    const connector = await this.findConnector(context);
+    if (!connector) return [];
     const events = await prisma.integrationEvent.findMany({
       where: {
         organizationId: context.organizationId,
@@ -890,10 +943,12 @@ export class WorkspaceAgentService {
   }
 
   async usage(context: Context) {
-    const connector = await this.connector(context),
+    const connector = await this.findConnector(context),
       monthStart = new Date();
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
+    if (!connector)
+      return { periodStart: monthStart, requests: 0, aiRequests: 0, deterministicRequests: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, toolCalls: 0, providerFailures: 0, fallbackUsage: 0, averageResponseTimeMs: 0, capped: false };
     const events = await prisma.integrationEvent.findMany({
       where: {
         organizationId: context.organizationId,
@@ -966,7 +1021,8 @@ export class WorkspaceAgentService {
   }
 
   async markFailed(context: Context, externalMessageId: string) {
-    const connector = await this.connector(context);
+    const connector = await this.findConnector(context);
+    if (!connector) return;
     await prisma.integrationEvent.updateMany({
       where: {
         organizationId: context.organizationId,

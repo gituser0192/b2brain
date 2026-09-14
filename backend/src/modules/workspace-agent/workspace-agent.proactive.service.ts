@@ -2,11 +2,15 @@ import type { BusinessGoal, BusinessGoalType } from "@prisma/client";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import type { BusinessGoalInput } from "./workspace-agent.proactive.validation.js";
+import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability, type AgentAvailability, type WorkspaceAgentCapability } from "./workspace-agent.capabilities.js";
 
 type Context = {
   organizationId: string;
   userId: string;
+  membershipId: string;
+  roleCode: string;
   permissions: string[];
+  isPlatformAdmin?: boolean;
 };
 const day = 86_400_000;
 const percent = (current: number, target: number, inverse = false) =>
@@ -25,23 +29,44 @@ export class WorkspaceAgentProactiveService {
     return context.permissions.includes(permission);
   }
 
+  private goalCapability(type: BusinessGoalType, write: boolean): WorkspaceAgentCapability {
+    if (["MONTHLY_REVENUE", "EXPENSE_LIMIT"].includes(type)) return write ? "FINANCE_GOAL" : "FINANCE_GOAL_VIEW";
+    if (type === "PROJECT_COMPLETION") return write ? "PROJECT_GOAL" : "PROJECT_GOAL_VIEW";
+    if (type === "NEW_LEADS") return write ? "LEADS_GOAL" : "LEADS_GOAL_VIEW";
+    if (type === "FOLLOW_UP_RESPONSE") return write ? "FOLLOW_UP_GOAL" : "FOLLOW_UP_GOAL_VIEW";
+    return write ? "CRM_GOAL" : "CRM_GOAL_VIEW";
+  }
+
   async brief(context: Context) {
     const now = new Date(),
       today = new Date(now.getTime() - day),
       currentStart = new Date(now.getTime() - 30 * day),
       previousStart = new Date(now.getTime() - 60 * day),
       nearDeadline = new Date(now.getTime() + 7 * day);
-    const canCrm = this.can(context, "CRM_VIEW"),
-      canFollow = this.can(context, "CRM_ACTIVITY_VIEW"),
-      canProjects = this.can(context, "PROJECT_VIEW"),
-      canTasks = this.can(context, "TASK_VIEW"),
-      canFinance = this.can(context, "FINANCE_VIEW"),
-      canSupport = this.can(context, "SUPPORT_VIEW");
+    const [crmAccess, leadsAccess, followAccess, projectAccess, taskAccess, financeAccess, supportAccess, actionAccess, salesAccess] = await Promise.all([
+      workspaceAgentCapabilityAvailability(context, "NEW_CUSTOMERS"),
+      workspaceAgentCapabilityAvailability(context, "NEW_LEADS"),
+      workspaceAgentCapabilityAvailability(context, "CRM_FOLLOW_UPS"),
+      workspaceAgentCapabilityAvailability(context, "PROJECTS"),
+      workspaceAgentCapabilityAvailability(context, "TASKS"),
+      workspaceAgentCapabilityAvailability(context, "FINANCE"),
+      workspaceAgentCapabilityAvailability(context, "SUPPORT_SUMMARY"),
+      workspaceAgentCapabilityAvailability(context, "ACTION_CENTRE"),
+      workspaceAgentCapabilityAvailability(context, "SALES_RECOMMENDATIONS"),
+    ]);
+    const canCrm = crmAccess === "VERIFIED",
+      canLeads = leadsAccess === "VERIFIED",
+      canFollow = followAccess === "VERIFIED",
+      canProjects = projectAccess === "VERIFIED",
+      canTasks = taskAccess === "VERIFIED",
+      canFinance = financeAccess === "VERIFIED",
+      canSupport = supportAccess === "VERIFIED";
     const visibleRecommendationServices = [
-      canCrm ? "LEADS" : null,
+      canCrm ? "CRM" : null,
+      canLeads ? "LEADS" : null,
       canFinance ? "FINANCE" : null,
       canProjects ? "PROJECTS" : null,
-      this.can(context, "DEAL_VIEW") ? "SALES" : null,
+      salesAccess === "VERIFIED" ? "SALES" : null,
     ].filter((value): value is string => Boolean(value));
     const [
       newCustomers,
@@ -65,7 +90,7 @@ export class WorkspaceAgentProactiveService {
             },
           })
         : null,
-      canCrm
+      canLeads
         ? prisma.customer.count({
             where: {
               organizationId: context.organizationId,
@@ -172,7 +197,7 @@ export class WorkspaceAgentProactiveService {
             },
           })
         : null,
-      context.permissions.includes("APPROVAL_VIEW") &&
+      actionAccess === "VERIFIED" &&
       visibleRecommendationServices.length
         ? prisma.businessRecommendation.findMany({
             where: {
@@ -315,6 +340,7 @@ export class WorkspaceAgentProactiveService {
       health: {
         score: healthScore,
         change: null,
+        availability: components.length ? "VERIFIED" : "UNAVAILABLE",
         missingData: [
           ...(!canFinance ? ["Finance data is not permitted."] : []),
           ...(!canCrm ? ["CRM data is not permitted."] : []),
@@ -336,9 +362,19 @@ export class WorkspaceAgentProactiveService {
         newLeads,
         overdueFollowUps,
         overdueTasks,
-        atRiskProjects: atRiskProjects.length,
+        atRiskProjects: canProjects ? atRiskProjects.length : null,
         importantServiceRequests: serviceRequests,
       },
+      availability: {
+        newCustomers: crmAccess,
+        newLeads: leadsAccess,
+        overdueFollowUps: followAccess,
+        overdueTasks: taskAccess,
+        atRiskProjects: projectAccess,
+        finance: financeAccess,
+        support: supportAccess,
+        recommendations: actionAccess,
+      } satisfies Record<string, AgentAvailability>,
       alerts,
       recommendations,
       meaningful:
@@ -450,8 +486,9 @@ export class WorkspaceAgentProactiveService {
       where: { organizationId: context.organizationId, archivedAt: null },
       orderBy: [{ status: "asc" }, { periodEnd: "asc" }],
     });
+    const visible = await Promise.all(goals.map(async (goal) => ({ goal, availability: await workspaceAgentCapabilityAvailability(context, this.goalCapability(goal.type, false)) })));
     return Promise.all(
-      goals.map(async (goal) => {
+      visible.filter(({ availability }) => availability === "VERIFIED").map(async ({ goal }) => {
         const currentValue = await this.currentValue(context, goal),
           target = Number(goal.targetValue),
           elapsed = Math.max(0, Date.now() - goal.periodStart.getTime()),
@@ -496,19 +533,8 @@ export class WorkspaceAgentProactiveService {
   }
 
   async createGoal(context: Context, input: BusinessGoalInput) {
-    const required = (
-      ["MONTHLY_REVENUE", "EXPENSE_LIMIT"] as BusinessGoalType[]
-    ).includes(input.type as BusinessGoalType)
-      ? "FINANCE_MANAGE"
-      : input.type === "PROJECT_COMPLETION"
-        ? "PROJECT_MANAGE"
-        : "CRM_MANAGE";
-    if (!this.can(context, required))
-      throw new AppError(
-        403,
-        "You do not have permission to create this goal.",
-        "FORBIDDEN",
-      );
+    const capability = this.goalCapability(input.type as BusinessGoalType, true);
+    await requireWorkspaceAgentCapability(context, capability);
     const goal = await prisma.$transaction(async (tx) => {
       const created = await tx.businessGoal.create({
         data: {
@@ -545,6 +571,10 @@ export class WorkspaceAgentProactiveService {
   }
 
   async archiveGoal(context: Context, id: string) {
+    const goal = await prisma.businessGoal.findFirst({ where: { id, organizationId: context.organizationId, archivedAt: null }, select: { type: true } });
+    if (!goal) throw new AppError(404, "Goal was not found.", "GOAL_NOT_FOUND");
+    const capability = this.goalCapability(goal.type, true);
+    await requireWorkspaceAgentCapability(context, capability);
     const result = await prisma.businessGoal.updateMany({
       where: { id, organizationId: context.organizationId, archivedAt: null },
       data: {

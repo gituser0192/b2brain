@@ -5,13 +5,17 @@ const db = vi.hoisted(() => ({
   goalFindMany: vi.fn(),
   goalCreate: vi.fn(),
   goalUpdateMany: vi.fn(),
+  goalFindFirst: vi.fn(),
   auditCreate: vi.fn(),
   transaction: vi.fn(),
 }));
+const serviceAccess = vi.hoisted(() => vi.fn());
+vi.mock("../src/middleware/auth.js", () => ({ verifyServiceAccess: serviceAccess }));
 vi.mock("../src/database/prisma.js", () => ({
   prisma: {
     businessGoal: {
       findMany: db.goalFindMany,
+      findFirst: db.goalFindFirst,
       updateMany: db.goalUpdateMany,
     },
     $transaction: db.transaction,
@@ -23,6 +27,8 @@ import { businessGoalSchema } from "../src/modules/workspace-agent/workspace-age
 const context = {
   organizationId: "00000000-0000-4000-8000-000000000001",
   userId: "00000000-0000-4000-8000-000000000002",
+  membershipId: "00000000-0000-4000-8000-000000000003",
+  roleCode: "ORGANIZATION_OWNER",
   permissions: ["FINANCE_VIEW", "FINANCE_MANAGE"],
 };
 const input = {
@@ -36,6 +42,7 @@ const input = {
 describe("Ask B² Brain proactive management", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    serviceAccess.mockResolvedValue("READ_WRITE");
     db.goalFindMany.mockResolvedValue([]);
     db.goalUpdateMany.mockResolvedValue({ count: 1 });
     db.goalCreate.mockResolvedValue({ id: "goal-1", ...input });
@@ -84,6 +91,7 @@ describe("Ask B² Brain proactive management", () => {
   });
 
   it("blocks financial goal creation without finance management permission", async () => {
+    serviceAccess.mockRejectedValueOnce(Object.assign(new Error("Forbidden"), { statusCode: 403 }));
     await expect(
       new WorkspaceAgentProactiveService().createGoal(
         { ...context, permissions: ["FINANCE_VIEW"] },
@@ -91,5 +99,19 @@ describe("Ask B² Brain proactive management", () => {
       ),
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(db.goalCreate).not.toHaveBeenCalled();
+  });
+
+  it("checks goal type entitlement and manage permission before archive", async () => {
+    db.goalFindFirst.mockResolvedValue({ type: "MONTHLY_REVENUE" });
+    await new WorkspaceAgentProactiveService().archiveGoal(context, "goal-1");
+    expect(serviceAccess).toHaveBeenCalledWith(expect.objectContaining({ organizationId: context.organizationId }), "FINANCE", "FINANCE_MANAGE");
+    expect(db.goalUpdateMany).toHaveBeenCalled();
+  });
+
+  it("does not archive a goal when its owning service is unavailable", async () => {
+    db.goalFindFirst.mockResolvedValue({ type: "PROJECT_COMPLETION" });
+    serviceAccess.mockRejectedValueOnce(Object.assign(new Error("Disabled"), { statusCode: 403 }));
+    await expect(new WorkspaceAgentProactiveService().archiveGoal(context, "goal-1")).rejects.toMatchObject({ statusCode: 403 });
+    expect(db.goalUpdateMany).not.toHaveBeenCalled();
   });
 });

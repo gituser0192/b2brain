@@ -261,6 +261,18 @@
   background: #087ce3;
   color: #fff;
 }
+.agent-confirmation {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid #b8d6ef;
+  border-radius: 0.75rem;
+  background: #f4f9fe;
+}
+.agent-confirmation p { margin: 0; }
+.agent-confirmation > div { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.agent-confirmation button { min-height: 2.35rem; padding: 0.45rem 0.8rem; }
+.agent-confirmation button:focus-visible { outline: 2px solid #087fe5; outline-offset: 2px; }
 .workspace-agent-composer > label {
   position: absolute;
   width: 1px;
