@@ -64,6 +64,84 @@
 .platform-grid-services .organization-plan-assignment { display: none; }
 .platform-planned { max-width: 48rem; }
 
+/* Super Admin S3: focused plan, billing, and service administration. */
+.platform-commerce { display: grid; gap: 1rem; grid-template-columns: minmax(15rem, 0.35fr) minmax(0, 1fr); }
+.commerce-directory,
+.commerce-workspace,
+.commerce-editor,
+.subscription-workspace,
+.entitlement-workspace { background: #fff; border: 1px solid #dfe6ee; border-radius: 1rem; min-width: 0; padding: 1rem; }
+.commerce-directory { align-self: start; display: grid; gap: .35rem; max-height: 38rem; overflow-y: auto; }
+.commerce-directory > a { border-radius: .65rem; color: #24354c; display: grid; gap: .2rem; padding: .75rem; text-decoration: none; }
+.commerce-directory > a:hover,
+.commerce-directory > a.active { background: #edf7ff; }
+.commerce-directory > a:focus-visible,
+.platform-commerce button:focus-visible,
+.platform-commerce input:focus-visible,
+.platform-commerce select:focus-visible,
+.platform-commerce summary:focus-visible { outline: 3px solid #168be0; outline-offset: 2px; }
+.commerce-directory span,
+.commerce-heading span { color: #65758b; font-size: .72rem; }
+.commerce-workspace { display: grid; gap: 1rem; }
+.commerce-heading { align-items: flex-start; display: flex; gap: 1rem; justify-content: space-between; }
+.commerce-heading p,
+.subscription-workspace > header p,
+.entitlement-workspace > header p { color: #168be0; font-size: .65rem; font-weight: 800; letter-spacing: .08em; margin: 0; text-transform: uppercase; }
+.commerce-heading h2,
+.subscription-workspace h2,
+.entitlement-workspace h2 { margin: .25rem 0; }
+.commerce-heading button,
+.commerce-plan-grid button,
+.commerce-editor button,
+.subscription-forms button,
+.platform-commerce .platform-confirmation button { border: 0; border-radius: .65rem; cursor: pointer; font-weight: 750; min-height: 2.5rem; padding: .65rem .9rem; }
+.commerce-heading button,
+.commerce-editor > button,
+.subscription-forms button { background: #147dd1; color: #fff; }
+.commerce-plan-grid { display: grid; gap: .8rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.commerce-plan-grid > article,
+.service-catalogue > article,
+.entitlement-workspace > article { border: 1px solid #e1e8f0; border-radius: .8rem; display: grid; gap: .55rem; min-width: 0; padding: .85rem; }
+.commerce-plan-grid header,
+.service-catalogue header,
+.subscription-workspace > header,
+.entitlement-workspace > header { align-items: center; display: flex; gap: .6rem; justify-content: space-between; }
+.commerce-plan-grid p,
+.service-catalogue p,
+.entitlement-workspace p { color: #607089; margin: 0; overflow-wrap: anywhere; }
+.commerce-plan-grid small,
+.commerce-plan-grid em { color: #65758b; font-size: .7rem; }
+.commerce-plan-grid em { color: #8a5612; font-style: normal; font-weight: 700; }
+.commerce-editor { background: #f7faff; display: grid; gap: .8rem; }
+.commerce-editor > header { align-items: center; display: flex; justify-content: space-between; }
+.commerce-editor > div,
+.subscription-forms { display: grid; gap: .7rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.commerce-editor label,
+.subscription-forms label { color: #4f6076; display: grid; font-size: .7rem; font-weight: 700; gap: .25rem; }
+.commerce-editor input,
+.commerce-editor select,
+.commerce-editor textarea,
+.subscription-forms input,
+.subscription-forms select { background: #fff; border: 1px solid #ccd8e5; border-radius: .6rem; min-height: 2.5rem; padding: .6rem; width: 100%; }
+.commerce-editor fieldset { border: 1px solid #d9e3ee; border-radius: .7rem; display: grid; gap: .45rem; }
+.commerce-editor fieldset label { align-items: center; grid-template-columns: auto 1fr; }
+.commerce-editor fieldset input { min-height: auto; width: auto; }
+.subscription-workspace,
+.entitlement-workspace { display: grid; gap: 1rem; }
+.subscription-facts { display: grid; gap: .65rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.subscription-facts span { background: #f6f8fb; border-radius: .65rem; display: grid; gap: .25rem; padding: .7rem; }
+.subscription-facts small { color: #68788e; }
+.subscription-forms > div,
+.subscription-forms > form { border: 1px solid #e0e7ef; border-radius: .75rem; display: grid; gap: .6rem; padding: .8rem; }
+.subscription-forms > form p { color: #607089; font-size: .72rem; margin: 0; }
+.payment-history { display: grid; gap: .5rem; }
+.payment-history article { align-items: center; border-top: 1px solid #e6ebf1; display: grid; gap: .2rem; grid-template-columns: 1fr auto; padding-top: .6rem; }
+.payment-history article small { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.service-catalogue { display: grid; gap: .7rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.service-catalogue details { color: #63738a; font-size: .7rem; }
+.entitlement-workspace > article { align-items: center; grid-template-columns: minmax(0, 1fr) auto; }
+.entitlement-workspace > article > div { display: grid; gap: .35rem; min-width: 0; }
+
 .platform-organizations { display: grid; gap: 1rem; grid-template-columns: minmax(19rem, 0.8fr) minmax(24rem, 1.2fr); }
 .organization-directory-panel,
 .organization-detail { min-width: 0; }
@@ -139,6 +217,9 @@
   .platform-stats span { min-width: 0; }
   .platform-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .platform-organizations { grid-template-columns: minmax(16rem, 0.8fr) minmax(20rem, 1.2fr); }
+  .platform-commerce { grid-template-columns: minmax(12rem, .3fr) minmax(0, 1fr); }
+  .commerce-plan-grid,
+  .service-catalogue { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 520px) {
@@ -154,6 +235,15 @@
   .platform-invitations > form > div { grid-column: auto; }
   .platform-confirmation footer { flex-direction: column-reverse; }
   .platform-confirmation footer button { width: 100%; }
+  .platform-commerce { display: block; }
+  .commerce-directory { margin-bottom: 1rem; max-height: 12rem; }
+  .commerce-plan-grid,
+  .service-catalogue,
+  .commerce-editor > div,
+  .subscription-forms,
+  .subscription-facts { grid-template-columns: 1fr; }
+  .commerce-heading { align-items: stretch; flex-direction: column; }
+  .entitlement-workspace > article { align-items: start; grid-template-columns: 1fr; }
   .assignment-list article { align-items: flex-start; gap: 12px; }
   .assignment-list article > div { min-width: 0; }
   .assignment-list p { overflow-wrap: anywhere; }
