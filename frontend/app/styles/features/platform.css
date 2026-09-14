@@ -63,6 +63,14 @@
 .platform-grid-services .organization-access-bar,
 .platform-grid-services .organization-plan-assignment { display: none; }
 .platform-planned { max-width: 48rem; }
+.platform-planned-detail { background: #fff; border: 1px solid #dfe6ee; border-radius: 1rem; display: grid; gap: .65rem; padding: 1.4rem; }
+.platform-planned-detail > p { color: #168be0; font-size: .65rem; font-weight: 800; letter-spacing: .08em; margin: 0; text-transform: uppercase; }
+.platform-planned-detail h2 { margin: 0; }
+.platform-planned-detail > span:not(.platform-planned-badge) { color: #5f6f84; line-height: 1.6; }
+.platform-planned-detail > div { background: #f5f8fb; border-radius: .75rem; padding: .9rem; }
+.platform-planned-detail > div small { color: #62738a; font-weight: 750; }
+.platform-planned-detail > div p { color: #43546a; line-height: 1.6; margin: .3rem 0 0; overflow-wrap: anywhere; }
+.platform-planned-badge { background: #eef2f6; border-radius: 999px; color: #43546a; font-size: .68rem; font-weight: 800; justify-self: start; padding: .3rem .6rem; }
 
 /* Super Admin S3: focused plan, billing, and service administration. */
 .platform-commerce { display: grid; gap: 1rem; grid-template-columns: minmax(15rem, 0.35fr) minmax(0, 1fr); }

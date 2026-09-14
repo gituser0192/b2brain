@@ -64,7 +64,7 @@ test("Super Admin workflows are grouped and planned sections are honest", async 
   await expect(page.getByText(/7 Available · 14 Beta/)).toBeVisible();
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   await page.goto("/super-admin?section=audit");
-  await expect(page.getByText("This platform area is not implemented yet.", { exact: false })).toBeVisible();
+  await expect(page.getByText("A centralized platform audit timeline is not available yet.")).toBeVisible();
   await expect(page.locator(".platform-planned button")).toHaveCount(0);
 });
 

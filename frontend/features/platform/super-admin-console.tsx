@@ -36,6 +36,28 @@ const SECTION_LABELS: Record<PlatformSection, string> = {
   overview: "Overview", organizations: "Organizations", plans: "Plans and Billing", services: "Services",
   operations: "Operations", support: "Support", agents: "Platform Agents", audit: "Audit Log", settings: "Platform Settings",
 };
+const PLANNED_SECTIONS = {
+  operations: {
+    description: "A cross-organization Platform Admin operations queue is not available yet.",
+    existing: "The existing Operations workspace belongs to service-provider organizations and requires provider permissions. It is not a Platform Admin queue.",
+  },
+  support: {
+    description: "A centralized platform support inbox is not available yet.",
+    existing: "Customer Help and Support requests and the SUPPORT ticket service remain organization-scoped and are not exposed here.",
+  },
+  agents: {
+    description: "Platform-owned agent management is not available yet.",
+    existing: "Organization Business Agents remain managed inside their customer workspaces. Their conversations and business data are not exposed here.",
+  },
+  audit: {
+    description: "A centralized platform audit timeline is not available yet.",
+    existing: "Existing audit records are organization-scoped and are not aggregated across customers in this workspace.",
+  },
+  settings: {
+    description: "Safe Platform Admin settings are not available yet.",
+    existing: "Infrastructure configuration remains deployment-owned. Environment variables, credentials, database access, and provider keys are never displayed here.",
+  },
+} satisfies Record<"operations" | "support" | "agents" | "audit" | "settings", { description: string; existing: string }>;
 
 function PaymentHistory({ payments }: { payments: NonNullable<PlatformOrganization["plan"]>["payments"] }) {
   const [expanded, setExpanded] = useState(false);
@@ -248,7 +270,7 @@ export function SuperAdminConsole() {
     <aside className="platform-sidebar">
       <div className="dashboard-logo"><Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} /><span><strong>B² Brain</strong><small>Super Admin</small></span></div>
       <div className="platform-identity"><span>Platform control</span><strong>{session.user.firstName} {session.user.lastName}</strong><small>{session.user.email}</small></div>
-      <nav aria-label="Platform administration">{PLATFORM_SECTIONS.map((item) => <Link key={item} href={item === "overview" ? "/super-admin" : `/super-admin?section=${item}`} className={section === item ? "active" : ""} aria-current={section === item ? "page" : undefined}><span aria-hidden="true">{SECTION_LABELS[item].slice(0, 1)}</span>{SECTION_LABELS[item]}{["support", "agents", "audit", "settings"].includes(item) && <small>Planned</small>}</Link>)}</nav>
+      <nav aria-label="Platform administration">{PLATFORM_SECTIONS.map((item) => <Link key={item} href={item === "overview" ? "/super-admin" : `/super-admin?section=${item}`} className={section === item ? "active" : ""} aria-current={section === item ? "page" : undefined}><span aria-hidden="true">{SECTION_LABELS[item].slice(0, 1)}</span>{SECTION_LABELS[item]}{item in PLANNED_SECTIONS && <small>Planned</small>}</Link>)}</nav>
       <div className="platform-sidebar-actions"><button onClick={() => router.push("/dashboard")}>Organization workspace</button><button onClick={() => void logout().then(() => router.replace("/login"))}>Sign out</button></div>
     </aside>
     <main className={`platform-main platform-section-${section}`}>
@@ -297,8 +319,17 @@ export function SuperAdminConsole() {
           {!selected ? <div className="platform-empty">Choose an organization to manage access.</div> : services.length === 0 ? <div className="service-empty"><div className="service-empty-icon"><span /><span /><span /></div><h3>No platform services registered</h3><p>Build a real module first. It can then be registered and assigned here—never through customer signup.</p></div> : <div className="assignment-list">{services.map((service) => { const enabled = selected.enabledServiceIds.includes(service.id); const blocked = service.maturity?.sellability === "NOT_SELLABLE"; return <article key={service.id}><div><span>{service.code}</span><h3>{service.name}</h3>{service.maturity && <span className={`maturity-badge ${service.maturity.maturity.toLowerCase()}`}>{service.maturity.maturityLabel}</span>}<p>{service.maturity?.availabilityNote ?? service.description ?? "No description provided."}</p>{service.maturity?.maturity === "BETA" && <p className="maturity-warning">Beta access is intended for approved testing.</p>}</div><label className="access-switch"><input type="checkbox" checked={enabled} disabled={blocked || updatingId === service.id || service.status !== "ACTIVE" || selected.status !== "ACTIVE"} aria-describedby={`assignment-maturity-${service.id}`} onChange={(event) => void toggle(service.id, event.target.checked)} /><span /><small id={`assignment-maturity-${service.id}`}>{blocked ? "Not assignable" : selected.status !== "ACTIVE" ? "Approve first" : service.status === "ACTIVE" ? enabled ? "Enabled" : "Disabled" : service.status}</small></label></article>; })}</div>}
         </div>
       </section>}
-      {section === "operations" && <section className="platform-planned"><p>Existing platform operations</p><h2>Operations workspace</h2><span>Open the existing operational console for platform-level work.</span><button onClick={() => router.push("/operations")}>Open operations</button></section>}
-      {["support", "agents", "audit", "settings"].includes(section) && <section className="platform-planned" role="status"><p>Planned</p><h2>{SECTION_LABELS[section]}</h2><span>This platform area is not implemented yet. No records or actions have been fabricated.</span></section>}
+      {section in PLANNED_SECTIONS && (() => {
+        const planned = PLANNED_SECTIONS[section as keyof typeof PLANNED_SECTIONS];
+        return <section className="platform-planned platform-planned-detail" aria-labelledby="platform-planned-title">
+          <span className="platform-planned-badge">Planned</span>
+          <p>Platform capability</p>
+          <h2 id="platform-planned-title">{SECTION_LABELS[section]}</h2>
+          <strong>Not available yet</strong>
+          <span>{planned.description}</span>
+          <div><small>What exists today</small><p>{planned.existing}</p></div>
+        </section>;
+      })()}
       {confirmation && <div className="platform-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) closeConfirmation(); }}><section className="platform-confirmation" role="dialog" aria-modal="true" aria-labelledby="platform-confirmation-title" aria-describedby="platform-confirmation-description" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) closeConfirmation(); if (event.key === "Tab") { const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")); const next = event.shiftKey ? buttons.at(-1) : buttons[0]; if ((event.shiftKey && document.activeElement === buttons[0]) || (!event.shiftKey && document.activeElement === buttons.at(-1))) { event.preventDefault(); next?.focus(); } } }}><p>Confirm platform action</p><h2 id="platform-confirmation-title">{confirmation.kind === "revoke" ? "Revoke owner invitation?" : confirmation.kind === "suspend" ? `Suspend ${confirmation.organization.name}?` : confirmation.kind === "reactivate" ? `Restore ${confirmation.organization.name}?` : `Remove ${confirmation.organization.name}?`}</h2><span id="platform-confirmation-description">{confirmation.kind === "revoke" ? `The pending invitation for ${confirmation.invitation.email} will no longer be usable.` : confirmation.kind === "suspend" ? "Login sessions and workspace access will be blocked. Business data is retained." : confirmation.kind === "reactivate" ? "Workspace access will be restored. Existing plans and services are not changed." : "The existing backend disables memberships and service access, then archives this organization account. Business records are not presented as permanently deleted."}</span><footer><button type="button" autoFocus disabled={actionPending} onClick={closeConfirmation}>Cancel</button><button type="button" className={confirmation.kind === "remove" ? "remove" : ""} disabled={actionPending} onClick={() => void confirmAction()}>{actionPending ? "Working…" : confirmation.kind === "revoke" ? "Revoke invitation" : confirmation.kind === "suspend" ? "Suspend access" : confirmation.kind === "reactivate" ? "Restore access" : "Remove account"}</button></footer></section></div>}
     </main>
   </div>;
