@@ -47,7 +47,7 @@ router.post(
     try {
       response.status(202).json(success(await service.message(context, input)));
     } catch (error) {
-      const beforeReservation = error instanceof AppError && ["CONFIRMATION_INVALID", "CONFIRMATION_EXPIRED", "CONFIRMATION_CONTEXT_MISMATCH", "CONFIRMATION_REPLAYED", "SERVICE_NOT_ENABLED", "SERVICE_PLAN_EXPIRED", "MEMBER_SERVICE_NOT_ASSIGNED", "MEMBER_SERVICE_READ_ONLY", "FORBIDDEN", "WORKSPACE_AGENT_REQUEST_RESERVED"].includes(error.code);
+      const beforeReservation = error instanceof AppError && ["CONFIRMATION_INVALID", "CONFIRMATION_EXPIRED", "CONFIRMATION_CONTEXT_MISMATCH", "CONFIRMATION_REPLAYED", "CLARIFICATION_INVALID", "CLARIFICATION_EXPIRED", "CLARIFICATION_CONTEXT_MISMATCH", "SERVICE_NOT_ENABLED", "SERVICE_PLAN_EXPIRED", "MEMBER_SERVICE_NOT_ASSIGNED", "MEMBER_SERVICE_READ_ONLY", "FORBIDDEN", "WORKSPACE_AGENT_REQUEST_RESERVED"].includes(error.code);
       if (!beforeReservation) await service.markFailed(context, input.externalMessageId);
       throw error;
     }

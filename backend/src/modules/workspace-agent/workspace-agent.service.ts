@@ -5,10 +5,11 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { ServiceRequestService } from "../service-requests/service-request.service.js";
 import type { WorkspaceAgentMessage } from "./workspace-agent.validation.js";
 import { WorkspaceAgentProactiveService } from "./workspace-agent.proactive.service.js";
-import { routeWorkspaceRequest } from "./workspace-agent.router.js";
+import { routeWorkspaceRequest, type WorkspaceRoute } from "./workspace-agent.router.js";
 import { env } from "../../config/env.js";
 import { verifyServiceAccess } from "../../middleware/auth.js";
 import { createWorkspaceAgentConfirmation, verifyWorkspaceAgentConfirmation } from "./workspace-agent.confirmation.js";
+import { createWorkspaceAgentClarification, verifyWorkspaceAgentClarification } from "./workspace-agent.clarification.js";
 import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability } from "./workspace-agent.capabilities.js";
 import {
   createWorkspaceReasoningProvider,
@@ -130,6 +131,7 @@ export class WorkspaceAgentService {
       prisma.integrationEvent.findMany({
         where: {
           organizationId: context.organizationId,
+          createdById: context.userId,
           connectorId,
           eventName: "workspace-agent.message",
           status: "COMPLETED",
@@ -246,6 +248,21 @@ export class WorkspaceAgentService {
       where: { organizationId: context.organizationId, provider: "B2BRAIN_WORKSPACE_AGENT", deletedAt: null },
       select: { id: true },
     });
+  }
+
+  private async contextualRequest(context: Context, conversationId: string, message: string) {
+    if (!/^(?:what about last month|only finance|why is the score low)\??$/i.test(message.trim())) return message;
+    const connector = await this.findConnector(context);
+    if (!connector) return message;
+    const events = await prisma.integrationEvent.findMany({
+      where: { organizationId: context.organizationId, createdById: context.userId, connectorId: connector.id, eventName: "workspace-agent.message", status: "COMPLETED" },
+      select: { payload: true }, orderBy: { createdAt: "desc" }, take: 12,
+    });
+    const previous = events.find((event) => (event.payload as { conversationId?: string }).conversationId === conversationId)?.payload as { diagnostics?: { route?: string } } | undefined;
+    if (message.trim().toLowerCase().startsWith("what about last month") && previous?.diagnostics?.route === "FINANCE_SUMMARY") return "show finance summary last month";
+    if (message.trim().toLowerCase().startsWith("only finance")) return "show finance summary";
+    if (message.trim().toLowerCase().startsWith("why is the score low") && previous?.diagnostics?.route === "BUSINESS_HEALTH") return "explain why business health is low";
+    return message;
   }
 
   private async finance(context: Context) {
@@ -571,7 +588,13 @@ export class WorkspaceAgentService {
       return { duplicate: false, answer: "The proposed action was cancelled. Nothing was changed.", cancelled: true };
     }
     const confirmed = input.confirmation ? verifyWorkspaceAgentConfirmation(input.confirmation.token, context) : null;
-    const route = confirmed ? { intent: confirmed.action, path: "WRITE_ACTION" as const, aiRequired: false } : routeWorkspaceRequest(input.message);
+    const clarifiedRequest = input.clarification ? verifyWorkspaceAgentClarification(input.clarification.token, context, input.conversationId, input.clarification.choice) : null;
+    const contextualRequest = confirmed ? input.message : await this.contextualRequest(context, input.conversationId, clarifiedRequest ?? input.message);
+    const route: WorkspaceRoute = confirmed ? { intent: confirmed.action, path: "WRITE_ACTION", aiRequired: false, confidence: "HIGH", ambiguity: "NONE", normalizedRequest: input.message, provenance: "ORGANIZATION_DATA" } : routeWorkspaceRequest(contextualRequest);
+    if (!confirmed && route.ambiguity === "CLARIFICATION_REQUIRED") {
+      const clarification = createWorkspaceAgentClarification({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, choices: route.clarification?.choices ?? [] });
+      return { duplicate: false, answer: route.clarification?.question ?? "I need clarification before checking.", clarification: { ...clarification, choices: route.clarification?.choices ?? [], resolvedDate: route.resolvedDate?.date }, provenance: "INFERENCE" as const };
+    }
     if (route.intent === "CUSTOMER_COUNT" || route.intent === "CUSTOMER_CREATE") await requireWorkspaceAgentCapability(context, route.intent);
     if (route.intent === "FINANCE_SUMMARY" || route.intent === "FORECAST") await requireWorkspaceAgentCapability(context, "FINANCE");
     if (route.intent === "HUMAN_ESCALATION") await requireWorkspaceAgentCapability(context, "SUPPORT_ESCALATION");
@@ -615,6 +638,7 @@ export class WorkspaceAgentService {
           payload: {
             conversationId: input.conversationId,
             message: input.message,
+            userId: context.userId,
           },
           payloadHash: createHash("sha256").update(input.message).digest("hex"),
           attemptCount: 1,
@@ -637,7 +661,9 @@ export class WorkspaceAgentService {
     }
     let output: Record<string, unknown>;
     let reasoning: WorkspaceReasoningResult | null = null;
-    if (route.intent === "CUSTOMER_CREATE" && confirmed?.action === "CUSTOMER_CREATE")
+    if (route.resolvedDate && !["today", "this month"].includes(route.resolvedDate.expression) && ["NEW_CUSTOMERS", "OVERDUE_WORK", "FINANCE_SUMMARY"].includes(route.intent))
+      output = { answer: `I resolved ${route.resolvedDate.expression} as ${route.resolvedDate.date}, but this capability does not yet support that reporting period. No data was changed.`, resolvedDate: route.resolvedDate.date, provenance: "INFERENCE" };
+    else if (route.intent === "CUSTOMER_CREATE" && confirmed?.action === "CUSTOMER_CREATE")
       output = await this.createCustomer(context, confirmed.arguments.displayName, confirmed.arguments.phone);
     else if (route.intent === "CUSTOMER_COUNT") {
       const count = await prisma.customer.count({
@@ -853,12 +879,17 @@ export class WorkspaceAgentService {
           "How do I add a customer in CRM?",
         ],
       };
+    output = { provenance: route.provenance, ...(route.resolvedDate ? { resolvedDate: route.resolvedDate.date } : {}), ...output };
     const payload = {
       conversationId: input.conversationId,
       message: input.message,
       output,
       diagnostics: {
         route: route.intent,
+        confidence: route.confidence,
+        normalizationApplied: route.normalizedRequest !== input.message.toLowerCase(),
+        provenance: route.provenance,
+        resolvedDate: route.resolvedDate?.date,
         processingPath: route.path,
         aiCalled: reasoning?.source === "REAL_AI",
         reasoningProvider: reasoning?.providerName ?? null,
@@ -921,6 +952,7 @@ export class WorkspaceAgentService {
     const events = await prisma.integrationEvent.findMany({
       where: {
         organizationId: context.organizationId,
+        createdById: context.userId,
         connectorId: connector.id,
         eventName: "workspace-agent.message",
       },
@@ -952,6 +984,7 @@ export class WorkspaceAgentService {
     const events = await prisma.integrationEvent.findMany({
       where: {
         organizationId: context.organizationId,
+        createdById: context.userId,
         connectorId: connector.id,
         eventName: "workspace-agent.message",
         createdAt: { gte: monthStart },
@@ -1026,6 +1059,7 @@ export class WorkspaceAgentService {
     await prisma.integrationEvent.updateMany({
       where: {
         organizationId: context.organizationId,
+        createdById: context.userId,
         connectorId: connector.id,
         externalEventId: externalMessageId,
         status: "PROCESSING",
@@ -1045,6 +1079,7 @@ export class WorkspaceAgentService {
     const event = await prisma.integrationEvent.findFirst({
       where: {
         organizationId: context.organizationId,
+        createdById: context.userId,
         connectorId: connector.id,
         externalEventId: externalMessageId,
         eventName: "workspace-agent.message",
@@ -1068,7 +1103,7 @@ export class WorkspaceAgentService {
     if (!retryable)
       throw new AppError(409, "This analysis request is not eligible for retry.", "NOT_RETRYABLE");
     const claimed = await prisma.integrationEvent.updateMany({
-      where: { id: event.id, organizationId: context.organizationId, status: event.status },
+      where: { id: event.id, organizationId: context.organizationId, createdById: context.userId, status: event.status },
       data: {
         status: "PROCESSING",
         failureMessage: null,

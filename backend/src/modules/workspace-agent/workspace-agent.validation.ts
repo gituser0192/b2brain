@@ -6,7 +6,8 @@ export const workspaceAgentMessageSchema = z
     externalMessageId: z.string().trim().min(3).max(240),
     message: z.string().trim().min(1).max(4096),
     confirmation: z.object({ token: z.string().min(32).max(12_000), decision: z.enum(["CONFIRM", "CANCEL"]) }).strict().optional(),
-  })
-  .strict();
+    clarification: z.object({ token: z.string().min(32).max(12_000), choice: z.number().int().min(0).max(2) }).strict().optional(),
+  }).strict()
+  .refine((value) => !(value.confirmation && value.clarification), "Confirmation and clarification are separate operations.");
 
 export type WorkspaceAgentMessage = z.infer<typeof workspaceAgentMessageSchema>;

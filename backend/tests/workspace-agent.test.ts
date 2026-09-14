@@ -79,6 +79,7 @@ describe("Ask B² Brain workspace agent", () => {
     db.eventCreate.mockResolvedValue({ id: "event-1" });
     db.eventUpdate.mockResolvedValue({ id: "event-1" });
     db.eventUpdateMany.mockResolvedValue({ count: 1 });
+    db.eventFindMany.mockResolvedValue([]);
     db.auditCreate.mockResolvedValue({});
     db.transaction.mockImplementation((run: (tx: unknown) => unknown) =>
       run({
@@ -134,6 +135,18 @@ describe("Ask B² Brain workspace agent", () => {
         }),
       }),
     );
+  });
+  it("clarifies ambiguous follow-ups without creating or querying business records", async () => {
+    const result = await new WorkspaceAgentService().message(context, input("show me more", "clarify-1"));
+    expect(result).toMatchObject({ clarification: { choices: expect.any(Array) }, provenance: "INFERENCE" });
+    expect(db.connectorCreate).not.toHaveBeenCalled();
+    expect(db.eventCreate).not.toHaveBeenCalled();
+    expect(db.customerCount).not.toHaveBeenCalled();
+    const clarification = (result as { clarification: { token: string } }).clarification.token;
+    db.customerCount.mockResolvedValue(2);
+    await new WorkspaceAgentService().message(context, { ...input("CRM customers", "clarify-2"), clarification: { token: clarification, choice: 0 } });
+    expect(serviceAccess).toHaveBeenCalled();
+    expect(db.customerCount).toHaveBeenCalledWith({ where: { organizationId: context.organizationId, deletedAt: null } });
   });
   it("uses hosted reasoning only for complex analysis with backend facts", async () => {
     db.eventFindMany.mockResolvedValue([]);

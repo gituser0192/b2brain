@@ -9,6 +9,8 @@ export type AgentOutput = {
   setup?: { step: string; completed: boolean };
   managementSection?: "brief" | "goals" | "conversation";
   confirmation?: { action: "CUSTOMER_CREATE" | "HUMAN_ESCALATION"; token: string; expiresAt: string; preview: { name?: string; phone?: string; type?: string; status?: string; category?: string; priority?: string } };
+  clarification?: { token: string; expiresAt: string; resolvedDate?: string; choices: { label: string; request: string }[] };
+  provenance?: "ORGANIZATION_DATA" | "CALCULATION" | "GENERAL_KNOWLEDGE" | "INFERENCE";
   reasoning?: { source: "REAL_AI" | "DETERMINISTIC_FALLBACK"; confidence: "LOW" | "MEDIUM" | "HIGH"; evidence: { id: string; label: string; value: string | number | null; period: string }[]; conclusions: string[]; recommendations: { action: string; reason: string; expectedImpact: string }[]; assumptions: string[]; missingData: string[]; proposedToolActions: string[]; requiresConfirmation: boolean; requiresHumanEscalation: boolean };
 };
 export type AgentItem = { id: string; createdAt: string; message: string; output: AgentOutput };

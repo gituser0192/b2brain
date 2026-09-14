@@ -128,7 +128,7 @@ export function WorkspaceAgent({
       setLoading(false);
     }
   }
-  async function send(text = message, confirmation?: { token: string; decision: "CONFIRM" | "CANCEL" }) {
+  async function send(text = message, confirmation?: { token: string; decision: "CONFIRM" | "CANCEL" }, clarification?: { token: string; choice: number }) {
     if (!text.trim()) return;
     setLoading(true);
     setError("");
@@ -142,6 +142,7 @@ export function WorkspaceAgent({
             externalMessageId: crypto.randomUUID(),
             message: text.trim(),
             ...(confirmation ? { confirmation } : {}),
+            ...(clarification ? { clarification } : {}),
           }),
         },
       );
@@ -171,7 +172,7 @@ export function WorkspaceAgent({
       {!compact && <WorkspaceAgentHeader section={section} onSection={setSection} />}
       {!compact && section === "brief" && brief && <BusinessBriefView brief={brief} onNavigate={onNavigate} />}
       {!compact && section === "goals" && <BusinessGoalsView goals={goals} goal={goal} open={goalOpen} loading={loading} onToggle={() => setGoalOpen((value) => !value)} onGoal={setGoal} onCreate={() => void createGoal()} />}
-      {(compact || section === "conversation") && <WorkspaceAgentConversation items={items} loading={loading} compact={compact} prompts={suggestions} onSend={(text) => void send(text)} onConfirm={(token, decision) => void send(decision === "CONFIRM" ? "Confirm action" : "Cancel action", { token, decision })} onNavigate={onNavigate} onSection={setSection} />}
+      {(compact || section === "conversation") && <WorkspaceAgentConversation items={items} loading={loading} compact={compact} prompts={suggestions} onSend={(text) => void send(text)} onConfirm={(token, decision) => void send(decision === "CONFIRM" ? "Confirm action" : "Cancel action", { token, decision })} onClarify={(token, choice, label) => void send(label, undefined, { token, choice })} onNavigate={onNavigate} onSection={setSection} />}
       {error && <div className="dashboard-notice error" role="alert">{error}</div>}
       {(compact || section === "conversation") && <WorkspaceAgentComposer message={message} loading={loading} compact={compact} onMessage={(value) => { setMessage(value); if (compact) window.sessionStorage.setItem(draftKey, value); }} onSend={() => void send()} />}
     </section>
