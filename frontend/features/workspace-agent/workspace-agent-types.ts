@@ -9,7 +9,8 @@ export type AgentOutput = {
   escalation?: { id: string; requestNumber: string; status: string };
   setup?: { step: string; completed: boolean };
   managementSection?: "brief" | "goals" | "conversation";
-  confirmation?: { action: "CUSTOMER_CREATE" | "HUMAN_ESCALATION"; token: string; expiresAt: string; preview: { name?: string; phone?: string; type?: string; status?: string; category?: string; priority?: string } };
+  confirmation?: { action: "CUSTOMER_CREATE" | "HUMAN_ESCALATION" | "TOOL_ACTION"; token: string; expiresAt: string; preview: { name?: string; phone?: string; type?: string; status?: string; category?: string; priority?: string; targetLabel?: string; changes?: Record<string, string>; consequence?: string; externalEffect?: false; href?: string } };
+  actionResult?: { toolName: string; status: "COMPLETED" | "ALREADY_COMPLETED"; label: string; href: string; externalEffect: false };
   clarification?: { token: string; expiresAt: string; resolvedDate?: string; choices: { label: string; request: string }[] };
   provenance?: "ORGANIZATION_DATA" | "CALCULATION" | "GENERAL_KNOWLEDGE" | "INFERENCE";
   reasoning?: { source: "REAL_AI" | "DETERMINISTIC_FALLBACK"; confidence: "LOW" | "MEDIUM" | "HIGH"; evidence: { id: string; label: string; value: string | number | null; period: string }[]; conclusions: string[]; recommendations: { action: string; reason: string; expectedImpact: string }[]; assumptions: string[]; missingData: string[]; proposedToolActions: string[]; requiresConfirmation: boolean; requiresHumanEscalation: boolean };

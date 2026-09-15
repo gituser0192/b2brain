@@ -12,6 +12,7 @@ import { createWorkspaceAgentConfirmation, verifyWorkspaceAgentConfirmation } fr
 import { createWorkspaceAgentClarification, verifyWorkspaceAgentClarification } from "./workspace-agent.clarification.js";
 import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability } from "./workspace-agent.capabilities.js";
 import { executeWorkspaceAgentReadTool, type AgentToolResult } from "./workspace-agent.read-tools.js";
+import { executeWorkspaceAgentWriteTool, previewWorkspaceAgentWriteTool, type AgentWriteToolName } from "./workspace-agent.write-tools.js";
 import {
   createWorkspaceReasoningProvider,
   type WorkspaceReasoningProvider,
@@ -604,13 +605,13 @@ export class WorkspaceAgentService {
   ) {
     const startedAt = Date.now();
     if (input.confirmation?.decision === "CANCEL") {
-      verifyWorkspaceAgentConfirmation(input.confirmation.token, context);
+      verifyWorkspaceAgentConfirmation(input.confirmation.token, context, input.conversationId);
       return { duplicate: false, answer: "The proposed action was cancelled. Nothing was changed.", cancelled: true };
     }
-    const confirmed = input.confirmation ? verifyWorkspaceAgentConfirmation(input.confirmation.token, context) : null;
+    const confirmed = input.confirmation ? verifyWorkspaceAgentConfirmation(input.confirmation.token, context, input.conversationId) : null;
     const clarifiedRequest = input.clarification ? verifyWorkspaceAgentClarification(input.clarification.token, context, input.conversationId, input.clarification.choice) : null;
     const contextualRequest = confirmed ? input.message : await this.contextualRequest(context, input.conversationId, clarifiedRequest ?? input.message);
-    const route: WorkspaceRoute = confirmed ? { intent: confirmed.action, path: "WRITE_ACTION", aiRequired: false, confidence: "HIGH", ambiguity: "NONE", normalizedRequest: input.message, provenance: "ORGANIZATION_DATA" } : routeWorkspaceRequest(contextualRequest);
+    const route: WorkspaceRoute = confirmed ? { intent: confirmed.action === "TOOL_ACTION" ? "BUSINESS_READ" : confirmed.action, path: "WRITE_ACTION", aiRequired: false, confidence: "HIGH", ambiguity: "NONE", normalizedRequest: input.message, provenance: "ORGANIZATION_DATA" } : routeWorkspaceRequest(contextualRequest);
     if (!confirmed && route.ambiguity === "CLARIFICATION_REQUIRED") {
       const clarification = createWorkspaceAgentClarification({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, choices: route.clarification?.choices ?? [] });
       return { duplicate: false, answer: route.clarification?.question ?? "I need clarification before checking.", clarification: { ...clarification, choices: route.clarification?.choices ?? [], resolvedDate: route.resolvedDate?.date }, provenance: "INFERENCE" as const };
@@ -620,6 +621,11 @@ export class WorkspaceAgentService {
     if (route.intent === "HUMAN_ESCALATION") await requireWorkspaceAgentCapability(context, "SUPPORT_ESCALATION");
     if (!confirmed && route.intent === "CUSTOMER_CREATE") return { duplicate: false, ...this.customerPreview(context, input.message) };
     if (!confirmed && route.intent === "HUMAN_ESCALATION") return { duplicate: false, ...this.escalationPreview(context, input.message) };
+    if (!confirmed && route.writeToolName) {
+      const prepared = await previewWorkspaceAgentWriteTool(context, route.writeToolName, route.writeInput);
+      const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, action: "TOOL_ACTION", toolName: route.writeToolName, arguments: prepared.arguments as Record<string, string | number | boolean | null> });
+      return { duplicate: false, answer: `Review this action before confirming. ${prepared.preview.consequence}`, needsConfirmation: true, confirmation: { action: "TOOL_ACTION", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: prepared.preview } };
+    }
     const connector = await this.connector(context);
     const externalEventId = confirmed ? `confirmation:${confirmed.id}` : input.externalMessageId;
     const duplicate = reservedEvent ? null : await prisma.integrationEvent.findFirst({
@@ -681,7 +687,10 @@ export class WorkspaceAgentService {
     }
     let output: Record<string, unknown>;
     let reasoning: WorkspaceReasoningResult | null = null;
-    if (route.intent === "BUSINESS_READ") output = await this.readTools(context, route, input.conversationId);
+    if (confirmed?.action === "TOOL_ACTION") {
+      const result = await executeWorkspaceAgentWriteTool(context, confirmed.toolName as AgentWriteToolName, confirmed.arguments);
+      output = { answer: result.alreadyCompleted ? "This action was already completed; nothing was duplicated." : "The confirmed internal action was completed. No external action occurred.", actionResult: { ...result, toolName: confirmed.toolName, status: result.alreadyCompleted ? "ALREADY_COMPLETED" : "COMPLETED", externalEffect: false } };
+    } else if (route.intent === "BUSINESS_READ") output = await this.readTools(context, route, input.conversationId);
     else if (route.resolvedDate && !["today", "this month"].includes(route.resolvedDate.expression) && ["NEW_CUSTOMERS", "OVERDUE_WORK", "FINANCE_SUMMARY"].includes(route.intent))
       output = { answer: `I resolved ${route.resolvedDate.expression} as ${route.resolvedDate.date}, but this capability does not yet support that reporting period. No data was changed.`, resolvedDate: route.resolvedDate.date, provenance: "INFERENCE" };
     else if (route.intent === "CUSTOMER_CREATE" && confirmed?.action === "CUSTOMER_CREATE")
@@ -913,6 +922,7 @@ export class WorkspaceAgentService {
           fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
           toolCalls: route.toolNames?.length ?? (route.toolName ? 1 : route.path === "DETERMINISTIC_FALLBACK" ? 0 : 1),
           tools: (output as { toolResults?: AgentToolResult[] }).toolResults?.map((item) => ({ toolName: item.toolName, service: item.service, outcome: item.availability, durationMs: item.durationMs, resultCount: item.resultCount, truncated: item.truncated, provenance: item.provenance })),
+          action: confirmed?.action === "TOOL_ACTION" ? { toolName: confirmed.toolName, confirmationId: confirmed.id, outcome: (output as { actionResult?: { status?: string } }).actionResult?.status, externalEffect: false } : undefined,
         responseTimeMs: Date.now() - startedAt,
       },
     };
@@ -950,6 +960,7 @@ export class WorkspaceAgentService {
           outputTokens: reasoning?.usage.outputTokens ?? 0,
           fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
           tools: (output as { toolResults?: AgentToolResult[] }).toolResults?.map((item) => ({ toolName: item.toolName, service: item.service, outcome: item.availability, durationMs: item.durationMs, resultCount: item.resultCount, truncated: item.truncated, provenance: item.provenance })),
+          action: confirmed?.action === "TOOL_ACTION" ? { toolName: confirmed.toolName, confirmationId: confirmed.id, outcome: (output as { actionResult?: { status?: string } }).actionResult?.status, externalEffect: false } : undefined,
           responseTimeMs: Date.now() - startedAt,
         },
       },
