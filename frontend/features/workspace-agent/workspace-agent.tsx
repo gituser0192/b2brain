@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { WorkspaceAgentHeader } from "./workspace-agent-header";
@@ -48,9 +48,11 @@ export function WorkspaceAgent({
       "brief",
     ),
     [brief, setBrief] = useState<BusinessBrief | null>(null),
+    [briefLoading, setBriefLoading] = useState(!compact),
     [goals, setGoals] = useState<BusinessGoal[]>([]),
     [goalOpen, setGoalOpen] = useState(false),
     [goal, setGoal] = useState(initialGoal);
+  const briefRequest = useRef(0);
   const load = useCallback(async () => {
     const response = await authorizedRequest<{ success: true; data: AgentItem[] }>(
       `/workspace-agent/conversations/${conversationId}`,
@@ -74,23 +76,24 @@ export function WorkspaceAgent({
     );
     return () => window.clearTimeout(task);
   }, [compact, load]);
-  const loadManagement = useCallback(async () => {
+  const loadBrief = useCallback(async () => {
     if (compact) return;
-    const [briefResponse, goalResponse] = await Promise.all([
-      authorizedRequest<{ success: true; data: BusinessBrief }>(
-        "/workspace-agent/brief",
-      ),
-      authorizedRequest<{ success: true; data: BusinessGoal[] }>(
-        "/workspace-agent/goals",
-      ),
-    ]);
-    setBrief(briefResponse.data);
-    setGoals(goalResponse.data);
+    const request = ++briefRequest.current;
+    setBriefLoading(true);
+    try {
+      const response = await authorizedRequest<{ success: true; data: BusinessBrief }>("/workspace-agent/brief");
+      if (request === briefRequest.current) setBrief(response.data);
+    } finally { if (request === briefRequest.current) setBriefLoading(false); }
+  }, [authorizedRequest, compact]);
+  const loadGoals = useCallback(async () => {
+    if (compact) return;
+    const response = await authorizedRequest<{ success: true; data: BusinessGoal[] }>("/workspace-agent/goals");
+    setGoals(response.data);
   }, [authorizedRequest, compact]);
   useEffect(() => {
     const task = window.setTimeout(
       () =>
-        void loadManagement().catch((reason) =>
+        void Promise.all([loadBrief(), loadGoals()]).catch((reason) =>
           setError(
             reason instanceof ApiError
               ? reason.message
@@ -100,7 +103,7 @@ export function WorkspaceAgent({
       0,
     );
     return () => window.clearTimeout(task);
-  }, [loadManagement]);
+  }, [loadBrief, loadGoals]);
   async function createGoal() {
     setLoading(true);
     setError("");
@@ -117,7 +120,7 @@ export function WorkspaceAgent({
         }),
       });
       setGoalOpen(false);
-      await loadManagement();
+      await loadGoals();
     } catch (reason) {
       setError(
         reason instanceof ApiError
@@ -170,7 +173,8 @@ export function WorkspaceAgent({
   return (
     <section className={`workspace-agent ${compact ? "compact" : "full"}`}>
       {!compact && <WorkspaceAgentHeader section={section} onSection={setSection} />}
-      {!compact && section === "brief" && brief && <BusinessBriefView brief={brief} onNavigate={onNavigate} />}
+      {!compact && section === "brief" && !brief && briefLoading && <div className="agent-brief-skeleton" role="status">Loading verified business sources…</div>}
+      {!compact && section === "brief" && brief && <BusinessBriefView brief={brief} loading={briefLoading} onNavigate={onNavigate} onRefresh={() => void loadBrief().catch((reason) => setError(reason instanceof ApiError ? reason.message : "Unable to calculate the business brief."))} />}
       {!compact && section === "goals" && <BusinessGoalsView goals={goals} goal={goal} open={goalOpen} loading={loading} onToggle={() => setGoalOpen((value) => !value)} onGoal={setGoal} onCreate={() => void createGoal()} />}
       {(compact || section === "conversation") && <WorkspaceAgentConversation items={items} loading={loading} compact={compact} prompts={suggestions} onSend={(text) => void send(text)} onConfirm={(token, decision) => void send(decision === "CONFIRM" ? "Confirm action" : "Cancel action", { token, decision })} onClarify={(token, choice, label) => void send(label, undefined, { token, choice })} onNavigate={onNavigate} onSection={setSection} />}
       {error && <div className="dashboard-notice error" role="alert">{error}</div>}

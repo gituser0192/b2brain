@@ -752,14 +752,14 @@ export class WorkspaceAgentService {
       output = {
         answer: brief.activity.newCustomers === null && brief.activity.newLeads === null
           ? "Customer and lead activity is unavailable because the required service or permission is not available."
-          : `Today your organization added ${brief.activity.newCustomers === null ? "an unavailable number of" : brief.activity.newCustomers} new customer${brief.activity.newCustomers === 1 ? "" : "s"}, including ${brief.activity.newLeads === null ? "an unavailable number of" : brief.activity.newLeads} new lead${brief.activity.newLeads === 1 ? "" : "s"}.`,
+          : `During ${brief.period}, your organization added ${brief.activity.newCustomers === null ? "an unavailable number of" : brief.activity.newCustomers} new customer${brief.activity.newCustomers === 1 ? "" : "s"}, including ${brief.activity.newLeads === null ? "an unavailable number of" : brief.activity.newLeads} new lead${brief.activity.newLeads === 1 ? "" : "s"}.`,
         metrics: [
           {
-            label: "New customers today",
+            label: "New customers in comparison period",
             value: brief.activity.newCustomers,
             availability: brief.availability?.newCustomers ?? (brief.activity.newCustomers === null ? "UNAVAILABLE" : "VERIFIED"),
           },
-          { label: "New leads today", value: brief.activity.newLeads, availability: brief.availability?.newLeads ?? (brief.activity.newLeads === null ? "UNAVAILABLE" : "VERIFIED") },
+          { label: "New leads in comparison period", value: brief.activity.newLeads, availability: brief.availability?.newLeads ?? (brief.activity.newLeads === null ? "UNAVAILABLE" : "VERIFIED") },
         ],
         managementSection: "brief",
       };

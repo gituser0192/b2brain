@@ -25,13 +25,13 @@ export type AgentToolResult = {
 };
 export type AgentItem = { id: string; createdAt: string; message: string; output: AgentOutput };
 export type BusinessBrief = {
-  calculatedAt: string; period: string; meaningful: boolean;
-  health: { score: number | null; change: number | null; availability?: string; missingData: string[] };
-  finance: { revenue: number; expenses: number; profit: number; previousRevenue: number; previousExpenses: number; previousProfit: number } | null;
-  activity: { newCustomers: number | null; newLeads: number | null; overdueFollowUps: number | null; overdueTasks: number | null; atRiskProjects: number | null; importantServiceRequests: number | null };
-  availability?: Record<string, string>;
-  alerts: { code: string; title: string; why: string; evidence: string; period: string; severity: string; action: string; view: string }[];
-  recommendations: { title: string; reason: string; view: string }[];
+  generatedAt: string; comparisonPeriod: string; complete: boolean; executiveSummary: string; ruleVersion: string;
+  priorities: { key: string; title: string; reason: string; service: string; severity: "HIGH" | "MEDIUM" | "LOW"; value?: number; currency?: string; date?: string | null; evidence: string; href: string; provenance: string; retrievedAt: string }[];
+  changes: { key: string; title: string; service: string; occurredAt: string; href: string; evidence: string }[];
+  recommendations: { title: string; reason: string; href: string; action: null }[];
+  coverage: { source: string; service: string; status: "VERIFIED" | "NO_DATA" | "UNAVAILABLE" | "FORBIDDEN" | "FAILED"; retrievedAt: string }[];
+  coverageSummary: { checked: number; unavailable: number; forbidden: number; failed: number; noData: number; retrievedAt: string };
+  mutationPerformed: false; externalCallPerformed: false;
 };
 export type BusinessGoal = { id: string; type: string; title: string; targetValue: number; currentValue: number | null; progress: number | null; requiredPace: number | null; risk: string; periodEnd: string };
 export type GoalDraft = { type: string; title: string; targetValue: number; periodStart: string; periodEnd: string };

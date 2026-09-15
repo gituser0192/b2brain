@@ -31,6 +31,7 @@ export function routeWorkspaceRequest(message: string): WorkspaceRoute {
     return result(value, "BUSINESS_READ", "DETERMINISTIC_TOOL", { toolName: names[detail[1]!.toLowerCase()]!, toolInput: { id: detail[2]! } });
   }
   const search = value.match(/(?:find|search(?: for)?|show)\s+(?:customer|client|lead|deal|project|invoice)\s+(.+?)[.!?]*$/i)?.[1]?.trim();
+  if (/(what needs my attention today|what changed since yesterday|what should i do first|summarize my business|morning brief|aaj kya important hai)/i.test(value)) return result(value, "DAILY_BRIEF", "DETERMINISTIC_TOOL");
   if (/(what needs my attention|biggest business risks?|leads?, projects? or invoices?.*overdue)/i.test(value)) return result(value, "BUSINESS_READ", "DETERMINISTIC_TOOL", { toolNames: ["leads.needing_follow_up", "projects.overdue_tasks", "finance.overdue_invoices"] });
   if (/(business summary|summary of my business)/i.test(value)) return result(value, "BUSINESS_READ", "DETERMINISTIC_TOOL", { toolNames: ["analysis.health", "sales.pipeline_summary", "finance.summary"] });
   if (/(customers?|clients?).*(?:added|created).*(?:this month)|(?:this month).*(?:customers?|clients?).*(?:added|created)/i.test(value)) return result(value, "BUSINESS_READ", "DETERMINISTIC_TOOL", { toolName: "crm.customer_list", toolInput: { period: "THIS_MONTH" } });
