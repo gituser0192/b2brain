@@ -204,6 +204,7 @@ const envSchema = z
     WORKSPACE_AI_CIRCUIT_RESET_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
     WORKSPACE_AI_INPUT_COST_PER_MILLION_USD: z.coerce.number().min(0).default(0),
     WORKSPACE_AI_OUTPUT_COST_PER_MILLION_USD: z.coerce.number().min(0).default(0),
+    PUBLIC_INFORMATION_TOOLS_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   })
   .superRefine((value, context) => {
     if (value.PYTHON_AGENT_ENABLED) {

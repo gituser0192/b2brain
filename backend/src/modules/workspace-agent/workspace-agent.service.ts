@@ -14,6 +14,7 @@ import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability }
 import { executeWorkspaceAgentReadTool, type AgentToolResult } from "./workspace-agent.read-tools.js";
 import { executeWorkspaceAgentWriteTool, previewWorkspaceAgentWriteTool, type AgentWriteToolName } from "./workspace-agent.write-tools.js";
 import { assessWorkspaceSetup } from "./workspace-agent.setup.js";
+import { executePublicTool } from "./workspace-agent.public-tools.js";
 import {
   createWorkspaceReasoningProvider,
   type WorkspaceReasoningProvider,
@@ -623,6 +624,7 @@ export class WorkspaceAgentService {
     if (!confirmed && route.intent === "CUSTOMER_CREATE") return { duplicate: false, ...this.customerPreview(context, input.message) };
     if (!confirmed && route.intent === "HUMAN_ESCALATION") return { duplicate: false, ...this.escalationPreview(context, input.message) };
     if (!confirmed && route.intent === "SETUP_GUIDANCE") { const setupAssessment = await assessWorkspaceSetup(context, contextualRequest); return { duplicate: false, answer: setupAssessment.answer, setupAssessment }; }
+    if (!confirmed && route.intent === "PUBLIC_INFORMATION" && route.publicToolName) { const publicResult = await executePublicTool(context, route.publicToolName, contextualRequest); return { duplicate: false, answer: publicResult.answer, publicResult }; }
     if (!confirmed && route.writeToolName) {
       const prepared = await previewWorkspaceAgentWriteTool(context, route.writeToolName, route.writeInput);
       const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, action: "TOOL_ACTION", toolName: route.writeToolName, arguments: prepared.arguments as Record<string, string | number | boolean | null> });

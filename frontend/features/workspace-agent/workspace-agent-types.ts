@@ -9,6 +9,7 @@ export type AgentOutput = {
   escalation?: { id: string; requestNumber: string; status: string };
   setup?: { step: string; completed: boolean };
   setupAssessment?: { refused?: boolean; counts?: { complete: number; actionRequired: number; externalAuthorization: number; optional?: number }; steps: { key: string; name: string; status: string; optional?: boolean; why: string; customerMust: string; href: string; testMode?: boolean }[]; currentStep?: { key: string; name: string; status: string } | null; mutationPerformed?: false; externalCallPerformed?: false };
+  publicResult?: { toolName: string; availability: "VERIFIED" | "UNAVAILABLE" | "FAILED"; provenance: "CALCULATION" | "EXTERNAL_SOURCE"; answer: string; external: boolean; retrievedAt?: string; source?: { name: string; url: string; updatedAt?: string }; details?: Record<string, string | number> };
   managementSection?: "brief" | "goals" | "conversation";
   confirmation?: { action: "CUSTOMER_CREATE" | "HUMAN_ESCALATION" | "TOOL_ACTION"; token: string; expiresAt: string; preview: { name?: string; phone?: string; type?: string; status?: string; category?: string; priority?: string; targetLabel?: string; changes?: Record<string, string>; consequence?: string; externalEffect?: false; href?: string } };
   actionResult?: { toolName: string; status: "COMPLETED" | "ALREADY_COMPLETED"; label: string; href: string; externalEffect: false };
