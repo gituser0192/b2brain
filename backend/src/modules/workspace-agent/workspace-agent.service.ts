@@ -13,6 +13,7 @@ import { createWorkspaceAgentClarification, verifyWorkspaceAgentClarification } 
 import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability } from "./workspace-agent.capabilities.js";
 import { executeWorkspaceAgentReadTool, type AgentToolResult } from "./workspace-agent.read-tools.js";
 import { executeWorkspaceAgentWriteTool, previewWorkspaceAgentWriteTool, type AgentWriteToolName } from "./workspace-agent.write-tools.js";
+import { assessWorkspaceSetup } from "./workspace-agent.setup.js";
 import {
   createWorkspaceReasoningProvider,
   type WorkspaceReasoningProvider,
@@ -621,6 +622,7 @@ export class WorkspaceAgentService {
     if (route.intent === "HUMAN_ESCALATION") await requireWorkspaceAgentCapability(context, "SUPPORT_ESCALATION");
     if (!confirmed && route.intent === "CUSTOMER_CREATE") return { duplicate: false, ...this.customerPreview(context, input.message) };
     if (!confirmed && route.intent === "HUMAN_ESCALATION") return { duplicate: false, ...this.escalationPreview(context, input.message) };
+    if (!confirmed && route.intent === "SETUP_GUIDANCE") { const setupAssessment = await assessWorkspaceSetup(context, contextualRequest); return { duplicate: false, answer: setupAssessment.answer, setupAssessment }; }
     if (!confirmed && route.writeToolName) {
       const prepared = await previewWorkspaceAgentWriteTool(context, route.writeToolName, route.writeInput);
       const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, action: "TOOL_ACTION", toolName: route.writeToolName, arguments: prepared.arguments as Record<string, string | number | boolean | null> });
@@ -859,12 +861,6 @@ export class WorkspaceAgentService {
         answer:
           "Open CRM from the left menu, choose “Add customer”, enter the real customer details and save. You can also tell me: “Add Rahul with phone number 9876543210 to CRM.”",
         records: [{ type: "NAVIGATION", id: "crm", label: "Open CRM" }],
-      };
-    else if (route.intent === "SETUP_GUIDANCE")
-      output = {
-        answer:
-          "Let’s set up your business agent. Start by adding your business description, industry, services, pricing, hours, locations, goals and escalation preferences in the guided setup.",
-        setup: { step: "BUSINESS_DESCRIPTION", completed: false },
       };
     else if (route.intent === "HUMAN_ESCALATION" && confirmed?.action === "HUMAN_ESCALATION") {
       const request = await new ServiceRequestService().create(
