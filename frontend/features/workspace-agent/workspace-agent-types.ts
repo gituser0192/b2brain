@@ -5,6 +5,7 @@ export type AgentOutput = {
   finance?: { currency: string; current: { revenue: number; expenses: number; profit: number }; margin: number | null; score: number | null };
   forecast?: { method: string; dateRange: string; confidence: string; assumptions: string[] };
   records?: { type: string; id: string; label: string }[];
+  toolResults?: AgentToolResult[];
   escalation?: { id: string; requestNumber: string; status: string };
   setup?: { step: string; completed: boolean };
   managementSection?: "brief" | "goals" | "conversation";
@@ -12,6 +13,12 @@ export type AgentOutput = {
   clarification?: { token: string; expiresAt: string; resolvedDate?: string; choices: { label: string; request: string }[] };
   provenance?: "ORGANIZATION_DATA" | "CALCULATION" | "GENERAL_KNOWLEDGE" | "INFERENCE";
   reasoning?: { source: "REAL_AI" | "DETERMINISTIC_FALLBACK"; confidence: "LOW" | "MEDIUM" | "HIGH"; evidence: { id: string; label: string; value: string | number | null; period: string }[]; conclusions: string[]; recommendations: { action: string; reason: string; expectedImpact: string }[]; assumptions: string[]; missingData: string[]; proposedToolActions: string[]; requiresConfirmation: boolean; requiresHumanEscalation: boolean };
+};
+export type AgentToolResult = {
+  toolName: string; service: string; provenance: "ORGANIZATION_DATA" | "CALCULATION" | "INFERENCE";
+  retrievedAt: string; availability: "VERIFIED" | "NO_DATA" | "UNAVAILABLE" | "FORBIDDEN" | "FAILED";
+  resultCount: number; totalCount?: number; truncated: boolean; period?: string; currency?: string;
+  records: { type: string; id: string; label: string; status?: string; date?: string | null; amount?: number; currency?: string; reason?: string; href?: string }[];
 };
 export type AgentItem = { id: string; createdAt: string; message: string; output: AgentOutput };
 export type BusinessBrief = {

@@ -11,6 +11,7 @@ import { verifyServiceAccess } from "../../middleware/auth.js";
 import { createWorkspaceAgentConfirmation, verifyWorkspaceAgentConfirmation } from "./workspace-agent.confirmation.js";
 import { createWorkspaceAgentClarification, verifyWorkspaceAgentClarification } from "./workspace-agent.clarification.js";
 import { requireWorkspaceAgentCapability, workspaceAgentCapabilityAvailability } from "./workspace-agent.capabilities.js";
+import { executeWorkspaceAgentReadTool, type AgentToolResult } from "./workspace-agent.read-tools.js";
 import {
   createWorkspaceReasoningProvider,
   type WorkspaceReasoningProvider,
@@ -251,18 +252,37 @@ export class WorkspaceAgentService {
   }
 
   private async contextualRequest(context: Context, conversationId: string, message: string) {
-    if (!/^(?:what about last month|only finance|why is the score low)\??$/i.test(message.trim())) return message;
+    if (!/^(?:what about last month|only finance|why is the score low|(?:tell me more(?: about)?|open)?\s*(?:the )?(?:first|second|third) one|that (?:customer|lead|deal|project|invoice|action))\??$/i.test(message.trim())) return message;
     const connector = await this.findConnector(context);
     if (!connector) return message;
     const events = await prisma.integrationEvent.findMany({
       where: { organizationId: context.organizationId, createdById: context.userId, connectorId: connector.id, eventName: "workspace-agent.message", status: "COMPLETED" },
       select: { payload: true }, orderBy: { createdAt: "desc" }, take: 12,
     });
-    const previous = events.find((event) => (event.payload as { conversationId?: string }).conversationId === conversationId)?.payload as { diagnostics?: { route?: string } } | undefined;
+    const previous = events.find((event) => (event.payload as { conversationId?: string }).conversationId === conversationId)?.payload as { diagnostics?: { route?: string }; output?: { toolResults?: AgentToolResult[] } } | undefined;
     if (message.trim().toLowerCase().startsWith("what about last month") && previous?.diagnostics?.route === "FINANCE_SUMMARY") return "show finance summary last month";
     if (message.trim().toLowerCase().startsWith("only finance")) return "show finance summary";
     if (message.trim().toLowerCase().startsWith("why is the score low") && previous?.diagnostics?.route === "BUSINESS_HEALTH") return "explain why business health is low";
+    const reference = message.toLowerCase().match(/(?:first|second|third)/)?.[0], index = reference ? { first: 0, second: 1, third: 2 }[reference] : 0;
+    const record = previous?.output?.toolResults?.flatMap((result) => result.records)[index ?? 0];
+    if (record && /(?:one|that |tell me more|open)/i.test(message)) return `open ${record.type.toLowerCase()} ${record.id}`;
     return message;
+  }
+
+  private async readTools(context: Context, route: WorkspaceRoute, conversationId: string) {
+    const names = (route.toolNames ?? (route.toolName ? [route.toolName] : [])).slice(0, 3);
+    const results = await Promise.all(names.map((name) => executeWorkspaceAgentReadTool(context, name, { limit: 5, ...(route.toolInput ?? {}) })));
+    const available = results.filter((item) => item.availability === "VERIFIED" || item.availability === "NO_DATA"), failed = results.filter((item) => item.availability === "FAILED"), records = available.flatMap((item) => item.records);
+    const search = results.length === 1 && results[0]!.toolName.includes("search");
+    const clarification = search && records.length > 1 ? createWorkspaceAgentClarification({ organizationId: context.organizationId, userId: context.userId, conversationId, choices: records.slice(0, 3).map((item) => ({ label: `${item.label}${item.status ? ` · ${item.status}` : ""}`, request: `Open ${item.type.toLowerCase()} ${item.id}` })) }) : null;
+    const labels = results.map((item) => `${item.service}: ${item.availability === "VERIFIED" ? item.resultCount : item.availability.toLowerCase().replaceAll("_", " ")}`).join("; ");
+    return {
+      answer: clarification ? `I found ${records.length} possible matches. Choose the correct record.` : records.length ? `Based on your permitted organization records: ${labels}.` : available.length ? `I checked your permitted organization records: ${labels}.` : `The requested business records could not be verified: ${labels}.`,
+      toolResults: results,
+      ...(clarification ? { clarification: { ...clarification, choices: records.slice(0, 3).map((item) => ({ label: `${item.label}${item.status ? ` · ${item.status}` : ""}`, request: `Open ${item.type.toLowerCase()} ${item.id}` })) } } : {}),
+      warnings: [...(failed.length ? [`${failed.length} source${failed.length === 1 ? "" : "s"} failed; successful sources remain shown.`] : []), ...(results.some((item) => item.truncated) ? ["Some results were truncated to the safe display limit."] : [])],
+      provenance: results.some((item) => item.provenance === "CALCULATION") ? "CALCULATION" as const : "ORGANIZATION_DATA" as const,
+    };
   }
 
   private async finance(context: Context) {
@@ -661,7 +681,8 @@ export class WorkspaceAgentService {
     }
     let output: Record<string, unknown>;
     let reasoning: WorkspaceReasoningResult | null = null;
-    if (route.resolvedDate && !["today", "this month"].includes(route.resolvedDate.expression) && ["NEW_CUSTOMERS", "OVERDUE_WORK", "FINANCE_SUMMARY"].includes(route.intent))
+    if (route.intent === "BUSINESS_READ") output = await this.readTools(context, route, input.conversationId);
+    else if (route.resolvedDate && !["today", "this month"].includes(route.resolvedDate.expression) && ["NEW_CUSTOMERS", "OVERDUE_WORK", "FINANCE_SUMMARY"].includes(route.intent))
       output = { answer: `I resolved ${route.resolvedDate.expression} as ${route.resolvedDate.date}, but this capability does not yet support that reporting period. No data was changed.`, resolvedDate: route.resolvedDate.date, provenance: "INFERENCE" };
     else if (route.intent === "CUSTOMER_CREATE" && confirmed?.action === "CUSTOMER_CREATE")
       output = await this.createCustomer(context, confirmed.arguments.displayName, confirmed.arguments.phone);
@@ -730,19 +751,7 @@ export class WorkspaceAgentService {
         managementSection: "brief",
       };
     } else if (route.intent === "OVERDUE_WORK") {
-      const brief = await this.proactive.brief(context);
-      output = {
-        answer: `Overdue customer follow-ups: ${brief.activity.overdueFollowUps === null ? "unavailable" : brief.activity.overdueFollowUps}. Overdue project tasks: ${brief.activity.overdueTasks === null ? "unavailable" : brief.activity.overdueTasks}.`,
-        metrics: [
-          {
-            label: "Overdue follow-ups",
-            value: brief.activity.overdueFollowUps,
-            availability: brief.availability?.overdueFollowUps ?? (brief.activity.overdueFollowUps === null ? "UNAVAILABLE" : "VERIFIED"),
-          },
-          { label: "Overdue tasks", value: brief.activity.overdueTasks, availability: brief.availability?.overdueTasks ?? (brief.activity.overdueTasks === null ? "UNAVAILABLE" : "VERIFIED") },
-        ],
-        managementSection: "brief",
-      };
+      output = { ...(await this.readTools(context, { ...route, toolNames: /follow/i.test(route.normalizedRequest) ? ["crm.follow_ups_due", "projects.overdue_tasks"] : /project.*delay/i.test(route.normalizedRequest) ? ["projects.at_risk"] : ["projects.overdue_tasks"] }, input.conversationId)), managementSection: "brief" };
     } else if (route.intent === "AI_ANALYSIS") {
       reasoning = await this.reason(
         context,
@@ -901,8 +910,9 @@ export class WorkspaceAgentService {
             1_000_000
           : 0,
         providerFailure: reasoning?.providerFailed === true,
-        fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
-        toolCalls: route.path === "DETERMINISTIC_FALLBACK" ? 0 : 1,
+          fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
+          toolCalls: route.toolNames?.length ?? (route.toolName ? 1 : route.path === "DETERMINISTIC_FALLBACK" ? 0 : 1),
+          tools: (output as { toolResults?: AgentToolResult[] }).toolResults?.map((item) => ({ toolName: item.toolName, service: item.service, outcome: item.availability, durationMs: item.durationMs, resultCount: item.resultCount, truncated: item.truncated, provenance: item.provenance })),
         responseTimeMs: Date.now() - startedAt,
       },
     };
@@ -939,6 +949,7 @@ export class WorkspaceAgentService {
           inputTokens: reasoning?.usage.inputTokens ?? 0,
           outputTokens: reasoning?.usage.outputTokens ?? 0,
           fallbackUsed: reasoning?.source === "DETERMINISTIC_FALLBACK",
+          tools: (output as { toolResults?: AgentToolResult[] }).toolResults?.map((item) => ({ toolName: item.toolName, service: item.service, outcome: item.availability, durationMs: item.durationMs, resultCount: item.resultCount, truncated: item.truncated, provenance: item.provenance })),
           responseTimeMs: Date.now() - startedAt,
         },
       },
