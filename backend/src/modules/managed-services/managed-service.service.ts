@@ -224,7 +224,7 @@ export class ManagedServiceDeskService {
       if (!operator)
         throw new AppError(
           404,
-          "B² Brain operator was not found.",
+          "SATHOS operator was not found.",
           "OPERATOR_NOT_FOUND",
         );
     }
@@ -331,7 +331,7 @@ export class ManagedServiceDeskService {
       if (!operator)
         throw new AppError(
           404,
-          "B² Brain operator was not found.",
+          "SATHOS operator was not found.",
           "OPERATOR_NOT_FOUND",
         );
     }
@@ -395,8 +395,8 @@ export class ManagedServiceDeskService {
           requestId: id,
           type: "MESSAGE_SENT",
           summary: visible
-            ? "B² Brain replied to the customer"
-            : "B² Brain added an internal note",
+            ? "SATHOS replied to the customer"
+            : "SATHOS added an internal note",
           customerVisible: visible,
           actorUserId,
         },
@@ -430,7 +430,7 @@ export class ManagedServiceDeskService {
             organizationId: current.organizationId,
             recipientId: current.createdById,
             type: "SYSTEM",
-            title: "B² Brain replied to your request",
+            title: "SATHOS replied to your request",
             message: input.body,
             sourceType: "PROVIDER_SERVICE_REQUEST",
             sourceId: id,
@@ -492,7 +492,7 @@ export class ManagedServiceDeskService {
     if (!provider)
       throw new AppError(
         403,
-        "A B² Brain provider workspace is required.",
+        "A SATHOS provider workspace is required.",
         "PROVIDER_ACCESS_REQUIRED",
       );
     const assignee = await prisma.organizationMembership.findFirst({
@@ -512,7 +512,7 @@ export class ManagedServiceDeskService {
     if (!assignee)
       throw new AppError(
         404,
-        "Eligible B² Brain assignee was not found.",
+        "Eligible SATHOS assignee was not found.",
         "OPERATOR_NOT_FOUND",
       );
     const dueAt = new Date(input.dueAt);
@@ -523,7 +523,7 @@ export class ManagedServiceDeskService {
           customerId: null,
           name: `${request.requestNumber} · ${request.subject}`,
           code: `SR-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-          description: `B² Brain delivery work for ${request.category.replaceAll("_", " ")}.`,
+          description: `SATHOS delivery work for ${request.category.replaceAll("_", " ")}.`,
           status: "ACTIVE",
           priority: request.priority,
           startDate: new Date(),
@@ -563,7 +563,7 @@ export class ManagedServiceDeskService {
           organizationId: request.organizationId,
           requestId: id,
           type: "WORK_CREATED",
-          summary: `B² Brain created delivery task ${project.code}`,
+          summary: `SATHOS created delivery task ${project.code}`,
           customerVisible: true,
           actorUserId,
         },

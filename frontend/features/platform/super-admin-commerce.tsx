@@ -693,7 +693,7 @@ export function SuperAdminCommerce({
                           {
                             kind: "payment",
                             title: `Record payment for ${selected.name}?`,
-                            description: `Record ${selected.plan?.currency} ${Number(payment.amount).toLocaleString("en-IN")} already received outside B² Brain. This does not charge the customer and the existing backend renews access.`,
+                            description: `Record ${selected.plan?.currency} ${Number(payment.amount).toLocaleString("en-IN")} already received outside SATHOS. This does not charge the customer and the existing backend renews access.`,
                           },
                           e.currentTarget.querySelector("button")!,
                         );

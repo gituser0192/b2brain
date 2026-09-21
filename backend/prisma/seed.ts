@@ -341,19 +341,19 @@ const permissions = [
   },
   {
     code: "PROVIDER_REQUEST_VIEW",
-    name: "View B2 Brain service requests",
+    name: "View SATHOS service requests",
     description:
-      "View customer-approved requests in the B2 Brain delivery desk",
+      "View customer-approved requests in the SATHOS delivery desk",
   },
   {
     code: "PROVIDER_REQUEST_WORK",
-    name: "Work B2 Brain service requests",
+    name: "Work SATHOS service requests",
     description:
       "Reply, add internal notes, and progress assigned customer requests",
   },
   {
     code: "PROVIDER_REQUEST_MANAGE",
-    name: "Manage B2 Brain service desk",
+    name: "Manage SATHOS service desk",
     description: "Assign, reassign, prioritize, and manage service requests",
   },
   {
@@ -775,7 +775,7 @@ async function seed() {
   await prisma.service.upsert({
     where: { code: "B2BRAIN_AGENT" },
     update: {
-      name: "Ask B² Brain",
+      name: "Ask SATHOS",
       description:
         "Organization-scoped business operating agent for authenticated workspace users.",
       status: "ACTIVE",
@@ -786,7 +786,7 @@ async function seed() {
     },
     create: {
       code: "B2BRAIN_AGENT",
-      name: "Ask B² Brain",
+      name: "Ask SATHOS",
       description:
         "Organization-scoped business operating agent for authenticated workspace users.",
       status: "ACTIVE",
@@ -1074,7 +1074,7 @@ async function seed() {
   await prisma.service.upsert({
     where: { code: "STAY" },
     update: {
-      name: "B² Stay — PG & Hostel Management",
+      name: "SATHOS Stay — PG & Hostel Management",
       description:
         "Properties, rooms, beds, residents, occupancy agreements, monthly rent, collections, vacancy and checkout control.",
       status: "ACTIVE",
@@ -1085,7 +1085,7 @@ async function seed() {
     },
     create: {
       code: "STAY",
-      name: "B² Stay — PG & Hostel Management",
+      name: "SATHOS Stay — PG & Hostel Management",
       description:
         "Properties, rooms, beds, residents, occupancy agreements, monthly rent, collections, vacancy and checkout control.",
       status: "ACTIVE",
@@ -1097,7 +1097,7 @@ async function seed() {
   await prisma.service.upsert({
     where: { code: "SCHOOL" },
     update: {
-      name: "B² School Management",
+      name: "SATHOS School Management",
       description:
         "Academic structure, students, teachers, attendance, timetables, fees, communication, and controlled school automation.",
       status: "ACTIVE",
@@ -1108,7 +1108,7 @@ async function seed() {
     },
     create: {
       code: "SCHOOL",
-      name: "B² School Management",
+      name: "SATHOS School Management",
       description:
         "Academic structure, students, teachers, attendance, timetables, fees, communication, and controlled school automation.",
       status: "ACTIVE",
@@ -1159,7 +1159,7 @@ async function seed() {
         code: "BUSINESS_PRO",
         name: "Business Pro",
         description:
-          "The complete B2 Brain operating system with automation, governance, support, websites, procurement, and people.",
+          "The complete SATHOS operating system with automation, governance, support, websites, procurement, and people.",
         monthlyPrice: 14999,
         yearlyPrice: 149990,
         serviceCodes: [

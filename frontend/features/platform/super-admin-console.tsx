@@ -268,7 +268,7 @@ export function SuperAdminConsole() {
 
   return <div className="platform-shell">
     <aside className="platform-sidebar">
-      <div className="dashboard-logo"><Image src="/brand/b2brain-logo.png" alt="" width={38} height={38} /><span><strong>B² Brain</strong><small>Super Admin</small></span></div>
+      <div className="dashboard-logo"><Image src="/brand/sathos-logo.png" alt="" width={38} height={38} /><span><strong>SATHOS</strong><small>Super Admin</small></span></div>
       <div className="platform-identity"><span>Platform control</span><strong>{session.user.firstName} {session.user.lastName}</strong><small>{session.user.email}</small></div>
       <nav aria-label="Platform administration">{PLATFORM_SECTIONS.map((item) => <Link key={item} href={item === "overview" ? "/super-admin" : `/super-admin?section=${item}`} className={section === item ? "active" : ""} aria-current={section === item ? "page" : undefined}><span aria-hidden="true">{SECTION_LABELS[item].slice(0, 1)}</span>{SECTION_LABELS[item]}{item in PLANNED_SECTIONS && <small>Planned</small>}</Link>)}</nav>
       <div className="platform-sidebar-actions"><button onClick={() => router.push("/dashboard")}>Organization workspace</button><button onClick={() => void logout().then(() => router.replace("/login"))}>Sign out</button></div>

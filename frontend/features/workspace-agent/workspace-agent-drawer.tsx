@@ -41,7 +41,7 @@ export function WorkspaceAgentDrawer({ activeView, launcherRef, onClose, onNavig
 
   return <div className="workspace-agent-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside id="workspace-agent-drawer" ref={drawerRef} className="workspace-agent-drawer" role="dialog" aria-modal="true" aria-labelledby="workspace-agent-drawer-title">
-      <header><div><strong id="workspace-agent-drawer-title">Ask B² Brain</strong><span>Uses your permitted workspace data</span></div><div className="workspace-agent-drawer-actions"><button type="button" className="workspace-agent-new-chat" onClick={() => { if (session) window.sessionStorage.removeItem(`b2brain-agent-draft:${session.organization.id}:${session.user.id}`); setChatKey((value) => value + 1); }}>New chat</button><Link href="/agent" onClick={onClose}>Full workspace</Link><button type="button" onClick={onClose} aria-label="Close Ask B² Brain">×</button></div></header>
+      <header><div><strong id="workspace-agent-drawer-title">Ask SATHOS</strong><span>Uses your permitted workspace data</span></div><div className="workspace-agent-drawer-actions"><button type="button" className="workspace-agent-new-chat" onClick={() => { if (session) window.sessionStorage.removeItem(`b2brain-agent-draft:${session.organization.id}:${session.user.id}`); setChatKey((value) => value + 1); }}>New chat</button><Link href="/agent" onClick={onClose}>Full workspace</Link><button type="button" onClick={onClose} aria-label="Close Ask SATHOS">×</button></div></header>
       <WorkspaceAgent key={chatKey} compact suggestions={suggestionsByView[activeView]} onNavigate={(view) => { onNavigate(view); onClose(); }} />
     </aside>
   </div>;

@@ -106,7 +106,7 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
           method: "PUT",
           body: JSON.stringify({ date, records }),
         });
-        if(response.data.automation?.approvalRequired)setNotice(`Attendance saved. B² Brain prepared ${response.data.automation.draftCount??0} guardian alerts for approval.`);
+        if(response.data.automation?.approvalRequired)setNotice(`Attendance saved. SATHOS prepared ${response.data.automation.draftCount??0} guardian alerts for approval.`);
         else if(response.data.automation?.duplicate)setNotice("Attendance saved. Guardian alerts for this date are already in the approval workflow.");
         else setNotice("Attendance saved.");
       } else {
@@ -126,7 +126,7 @@ export function AttendanceWorkspace({ canManage }: { canManage: boolean }) {
           body: JSON.stringify({ date, records }),
         });
         if (response.data.automation?.approvalRequired)
-          setNotice(`Attendance saved. B² Brain prepared ${response.data.automation.proposedAssignments ?? 0} substitute assignments for approval.`);
+          setNotice(`Attendance saved. SATHOS prepared ${response.data.automation.proposedAssignments ?? 0} substitute assignments for approval.`);
         else if (response.data.automation?.duplicate)
           setNotice("Attendance saved. A substitute plan for this date is already awaiting review.");
         else setNotice("Attendance saved.");

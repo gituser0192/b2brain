@@ -119,7 +119,7 @@ const groups: [WorkspaceAgentIntent, string[]][] = [
   [
     "PRODUCT_HELP",
     [
-      "Explain B2 Brain",
+      "Explain SATHOS",
       "What can B2 do",
       "How do I add a customer",
       "How does CRM work",

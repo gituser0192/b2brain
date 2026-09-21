@@ -1,6 +1,6 @@
 # B2Brain-B
 
-Clean Version 2 foundation for B² Brain. The frontend and backend are independent npm workspaces, supported by small shared packages.
+Clean Version 2 foundation for SATHOS. The frontend and backend are independent npm workspaces, supported by small shared packages.
 
 ## Requirements
 

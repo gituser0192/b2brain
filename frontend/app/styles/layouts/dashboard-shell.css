@@ -20,7 +20,7 @@
   width: 100%;
 }
 .dashboard-sidebar {
-  background: #16142f;
+  background: linear-gradient(180deg, #040d1d 0%, #071a35 58%, #09264a 100%);
   color: white;
   display: flex;
   flex-direction: column;
@@ -44,7 +44,7 @@
   overscroll-behavior: contain;
 }
 .sidebar-group summary {
-  color: #77738f;
+  color: #7893b4;
   cursor: pointer;
   font-size: 0.58rem;
   font-weight: 750;
@@ -54,7 +54,7 @@
   text-transform: uppercase;
 }
 .sidebar-group > div { display: grid; gap: 0.25rem; padding-top: 0.2rem; }
-.sidebar-group summary::marker { color: #5f5b76; }
+.sidebar-group summary::marker { color: #527394; }
 .sidebar-security-dot {
   align-items: center;
   border: 1px solid rgba(69, 199, 141, 0.25);
@@ -68,7 +68,7 @@
   width: 1.65rem;
 }
 .sidebar-utilities { border-top: 1px solid rgba(255,255,255,0.08); display: grid; padding-top: 0.65rem; }
-.sidebar-utilities a, .sidebar-utilities button { align-items: center; background: transparent; border: 0; color: #8f8ba9; display: flex; gap: 0.75rem; padding: 0.55rem 0.8rem; text-align: left; text-decoration: none; }
+.sidebar-utilities a, .sidebar-utilities button { align-items: center; background: transparent; border: 0; color: #91a6bf; display: flex; gap: 0.75rem; padding: 0.55rem 0.8rem; text-align: left; text-decoration: none; }
 .mobile-bottom-nav, .mobile-navigation-backdrop { display: none; }
 .dashboard-sidebar nav button,
 .dashboard-sidebar nav a {
@@ -76,7 +76,7 @@
   background: transparent;
   border: 0;
   border-radius: 0.65rem;
-  color: #8f8ba9;
+  color: #91a6bf;
   display: flex;
   gap: 0.75rem;
   padding: 0.75rem 0.8rem;
@@ -85,8 +85,8 @@
 }
 .dashboard-sidebar nav button.active,
 .dashboard-sidebar nav a.active {
-  background: rgba(108, 94, 236, 0.18);
-  color: #dcd9ff;
+  background: rgba(22, 143, 240, 0.2);
+  color: #e8f5ff;
 }
 .dashboard-sidebar nav button small,
 .dashboard-sidebar nav a small {
@@ -107,7 +107,7 @@
 }
 .avatar {
   align-items: center;
-  background: #5d51d9;
+  background: linear-gradient(145deg, #168ff0, #0759bd 72%, #b66b18);
   border-radius: 0.62rem;
   display: flex;
   font-size: 0.7rem;
@@ -128,13 +128,13 @@
   white-space: nowrap;
 }
 .sidebar-account small {
-  color: #8f8ba9;
+  color: #91a6bf;
   font-size: 0.59rem;
 }
 .sidebar-account button {
   background: none;
   border: 0;
-  color: #aaa6c0;
+  color: #a8bdd3;
   cursor: pointer;
 }
 .dashboard-main {

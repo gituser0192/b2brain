@@ -226,7 +226,7 @@ export class WebsiteService {
     if (!current)
       throw new AppError(404, "Change request was not found.", "REQUEST_NOT_FOUND");
     if (current.submittedToProviderAt)
-      throw new AppError(409, "This request has already been submitted to B² Brain.", "REQUEST_ALREADY_SUBMITTED");
+      throw new AppError(409, "This request has already been submitted to SATHOS.", "REQUEST_ALREADY_SUBMITTED");
     if (["REJECTED", "CANCELED", "DEPLOYED"].includes(current.status))
       throw new AppError(409, "This request cannot be submitted in its current state.", "REQUEST_NOT_SUBMITTABLE");
     const now = new Date();
@@ -235,7 +235,7 @@ export class WebsiteService {
       data: {
         submittedToProviderAt: now,
         providerStatus: "SUBMITTED",
-        providerCustomerUpdate: "Your request has been received by B² Brain Operations.",
+        providerCustomerUpdate: "Your request has been received by SATHOS Operations.",
         providerUpdatedAt: now,
         updatedById: userId,
       },

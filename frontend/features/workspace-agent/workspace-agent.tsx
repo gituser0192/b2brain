@@ -68,7 +68,7 @@ export function WorkspaceAgent({
             setError(
               reason instanceof ApiError
                 ? reason.message
-                : "Unable to load Ask B² Brain.",
+                : "Unable to load Ask SATHOS.",
             ),
           )
           .finally(() => setLoading(false)),
@@ -164,7 +164,7 @@ export function WorkspaceAgent({
       setError(
         reason instanceof ApiError
           ? reason.message
-          : "Ask B² Brain could not complete that request safely.",
+          : "Ask SATHOS could not complete that request safely.",
       );
     } finally {
       setLoading(false);

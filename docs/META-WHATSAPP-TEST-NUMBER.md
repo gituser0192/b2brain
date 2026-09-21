@@ -42,7 +42,7 @@ META_GRAPH_API_VERSION=<supported-version-such-as-v23.0>
 
 Keep outbound disabled until inbound processing, CRM creation, approval, human takeover, and source attribution have been checked.
 
-## B² Brain connector
+## SATHOS connector
 
 Create one organization-owned Automation connector with:
 
@@ -89,7 +89,7 @@ GET verification and signed POST delivery use the same path. The older connector
 
 1. Leave `META_WHATSAPP_OUTBOUND_ENABLED=false`.
 2. From the verified recipient, send a text message to Meta's test number.
-3. In B² Brain, verify the organization received one IntegrationEvent, CRM customer/inquiry/activity, and any required follow-up.
+3. In SATHOS, verify the organization received one IntegrationEvent, CRM customer/inquiry/activity, and any required follow-up.
 4. Verify the Agent Playground/Audit view identifies `REAL_AI` or `DETERMINISTIC_FALLBACK` and lists approved knowledge sources.
 5. Send the same webhook/message ID again and verify no CRM record is duplicated.
 6. Enable human takeover and send another message; verify no automatic reply draft is sent.
@@ -114,7 +114,7 @@ Disable outbound first if inbound CRM capture should continue. Pausing or archiv
 - **Webhook verification fails:** compare the Meta verification token with `META_WHATSAPP_VERIFY_TOKEN`; do not use the App Secret in that field.
 - **POST signature rejected:** confirm `META_WHATSAPP_APP_SECRET` belongs to the same Meta app and that no proxy changes the raw request body.
 - **Unknown connector:** confirm the connector provider is `META_WHATSAPP_CLOUD`, status is active, and Phone Number ID exactly matches the backend value.
-- **No outbound message:** confirm the draft is approved, human takeover is off, outbound is enabled, and the recipient is allowlisted in both Meta and B² Brain.
+- **No outbound message:** confirm the draft is approved, human takeover is off, outbound is enabled, and the recipient is allowlisted in both Meta and SATHOS.
 - **Failed delivery:** inspect the redacted receipt/draft failure code and Meta dashboard; tokens, full phone numbers, and message bodies must not be copied into logs.
 - **Repeated webhook:** this is normal. Meta message IDs and durable receipt IDs make processing idempotent.
 - **Temporary Meta error:** transient timeouts, rate limits, and server errors are retried within configured limits. Validation and permission errors are recorded without indefinite retries.

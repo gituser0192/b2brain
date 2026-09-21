@@ -59,7 +59,7 @@ test("header remains independent and responsive without navigation collisions", 
     await expect(header.getByRole("button", { name: "Quick Add" })).toBeHidden();
     const headerBox = await header.boundingBox();
     const mobileBox = await page.getByRole("navigation", { name: "Mobile navigation" }).boundingBox();
-    const agentBox = await page.getByRole("button", { name: "Open Ask B² Brain" }).boundingBox();
+    const agentBox = await page.getByRole("button", { name: "Open Ask SATHOS" }).boundingBox();
     expect((headerBox?.y ?? 1)).toBe(0);
     expect((agentBox?.y ?? 0) + (agentBox?.height ?? 0)).toBeLessThanOrEqual(mobileBox?.y ?? 0);
   } else {

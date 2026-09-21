@@ -49,7 +49,7 @@ export function WebsiteLeadForm({ formKey }: { formKey: string }) {
   if (!config) return <main className="public-lead-shell"><div className="public-lead-state error">{message}</div></main>;
   return <main className="public-lead-shell" style={{ "--form-accent": config.accentColor } as React.CSSProperties}>
     <form className="public-lead-form" onSubmit={submit}>
-      <header><span>B² BRAIN · SECURE INQUIRY</span><h1>{config.title}</h1><p>{config.description}</p></header>
+      <header><span>SATHOS · SECURE INQUIRY</span><h1>{config.title}</h1><p>{config.description}</p></header>
       {state === "SENT" && <div className="public-form-notice success">{message}</div>}
       {state === "ERROR" && <div className="public-form-notice error">{message}</div>}
       <label><span>Name</span><input required minLength={2} value={form.contactName} onChange={(event) => setForm({ ...form, contactName: event.target.value })} /></label>

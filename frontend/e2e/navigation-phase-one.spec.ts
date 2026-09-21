@@ -35,7 +35,7 @@ test("mobile navigation provides sheets, focus and finance fallback", async ({ p
   await expect(moreButton).toBeFocused();
   await mobile.getByRole("button", { name: "Quick Add" }).click();
   await expect(page.getByRole("link", { name: "Add customer" })).toHaveAttribute("href", "/crm");
-  const agentBox = await page.getByRole("button", { name: "Open Ask B² Brain" }).boundingBox();
+  const agentBox = await page.getByRole("button", { name: "Open Ask SATHOS" }).boundingBox();
   const navBox = await mobile.boundingBox();
   expect((agentBox?.y ?? 0) + (agentBox?.height ?? 0)).toBeLessThanOrEqual(navBox?.y ?? 0);
 });

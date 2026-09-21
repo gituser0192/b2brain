@@ -9,21 +9,10 @@
   letter-spacing: -0.02em;
   text-decoration: none;
 }
-.brand-mark {
-  align-items: center;
-  background: linear-gradient(145deg, #766cf5, #4b3ed6);
-  border-radius: 0.72rem;
-  box-shadow: 0 0.5rem 1.4rem rgba(53, 39, 160, 0.25);
-  color: white;
-  display: inline-flex;
-  font-size: 0.84rem;
-  height: 2.25rem;
-  justify-content: center;
-  letter-spacing: -0.05em;
-  width: 2.25rem;
-}
-
 .auth-page {
+  --auth-amber: #f3a340;
+  --auth-blue: #168ff0;
+  --auth-navy: #06152f;
   background: white;
   display: grid;
   grid-template-columns: minmax(35rem, 1.08fr) minmax(31rem, 0.92fr);
@@ -33,10 +22,15 @@
   background:
     radial-gradient(
       circle at 75% 54%,
-      rgba(0, 126, 255, 0.16),
+      rgba(31, 142, 255, 0.14),
       transparent 27%
     ),
-    linear-gradient(145deg, #020b1d 0%, #071a39 52%, #092650 100%);
+    radial-gradient(
+      circle at 88% 60%,
+      rgba(243, 163, 64, 0.08),
+      transparent 20%
+    ),
+    linear-gradient(145deg, #020914 0%, var(--auth-navy) 58%, #0a2345 100%);
   color: white;
   display: flex;
   flex-direction: column;
@@ -57,7 +51,7 @@
 }
 .story-kicker,
 .form-eyebrow {
-  color: #766bf0;
+  color: #126fbd;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -66,13 +60,13 @@
 }
 .story-kicker {
   align-items: center;
-  color: #6fc1ff;
+  color: #75c4ff;
   display: flex;
 }
 .story-kicker span {
-  background: #2aa4ff;
+  background: var(--auth-amber);
   border-radius: 1rem;
-  box-shadow: 0 0 1rem #128eff;
+  box-shadow: 0 0 1rem rgba(243, 163, 64, 0.62);
   display: inline-block;
   height: 0.42rem;
   margin-right: 0.7rem;
@@ -86,9 +80,10 @@
   max-width: 12ch;
 }
 .story-copy h1 em {
-  color: #48b7ff;
+  background: linear-gradient(100deg, #42adff 12%, #89c9ff 58%, #ffc36d 108%);
+  background-clip: text;
+  color: transparent;
   font-style: normal;
-  text-shadow: 0 0 2.2rem rgba(20, 151, 255, 0.25);
 }
 .story-copy > p:last-child {
   color: #aabbd3;
@@ -107,10 +102,10 @@
 }
 .proof-icon {
   align-items: center;
-  background: rgba(2, 143, 255, 0.1);
-  border: 1px solid rgba(61, 170, 255, 0.32);
+  background: rgba(243, 163, 64, 0.08);
+  border: 1px solid rgba(243, 163, 64, 0.34);
   border-radius: 0.65rem;
-  color: #54baff;
+  color: #ffc36d;
   display: flex;
   font-size: 0.62rem;
   font-weight: 800;
@@ -135,7 +130,7 @@
   position: absolute;
 }
 .story-orb::after {
-  background: rgba(108, 91, 232, 0.15);
+  background: rgba(34, 145, 240, 0.1);
   border-radius: inherit;
   content: "";
   inset: 15%;
@@ -157,7 +152,8 @@
 .auth-panel {
   align-items: center;
   background:
-    radial-gradient(circle at 90% 10%, #edf7ff, transparent 26%), #fbfcfe;
+    radial-gradient(circle at 90% 10%, #edf7ff, transparent 27%),
+    radial-gradient(circle at 12% 92%, #fff8ee, transparent 20%), #fbfcfe;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -165,7 +161,7 @@
   position: relative;
 }
 .auth-panel::before {
-  background: linear-gradient(90deg, #11a4ff, transparent);
+  background: linear-gradient(90deg, var(--auth-blue), var(--auth-amber), transparent);
   content: "";
   height: 2px;
   left: 0;
@@ -175,17 +171,17 @@
   top: 0;
 }
 .auth-card {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(214, 224, 236, 0.8);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(203, 218, 233, 0.88);
   border-radius: 1.35rem;
-  box-shadow: 0 2rem 5rem rgba(25, 52, 91, 0.08);
+  box-shadow: 0 2rem 5rem rgba(8, 35, 70, 0.09);
   max-width: 33rem;
   padding: clamp(2rem, 3vw, 3rem);
   position: relative;
   width: 100%;
 }
 .auth-card::before {
-  background: linear-gradient(90deg, #0b8cff, #6ac7ff);
+  background: linear-gradient(90deg, var(--auth-blue), #65b9ff 62%, var(--auth-amber));
   border-radius: 2rem;
   content: "";
   height: 0.22rem;
@@ -231,6 +227,24 @@
   font-weight: 500;
   margin-left: 0.3rem;
 }
+.auth-form > label > input {
+  background: #f8fafc;
+  border: 1px solid #dfe6ef;
+  border-radius: 0.78rem;
+  color: var(--ink);
+  min-height: 3.35rem;
+  outline: 0;
+  padding: 0 0.9rem;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s,
+    background 0.18s;
+}
+.auth-form > label > input:focus {
+  background: white;
+  border-color: var(--auth-blue);
+  box-shadow: 0 0 0 0.22rem rgba(22, 143, 240, 0.11);
+}
 .label-row {
   display: flex;
   justify-content: space-between;
@@ -255,8 +269,8 @@
 }
 .field-wrap:focus-within {
   background: white;
-  border-color: #8a80ef;
-  box-shadow: 0 0 0 0.22rem rgba(91, 78, 232, 0.1);
+  border-color: var(--auth-blue);
+  box-shadow: 0 0 0 0.22rem rgba(22, 143, 240, 0.11);
 }
 .field-wrap svg {
   fill: none;
@@ -290,7 +304,7 @@
 }
 .primary-button {
   align-items: center;
-  background: linear-gradient(135deg, #0c91f8, #0759bd);
+  background: linear-gradient(135deg, var(--auth-blue), #0759bd 72%, #063e86);
   border: 0;
   border-radius: 0.78rem;
   box-shadow: 0 0.8rem 1.7rem rgba(7, 103, 200, 0.2);
@@ -312,7 +326,7 @@
   right: 1.2rem;
 }
 .primary-button:hover:not(:disabled) {
-  box-shadow: 0 1rem 2rem rgba(70, 55, 190, 0.28);
+  box-shadow: 0 1rem 2rem rgba(7, 89, 189, 0.28);
   transform: translateY(-1px);
 }
 .primary-button:disabled {
@@ -397,9 +411,11 @@
 .wordmark-icon,
 .mobile-logo {
   background: #020815;
-  border: 1px solid rgba(58, 167, 255, 0.35);
+  border: 1px solid rgba(92, 177, 255, 0.42);
   border-radius: 0.72rem;
-  box-shadow: 0 0 1.5rem rgba(0, 139, 255, 0.12);
+  box-shadow:
+    0 0 1.5rem rgba(0, 139, 255, 0.12),
+    0 0.4rem 1.2rem rgba(243, 163, 64, 0.06);
   display: block;
   height: 2.75rem;
   overflow: hidden;
@@ -438,12 +454,13 @@
 }
 .logo-constellation {
   background: #010814;
-  border: 1px solid rgba(58, 173, 255, 0.5);
+  border: 1px solid rgba(77, 169, 255, 0.52);
   border-radius: 2.1rem;
   box-shadow:
     0 0 0 0.6rem rgba(10, 119, 217, 0.05),
     0 1.8rem 6rem rgba(0, 0, 0, 0.42),
-    inset 0 0 2.5rem rgba(15, 130, 224, 0.1);
+    inset 0 0 2.5rem rgba(15, 130, 224, 0.1),
+    0 0 3rem rgba(243, 163, 64, 0.05);
   height: 15rem;
   overflow: hidden;
   position: absolute;
@@ -494,7 +511,8 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(44, 175, 255, 0.45),
+    rgba(44, 175, 255, 0.36),
+    rgba(243, 163, 64, 0.24),
     transparent
   );
   height: 1px;
@@ -530,6 +548,9 @@
   top: 10rem;
 }
 .node-three {
+  background: #ffc36d;
+  border-color: rgba(172, 96, 16, 0.46);
+  box-shadow: 0 0 1.2rem rgba(243, 163, 64, 0.75);
   right: 1.5rem;
   top: 22rem;
 }

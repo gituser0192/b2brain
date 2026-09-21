@@ -69,7 +69,7 @@ export class WebsiteFormService {
       phone: input.phone,
       subject: service ? `Website inquiry: ${service}` : "Website inquiry",
       message: input.message,
-      raw: { service, capturedBy: "B2 Brain Website Lead Form" },
+      raw: { service, capturedBy: "SATHOS Website Lead Form" },
     });
     return { accepted: true, status: event.status, successMessage: configuration(connector.configuration).successMessage };
   }

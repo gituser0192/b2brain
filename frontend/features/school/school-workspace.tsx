@@ -140,7 +140,7 @@ export function SchoolWorkspace() {
       <header className="project-heading">
         <div>
           <p>Smart school foundation</p>
-          <h2>B² School</h2>
+          <h2>SATHOS School</h2>
           <span>
             Build the academic structure first. Students, teachers, attendance,
             and timetables will connect to it.

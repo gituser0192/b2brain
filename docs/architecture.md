@@ -1,8 +1,8 @@
-# B² Brain architecture
+# SATHOS architecture
 
 ## Repository boundaries
 
-B² Brain is an npm-workspace monorepo:
+SATHOS is an npm-workspace monorepo:
 
 - `frontend` is a Next.js App Router application responsible for browser rendering and interaction.
 - `backend` is an Express API responsible for authentication, authorization, organization isolation, business rules, persistence, agents, and external integrations.

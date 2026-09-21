@@ -57,7 +57,7 @@ export function DashboardWelcome({
         </div>
         <div className="hero-brain" aria-hidden="true">
           <div className="hero-logo">
-            <Image src="/brand/b2brain-logo.png" alt="" fill sizes="190px" />
+            <Image src="/brand/sathos-logo.png" alt="" fill sizes="190px" />
           </div>
           <span className="orbit-dot dot-a" />
           <span className="orbit-dot dot-b" />

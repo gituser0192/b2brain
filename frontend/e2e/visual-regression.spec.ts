@@ -7,7 +7,7 @@ for (const item of [
   { name: "projects", url: "/dashboard?view=projects", heading: "Projects & tasks" },
   { name: "finance", url: "/dashboard?view=finance", heading: "Finance" },
   { name: "automation", url: "/dashboard?view=automation", heading: "Keep routine work moving." },
-  { name: "business-agent", url: "/dashboard?view=b2agent", heading: "Ask B² Brain" },
+  { name: "business-agent", url: "/dashboard?view=b2agent", heading: "Ask SATHOS" },
   { name: "settings", url: "/dashboard?view=settings", heading: "Settings" },
 ] as const) {
   test(`${item.name} visual baseline`, async ({ page }) => {
@@ -221,7 +221,7 @@ test("Automation error state visual baseline", async ({ page }) => {
 test("Business Operating Agent floating drawer visual baseline", async ({ page }) => {
   await installSyntheticApi(page);
   await page.goto("/dashboard");
-  await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
+  await page.getByRole("button", { name: "Open Ask SATHOS" }).click();
   await expect(page.locator(".workspace-agent-drawer")).toBeVisible();
   await expect(page.locator(".workspace-agent-drawer").getByRole("heading", { name: "Start a new conversation" })).toBeVisible();
   await expect(page).toHaveScreenshot("workspace-agent-drawer.png", { mask: [page.locator(".dashboard-date")] });
@@ -261,7 +261,7 @@ test("Business Operating Agent loading visual baseline", async ({ page }) => {
   await page.route("**/api/v1/workspace-agent/conversations/**", async (route) => { await new Promise((resolve) => setTimeout(resolve, 1200)); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) }); });
   await page.goto("/agent");
   await page.getByRole("button", { name: "Conversation", exact: true }).click();
-  await expect(page.getByText("Ask B² Brain is checking permitted data…")).toBeVisible();
+  await expect(page.getByText("Ask SATHOS is checking permitted data…")).toBeVisible();
   await expect(page.locator(".workspace-agent")).toHaveScreenshot("workspace-agent-loading.png");
 });
 

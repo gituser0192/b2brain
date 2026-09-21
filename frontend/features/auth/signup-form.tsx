@@ -36,7 +36,7 @@ export function SignupForm() {
   useEffect(() => {
     const task = window.setTimeout(() => {
       if (!invitationToken) {
-        setError("Registration is invitation-only. Ask the B² Brain administrator for an invitation.");
+        setError("Registration is invitation-only. Ask the SATHOS administrator for an invitation.");
         setCheckingInvitation(false);
         return;
       }

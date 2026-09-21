@@ -261,7 +261,7 @@ export function WebsiteWorkspace() {
     }
   }
   async function submitToB2Brain(item: Request) {
-    if (!window.confirm("Send this request and its website scope to B² Brain Operations?")) return;
+    if (!window.confirm("Send this request and its website scope to SATHOS Operations?")) return;
     try {
       await authorizedRequest(`/websites/requests/${item.id}/submit-to-provider`, {
         method: "POST",
@@ -269,7 +269,7 @@ export function WebsiteWorkspace() {
       });
       await load();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Unable to submit this request to B² Brain.");
+      setError(reason instanceof ApiError ? reason.message : "Unable to submit this request to SATHOS.");
     }
   }
   async function deploy() {
@@ -444,7 +444,7 @@ export function WebsiteWorkspace() {
                       <header>
                         <div>
                           {canManage && !item.submittedToProviderAt && !["REJECTED", "CANCELED", "DEPLOYED"].includes(item.status) && (
-                            <button onClick={() => void submitToB2Brain(item)}>Submit to B² Brain</button>
+                            <button onClick={() => void submitToB2Brain(item)}>Submit to SATHOS</button>
                           )}
                           <small>
                             {item.requestNumber} · {item.type}
@@ -488,7 +488,7 @@ export function WebsiteWorkspace() {
                       </footer>
                       {item.submittedToProviderAt && (
                         <div className="provider-progress">
-                          <small>B² BRAIN OPERATIONS · {(item.providerStatus ?? "SUBMITTED").replaceAll("_", " ")}</small>
+                          <small>SATHOS OPERATIONS · {(item.providerStatus ?? "SUBMITTED").replaceAll("_", " ")}</small>
                           <strong>{item.providerCustomerUpdate ?? "Your request has been received."}</strong>
                           {item.providerUpdatedAt && <span>Updated {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.providerUpdatedAt))}</span>}
                         </div>

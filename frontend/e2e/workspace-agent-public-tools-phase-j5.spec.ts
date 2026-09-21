@@ -13,13 +13,13 @@ test("renders local calculations and truthful public-provider availability", asy
     await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ success: true, data: { answer: publicResult.answer, publicResult } }) });
   });
   await page.goto("/dashboard");
-  await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
-  const drawer = page.getByRole("dialog", { name: "Ask B² Brain" });
-  await drawer.getByLabel("Message Ask B² Brain").fill("Calculate 18% GST on 5000");
+  await page.getByRole("button", { name: "Open Ask SATHOS" }).click();
+  const drawer = page.getByRole("dialog", { name: "Ask SATHOS" });
+  await drawer.getByLabel("Message Ask SATHOS").fill("Calculate 18% GST on 5000");
   await drawer.getByRole("button", { name: "Send" }).click();
   await expect(drawer.getByRole("region", { name: "Public information" }).getByText("Local calculation")).toBeVisible();
-  await drawer.getByLabel("Message Ask B² Brain").fill("weather in Gurugram");
+  await drawer.getByLabel("Message Ask SATHOS").fill("weather in Gurugram");
   await drawer.getByRole("button", { name: "Send" }).click();
-  await expect(drawer.getByText("Based on public information—not your B² Brain records.")).toBeVisible();
+  await expect(drawer.getByText("Based on public information—not your SATHOS records.")).toBeVisible();
   expect(calls).toBe(2);
 });

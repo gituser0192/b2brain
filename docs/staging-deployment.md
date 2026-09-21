@@ -1,4 +1,4 @@
-# B² Brain private staging deployment
+# SATHOS private staging deployment
 
 This checklist prepares a private staging environment. It does not authorize a public launch or production customer migration.
 

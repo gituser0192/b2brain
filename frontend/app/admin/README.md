@@ -1,3 +1,3 @@
 # Admin routes
 
-Placeholder for the internal B² Brain operations dashboard.
+Placeholder for the internal SATHOS operations dashboard.

@@ -5,7 +5,7 @@ import {
   customerServiceMessageSchema,
 } from "../src/modules/service-requests/service-request.validation.js";
 
-describe("B2 Brain service request validation", () => {
+describe("SATHOS service request validation", () => {
   it("accepts a categorized customer request", () => {
     expect(
       createServiceRequestSchema.parse({

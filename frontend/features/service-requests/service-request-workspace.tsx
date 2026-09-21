@@ -77,7 +77,7 @@ export function ServiceRequestWorkspace() {
       setError(
         reason instanceof ApiError
           ? reason.message
-          : "Unable to load your B² Brain requests.",
+          : "Unable to load your SATHOS requests.",
       );
     }
   }, [authorizedRequest]);
@@ -146,17 +146,17 @@ export function ServiceRequestWorkspace() {
     <div className="provider-help-workspace">
       <header className="project-heading">
         <div>
-          <p>B² Brain customer care</p>
+          <p>SATHOS customer care</p>
           <h2>Help & service requests</h2>
           <span>
-            Request an update, report a problem, or ask B² Brain for help with
+            Request an update, report a problem, or ask SATHOS for help with
             any service.
           </span>
         </div>
-        <button onClick={() => setOpen(true)}>+ Contact B² Brain</button>
+        <button onClick={() => setOpen(true)}>+ Contact SATHOS</button>
       </header>
       <div className="provider-help-security">
-        Only your organization and authorized B² Brain staff can see these
+        Only your organization and authorized SATHOS staff can see these
         requests.
       </div>
       {error && <div className="dashboard-notice error">{error}</div>}
@@ -165,7 +165,7 @@ export function ServiceRequestWorkspace() {
           <span>◇</span>
           <h3>No requests yet</h3>
           <p>
-            When you need help, create a request and it will go directly to B²
+            When you need help, create a request and it will go directly to SATHOS
             Brain.
           </p>
           <button onClick={() => setOpen(true)}>
@@ -209,7 +209,7 @@ export function ServiceRequestWorkspace() {
               </section>
               {selected.customerUpdate && (
                 <div className="provider-help-update">
-                  <small>LATEST B² BRAIN UPDATE</small>
+                  <small>LATEST SATHOS UPDATE</small>
                   <strong>{selected.customerUpdate}</strong>
                 </div>
               )}
@@ -240,7 +240,7 @@ export function ServiceRequestWorkspace() {
               {selected.approvalStatus === "PENDING_CUSTOMER" && session?.membership.role.code === "ORGANIZATION_OWNER" && (
                 <div className="customer-approval-box">
                   <strong>
-                    B² Brain needs your approval before continuing.
+                    SATHOS needs your approval before continuing.
                   </strong>
                   <div>
                     <button onClick={() => void decideApproval(false)}>
@@ -294,7 +294,7 @@ export function ServiceRequestWorkspace() {
                     <header>
                       <strong>
                         {item.type === "PROVIDER_REPLY"
-                          ? "B² Brain"
+                          ? "SATHOS"
                           : item.type === "SYSTEM_EVENT"
                             ? "Status"
                             : `${item.createdBy.firstName} ${item.createdBy.lastName ?? ""}`}
@@ -309,7 +309,7 @@ export function ServiceRequestWorkspace() {
                 <div className="provider-help-reply">
                   <textarea
                     rows={3}
-                    placeholder="Add more information or reply to B² Brain…"
+                    placeholder="Add more information or reply to SATHOS…"
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
                   />
@@ -331,7 +331,7 @@ export function ServiceRequestWorkspace() {
             <header>
               <div>
                 <p>Secure request</p>
-                <h3>Contact B² Brain</h3>
+                <h3>Contact SATHOS</h3>
               </div>
               <button onClick={() => setOpen(false)}>×</button>
             </header>
@@ -386,7 +386,7 @@ export function ServiceRequestWorkspace() {
               </select>
             </label>
             <div className="provider-request-warning">
-              Submitting shares only this request with B² Brain. It does not
+              Submitting shares only this request with SATHOS. It does not
               expose your CRM, finance, or other private records.
             </div>
             <footer>

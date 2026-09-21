@@ -1,6 +1,6 @@
 # B2-AUTOMATION-BRIDGE
 
-Status: PENDING — begin only after the core B² Brain services are complete and stable.
+Status: PENDING — begin only after the core SATHOS services are complete and stable.
 
 When the user says `B2-AUTOMATION-BRIDGE`, review this backlog and continue with the first incomplete item.
 

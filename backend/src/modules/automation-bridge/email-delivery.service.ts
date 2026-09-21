@@ -84,7 +84,7 @@ export class EmailDeliveryService {
     }
     const contacts = await prisma.automationMessageDraft.count({ where: { organizationId, connectorId: connector.id, status: "SENT", sentAt: { gte: new Date(Date.now() - 24 * 60 * 60_000) } } });
     if (contacts >= policy.dailyContactLimit) throw new AppError(429, "The email connector daily contact limit has been reached.", "EMAIL_DAILY_LIMIT_REACHED");
-    if (!this.email.configured()) throw new AppError(503, "SMTP is not configured on the B² Brain server.", "SMTP_NOT_CONFIGURED");
+    if (!this.email.configured()) throw new AppError(503, "SMTP is not configured on the SATHOS server.", "SMTP_NOT_CONFIGURED");
     const approval = await prisma.approvalRequest.findFirst({ where: { id: input.approvalId, organizationId, sourceType: "COLLECTION_AGENT_RUN", status: "APPROVED" } });
     if (!approval) throw new AppError(409, "This collection reminder is not approved for delivery.", "DELIVERY_NOT_APPROVED");
     const context = approval.context as CollectionContext | null;

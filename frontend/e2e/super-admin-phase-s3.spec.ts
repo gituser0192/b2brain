@@ -74,7 +74,7 @@ test("subscription and manual payment require truthful confirmation", async ({
     .getByRole("button", { name: "Review payment and renewal" })
     .click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("already received outside B² Brain");
+  await expect(dialog).toContainText("already received outside SATHOS");
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);

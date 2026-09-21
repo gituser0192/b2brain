@@ -31,7 +31,7 @@ serviceRequestRouter.post(
             request.auth!.userId,
             request.body as CreateServiceRequestInput,
           ),
-          "Request submitted to B² Brain.",
+          "Request submitted to SATHOS.",
         ),
       ),
 );
@@ -49,7 +49,7 @@ serviceRequestRouter.post(
             String(request.params.id),
             request.body as CustomerServiceMessageInput,
           ),
-          "Message sent to B² Brain.",
+          "Message sent to SATHOS.",
         ),
       ),
 );
@@ -66,7 +66,7 @@ serviceRequestRouter.post(
           String(request.params.id),
           request.body as CustomerApprovalInput,
         ),
-        "Approval decision sent to B² Brain.",
+        "Approval decision sent to SATHOS.",
       ),
     ),
 );

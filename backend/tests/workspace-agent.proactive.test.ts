@@ -39,7 +39,7 @@ const input = {
   periodEnd: "2026-08-31T23:59:59.999Z",
 };
 
-describe("Ask B² Brain proactive management", () => {
+describe("Ask SATHOS proactive management", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     serviceAccess.mockResolvedValue("READ_WRITE");

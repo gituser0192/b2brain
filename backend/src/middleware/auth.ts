@@ -46,14 +46,14 @@ export const requireProviderPermission = (permission: string): RequestHandler =>
   if (!request.auth) return next(new AppError(401, "Authentication is required.", "UNAUTHENTICATED"));
   if (request.auth.isPlatformAdmin) return next();
   const provider = await prisma.organization.findFirst({ where: { id: request.auth.organizationId, isServiceProvider: true, status: "ACTIVE", deletedAt: null }, select: { id: true } });
-  if (!provider || !request.auth.permissions.includes(permission)) return next(new AppError(403, "B² Brain service-desk access is required.", "PROVIDER_ACCESS_REQUIRED"));
+  if (!provider || !request.auth.permissions.includes(permission)) return next(new AppError(403, "SATHOS service-desk access is required.", "PROVIDER_ACCESS_REQUIRED"));
   next();
 };
 
 export const requireProviderSensitiveCompletion: RequestHandler = (request, _response, next) => {
   const body = request.body as { status?: unknown };
   if (body.status !== "COMPLETED" || request.auth?.isPlatformAdmin || request.auth?.permissions.includes("PROVIDER_SENSITIVE_APPROVE")) return next();
-  next(new AppError(403, "Sensitive completion requires B² Brain approval authority.", "PROVIDER_APPROVAL_REQUIRED"));
+  next(new AppError(403, "Sensitive completion requires SATHOS approval authority.", "PROVIDER_APPROVAL_REQUIRED"));
 };
 
 export const requireOrganizationOwner: RequestHandler = (request, _response, next) => {

@@ -64,7 +64,7 @@ const input = (message: string, id = "message-1") => ({
   message,
 });
 
-describe("Ask B² Brain workspace agent", () => {
+describe("Ask SATHOS workspace agent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     serviceAccess.mockImplementation((value: { permissions: string[] }, _service: string, permission?: string) => {

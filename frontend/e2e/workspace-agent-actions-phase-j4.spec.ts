@@ -13,9 +13,9 @@ test("shows a confirmation-gated internal action and prevents duplicate submissi
     await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
   });
   await page.goto("/dashboard");
-  await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
-  const drawer = page.getByRole("dialog", { name: "Ask B² Brain" });
-  await drawer.getByLabel("Message Ask B² Brain").fill("Create a follow-up");
+  await page.getByRole("button", { name: "Open Ask SATHOS" }).click();
+  const drawer = page.getByRole("dialog", { name: "Ask SATHOS" });
+  await drawer.getByLabel("Message Ask SATHOS").fill("Create a follow-up");
   await drawer.getByRole("button", { name: "Send" }).click();
   await expect(drawer.getByText("No external action", { exact: true })).toBeVisible();
   const confirm = drawer.getByRole("button", { name: "Confirm" });
@@ -35,9 +35,9 @@ test("cancels without claiming a mutation", async ({ page }) => {
     await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ success: true, data }) });
   });
   await page.goto("/projects");
-  await page.getByRole("button", { name: "Open Ask B² Brain" }).click();
-  const drawer = page.getByRole("dialog", { name: "Ask B² Brain" });
-  await drawer.getByLabel("Message Ask B² Brain").fill("Create a task");
+  await page.getByRole("button", { name: "Open Ask SATHOS" }).click();
+  const drawer = page.getByRole("dialog", { name: "Ask SATHOS" });
+  await drawer.getByLabel("Message Ask SATHOS").fill("Create a task");
   await drawer.getByRole("button", { name: "Send" }).click();
   await drawer.getByRole("button", { name: "Cancel" }).click();
   await expect(drawer.getByText("Nothing was changed.")).toBeVisible();

@@ -226,7 +226,7 @@ export class WorkspaceAgentService {
         data: {
         id: workspaceConnectorId(context.organizationId),
         organizationId: context.organizationId,
-        name: "Ask B² Brain",
+        name: "Ask SATHOS",
         type: "WEBSITE",
         status: "ACTIVE",
         mode: "ASSISTED",
@@ -556,7 +556,7 @@ export class WorkspaceAgentService {
           firstName: displayName,
           phone,
           status: "LEAD",
-          notes: "Created by Ask B² Brain after an explicit user request.",
+          notes: "Created by Ask SATHOS after an explicit user request.",
           createdById: context.userId,
           updatedById: context.userId,
         },
@@ -571,7 +571,7 @@ export class WorkspaceAgentService {
           actionCode: "WORKSPACE_AGENT_CUSTOMER_CREATED",
           sourceType: "CUSTOMER",
           sourceId: created.id,
-          summary: `Ask B² Brain created CRM customer ${created.displayName} after an explicit request.`,
+          summary: `Ask SATHOS created CRM customer ${created.displayName} after an explicit request.`,
           metadata: {
             membershipId: context.membershipId,
             phoneLastFour: phone.slice(-4),
@@ -594,7 +594,7 @@ export class WorkspaceAgentService {
     const priority = lower.includes("security") ? "URGENT" : "HIGH";
     const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "HUMAN_ESCALATION", arguments: { category, description: message, priority } });
     return {
-      answer: "This request may need the B² Brain human team. Review the escalation before creating it; no external action has occurred.",
+      answer: "This request may need the SATHOS human team. Review the escalation before creating it; no external action has occurred.",
       needsConfirmation: true,
       confirmation: { action: "HUMAN_ESCALATION", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: { category, priority } },
     } as const;
@@ -870,14 +870,14 @@ export class WorkspaceAgentService {
         context.userId,
         {
           category: confirmed.arguments.category,
-          subject: "Ask B² Brain escalation",
+          subject: "Ask SATHOS escalation",
           description: confirmed.arguments.description,
           priority: confirmed.arguments.priority,
         },
       );
       output = {
         answer:
-          "This request requires the B² Brain human team. I created a tracked escalation without performing the sensitive action.",
+          "This request requires the SATHOS human team. I created a tracked escalation without performing the sensitive action.",
         escalation: {
           id: request.id,
           requestNumber: request.requestNumber,
@@ -887,7 +887,7 @@ export class WorkspaceAgentService {
     } else
       output = {
         answer:
-          "I can check business health, summarize finances, count CRM customers, forecast cautiously, explain B² Brain, create a customer from an explicit request, or escalate sensitive issues to the B² Brain team.",
+          "I can check business health, summarize finances, count CRM customers, forecast cautiously, explain SATHOS, create a customer from an explicit request, or escalate sensitive issues to the SATHOS team.",
         suggestions: [
           "Check my business health",
           "Summarize revenue, expenses and profit",
@@ -946,7 +946,7 @@ export class WorkspaceAgentService {
         sourceType: "INTEGRATION_EVENT",
         sourceId: event.id,
         summary:
-          "Ask B² Brain completed an authenticated workspace request.",
+          "Ask SATHOS completed an authenticated workspace request.",
         metadata: {
           membershipId: context.membershipId,
           externalActionPerformed: false,

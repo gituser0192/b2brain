@@ -1,4 +1,4 @@
-# B² Brain — Deferred Work
+# SATHOS — Deferred Work
 
 This file tracks agreed work that should be completed later, after the current core-service foundation is stable.
 

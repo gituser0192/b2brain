@@ -11,10 +11,10 @@ export function AuthShell({ eyebrow, title, description, children, alternate }: 
 }>) {
   return (
     <main className="auth-page">
-      <section className="auth-story" aria-label="B² Brain introduction">
+      <section className="auth-story" aria-label="SATHOS introduction">
         <Link href="/" className="auth-wordmark">
-          <span className="wordmark-icon"><Image src="/brand/b2brain-logo.png" alt="" width={44} height={44} priority /></span>
-          <span><strong>B² Brain</strong><small>Business operating system</small></span>
+          <span className="wordmark-icon"><Image src="/brand/sathos-logo.png" alt="" width={44} height={44} priority /></span>
+          <span><strong>SATHOS</strong><small>Business operating system</small></span>
         </Link>
         <div className="story-copy">
           <p className="story-kicker"><span /> Your business, thinking together</p>
@@ -28,7 +28,7 @@ export function AuthShell({ eyebrow, title, description, children, alternate }: 
           <div className="neural-line line-two" />
           <span className="neural-node node-one" /><span className="neural-node node-two" /><span className="neural-node node-three" /><span className="neural-node node-four" />
           <div className="logo-constellation">
-            <Image src="/brand/b2brain-logo.png" alt="B² Brain — Connecting businesses. Driving growth." fill sizes="260px" priority />
+            <Image src="/brand/sathos-logo.png" alt="SATHOS — Connecting businesses. Driving growth." fill sizes="260px" priority />
           </div>
         </div>
         <div className="story-proof">
@@ -40,7 +40,7 @@ export function AuthShell({ eyebrow, title, description, children, alternate }: 
 
       <section className="auth-panel">
         <div className="auth-card">
-          <div className="mobile-brand"><span className="mobile-logo"><Image src="/brand/b2brain-logo.png" alt="" width={42} height={42} /></span><span>B² Brain</span></div>
+          <div className="mobile-brand"><span className="mobile-logo"><Image src="/brand/sathos-logo.png" alt="" width={42} height={42} /></span><span>SATHOS</span></div>
           <p className="form-eyebrow">{eyebrow}</p>
           <h2>{title}</h2>
           <p className="form-intro">{description}</p>

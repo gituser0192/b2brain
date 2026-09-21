@@ -38,6 +38,6 @@ export function ChatComposer({ name, phone, message, sending, takeover, canRetry
 }) {
   return <footer className="chat-composer"><div className="test-contact"><input aria-label="Test customer name" value={name} onChange={(event) => onName(event.target.value)} placeholder="Customer name (optional)" /><input aria-label="Test customer phone" value={phone} onChange={(event) => onPhone(event.target.value)} placeholder="Phone, e.g. 919876543210" /></div>
     <textarea rows={2} value={message} onChange={(event) => onMessage(event.target.value)} maxLength={4096} placeholder={takeover ? "Automatic replies are paused during human takeover." : "Type a customer message…"} disabled={takeover} />
-    <div><small>No message leaves B² Brain.</small>{canRetry && <button onClick={onRetry} disabled={sending || takeover}>Retry safely</button>}<button className="send" onClick={onSend} disabled={sending || !message.trim() || takeover}>{sending ? "Processing…" : "Send test message"}</button></div>
+    <div><small>No message leaves SATHOS.</small>{canRetry && <button onClick={onRetry} disabled={sending || takeover}>Retry safely</button>}<button className="send" onClick={onSend} disabled={sending || !message.trim() || takeover}>{sending ? "Processing…" : "Send test message"}</button></div>
   </footer>;
 }

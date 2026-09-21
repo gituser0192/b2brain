@@ -133,7 +133,7 @@
   font-size: 0.82rem;
 }
 .dashboard-logo small {
-  color: #72708b;
+  color: #7893b4;
   font-size: 0.55rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -900,14 +900,12 @@
   position: absolute;
   top: 2rem;
 }
-.accept-brand > span {
-  align-items: center;
-  background: #0989ea;
+.accept-brand > img {
+  background: #020815;
+  border: 1px solid rgba(92, 177, 255, 0.42);
   border-radius: 0.55rem;
-  display: flex;
-  font-size: 0.7rem;
   height: 2rem;
-  justify-content: center;
+  object-fit: cover;
   width: 2rem;
 }
 .accept-brand strong {
@@ -8775,7 +8773,7 @@
     display: none;
   }
 }
-/* B2 Brain provider operations desk */
+/* SATHOS provider operations desk */
 .provider-help-security {
   margin: 18px 0;
   padding: 12px 15px;

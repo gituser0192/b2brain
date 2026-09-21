@@ -132,7 +132,7 @@ websiteRouter.post(
           context.userId,
           String(request.params.id),
         ),
-        "Request submitted to B² Brain Operations.",
+        "Request submitted to SATHOS Operations.",
       ),
     );
   },

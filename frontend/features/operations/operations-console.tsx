@@ -220,7 +220,7 @@ export function OperationsConsole() {
       setError(
         reason instanceof ApiError
           ? reason.message
-          : "Unable to load B² Brain Operations.",
+          : "Unable to load SATHOS Operations.",
       );
     } finally {
       setLoading(false);
@@ -425,16 +425,16 @@ export function OperationsConsole() {
     return (
       <main className="screen-loader">
         <span className="spinner dark" />
-        <p>Opening B² Brain Operations…</p>
+        <p>Opening SATHOS Operations…</p>
       </main>
     );
   return (
     <div className="operations-shell">
       <aside className="operations-sidebar">
         <div className="dashboard-logo">
-          <Image src="/brand/b2brain-logo.png" alt="" width={40} height={40} />
+          <Image src="/brand/sathos-logo.png" alt="" width={40} height={40} />
           <span>
-            <strong>B² Brain</strong>
+            <strong>SATHOS</strong>
             <small>Operations</small>
           </span>
         </div>
@@ -854,7 +854,7 @@ export function OperationsConsole() {
                         onChange={(event) => setReply(event.target.value)}
                         placeholder={
                           replyType === "INTERNAL_NOTE"
-                            ? "Only B² Brain can see this note…"
+                            ? "Only SATHOS can see this note…"
                             : "Write a reply visible to the customer…"
                         }
                       />
@@ -883,7 +883,7 @@ export function OperationsConsole() {
             <h2>No customer requests submitted</h2>
             <p>
               Requests appear here only after an organization explicitly sends
-              them to B² Brain.
+              them to SATHOS.
             </p>
           </section>
         ) : (
@@ -969,7 +969,7 @@ export function OperationsConsole() {
                     </select>
                   </label>
                   <label>
-                    <span>Assigned B² Brain operator</span>
+                    <span>Assigned SATHOS operator</span>
                     <select
                       value={form.assignedToId}
                       onChange={(event) =>
@@ -997,7 +997,7 @@ export function OperationsConsole() {
                   </label>
                   <label className="wide private">
                     <span>
-                      Internal B² Brain note — never shared with customer
+                      Internal SATHOS note — never shared with customer
                     </span>
                     <textarea
                       rows={4}

@@ -21,8 +21,8 @@ import "./styles/knowledge-management.css";
 import "./styles/dashboard-mobile.css";
 
 export const metadata: Metadata = {
-  title: { default: "B² Brain", template: "%s · B² Brain" },
-  description: "A focused workspace for running your organization.",
+  title: { default: "SATHOS", template: "%s · SATHOS" },
+  description: "SATHOS — Built for what's next.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

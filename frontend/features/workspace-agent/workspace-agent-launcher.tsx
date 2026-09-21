@@ -113,10 +113,10 @@ export function WorkspaceAgentLauncher({ organizationId, userId, open, onOpen, l
     onClick={() => { if (dragged.current) { dragged.current = false; return; } onOpen(); }}
     onContextMenu={(event) => { event.preventDefault(); reset(); }}
     onKeyDown={(event) => { if (event.shiftKey && event.key === "F10") { event.preventDefault(); reset(); } }}
-    aria-label="Open Ask B² Brain"
+    aria-label="Open Ask SATHOS"
     aria-expanded={open}
     aria-controls="workspace-agent-drawer"
     aria-keyshortcuts="Shift+F10"
-    title="Ask B² Brain. Drag to move; right-click or press Shift+F10 to reset position."
-  ><Image src="/brand/b2brain-logo.png" alt="" width={32} height={32} draggable={false} /><span role="tooltip">Ask B² Brain</span></button>;
+    title="Ask SATHOS. Drag to move; right-click or press Shift+F10 to reset position."
+  ><Image src="/brand/sathos-logo.png" alt="" width={32} height={32} draggable={false} /><span role="tooltip">Ask SATHOS</span></button>;
 }

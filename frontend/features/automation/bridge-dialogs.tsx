@@ -255,7 +255,7 @@ function WebsiteFormDialog(props: BridgeDialogsProps) {
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
-      : "https://your-b2brain-domain";
+      : "https://your-sathos-domain";
   return (
     <>
       <div className="agent-form-grid">

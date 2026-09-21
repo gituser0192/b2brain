@@ -1,6 +1,6 @@
 # Structural refactoring plan
 
-B² Brain Version 2 is an active application. Structural changes must preserve its frontend behavior, API contracts, authentication, organization isolation, database data, and migration history.
+SATHOS Version 2 is an active application. Structural changes must preserve its frontend behavior, API contracts, authentication, organization isolation, database data, and migration history.
 
 The current maintainability cleanup separates oversized frontend workspaces into domain-owned presentation components while leaving state and API orchestration stable. Each extraction is verified and committed independently.
 

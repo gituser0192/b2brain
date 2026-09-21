@@ -143,7 +143,7 @@ const envSchema = z
       .string()
       .optional()
       .transform((value) => value || undefined),
-    EMAIL_FROM: z.string().default("B2 Brain <no-reply@b2brain.local>"),
+    EMAIL_FROM: z.string().default("SATHOS <no-reply@sathos.local>"),
     ENQUIRY_AI_MODE: z
       .enum(["deterministic", "hosted"])
       .default("deterministic"),

@@ -68,7 +68,7 @@ export class ServiceRequestService {
         organizationId,
         requestNumber,
         ...input,
-        customerUpdate: "Your request has been securely submitted to B² Brain.",
+        customerUpdate: "Your request has been securely submitted to SATHOS.",
         responseDueAt: new Date(now.getTime() + responseHours * 3600000),
         resolutionDueAt: new Date(now.getTime() + resolutionHours * 3600000),
         createdById: userId,
@@ -77,7 +77,7 @@ export class ServiceRequestService {
           create: {
             organizationId,
             type: "SYSTEM_EVENT",
-            body: "Request submitted to B² Brain",
+            body: "Request submitted to SATHOS",
             customerVisible: true,
             createdById: userId,
           },
