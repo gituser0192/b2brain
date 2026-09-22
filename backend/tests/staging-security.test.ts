@@ -12,13 +12,20 @@ describe("private staging HTTP boundaries", () => {
     expect(response.headers["x-powered-by"]).toBeUndefined();
   });
 
-  it("allows only the configured browser origin", async () => {
+  it("allows only the explicitly configured browser origins", async () => {
     const allowed = await request(app)
       .options("/api/v1/auth/login")
       .set("Origin", env.FRONTEND_URL)
       .set("Access-Control-Request-Method", "POST");
     expect(allowed.headers["access-control-allow-origin"]).toBe(env.FRONTEND_URL);
     expect(allowed.headers["access-control-allow-credentials"]).toBe("true");
+
+    const additional = await request(app)
+      .options("/api/v1/auth/login")
+      .set("Origin", env.ADDITIONAL_FRONTEND_ORIGIN!)
+      .set("Access-Control-Request-Method", "POST");
+    expect(additional.headers["access-control-allow-origin"]).toBe(env.ADDITIONAL_FRONTEND_ORIGIN);
+    expect(additional.headers["access-control-allow-credentials"]).toBe("true");
 
     const denied = await request(app)
       .options("/api/v1/auth/login")

@@ -1,6 +1,7 @@
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:65535/b2brain_test";
 process.env.FRONTEND_URL = "http://localhost:3000";
+process.env.ADDITIONAL_FRONTEND_ORIGIN = "https://sathos.in";
 process.env.JWT_ACCESS_SECRET = "test-access-secret-that-is-longer-than-thirty-two-characters";
 process.env.REFRESH_TOKEN_SECRET = "test-refresh-secret-that-is-longer-than-thirty-two-characters";
 process.env.JWT_ACCESS_EXPIRES_IN = "15m";

@@ -26,6 +26,10 @@ const envSchema = z
       )
       .optional(),
     FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+    ADDITIONAL_FRONTEND_ORIGIN: z.string().url().optional().transform((value) => value || undefined).refine(
+      (value) => !value || new URL(value).origin === value,
+      "Must be an exact origin without a path or trailing slash",
+    ),
     TRUST_PROXY: z
       .string()
       .default("false")
@@ -295,6 +299,12 @@ const envSchema = z
         code: "custom",
         path: ["FRONTEND_URL"],
         message: "Production frontend URL must use HTTPS.",
+      });
+    if (value.ADDITIONAL_FRONTEND_ORIGIN && !value.ADDITIONAL_FRONTEND_ORIGIN.startsWith("https://"))
+      context.addIssue({
+        code: "custom",
+        path: ["ADDITIONAL_FRONTEND_ORIGIN"],
+        message: "Production additional frontend origin must use HTTPS.",
       });
     if (!value.COOKIE_SECURE)
       context.addIssue({
