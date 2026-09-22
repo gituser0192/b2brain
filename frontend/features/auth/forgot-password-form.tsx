@@ -10,10 +10,13 @@ export function ForgotPasswordForm() {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [resetPath, setResetPath] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting) return;
     setError("");
+    setSubmitting(true);
 
     try {
       const response = await apiRequest<{
@@ -32,6 +35,8 @@ export function ForgotPasswordForm() {
           ? reason.message
           : "Unable to request a password reset.",
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -54,7 +59,7 @@ export function ForgotPasswordForm() {
 
   return (
     <form className="auth-form" onSubmit={submit}>
-      {error && <div className="form-alert">{error}</div>}
+      {error && <div className="form-alert" role="alert">{error}</div>}
       <label>
         <span>Email address</span>
         <input
@@ -65,7 +70,8 @@ export function ForgotPasswordForm() {
           autoComplete="email"
         />
       </label>
-      <button className="primary-button">Request password reset</button>
+      <button className="primary-button" type="submit" disabled={submitting}>{submitting ? "Requesting reset…" : "Request password reset"}</button>
+      {submitting && <p role="status">Contacting the server. This may take a minute if it is waking up.</p>}
     </form>
   );
 }
