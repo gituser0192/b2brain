@@ -11,6 +11,7 @@ import { hashPasswordResetToken, newPasswordResetToken, passwordResetExpiry } fr
 import { EmailService } from "../../shared/email/email.service.js";
 
 const OWNER_CODE = "ORGANIZATION_OWNER";
+const REFRESH_RETRY_GRACE_MS = 10_000;
 
 function slugBase(name: string) {
   return name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "organization";
@@ -96,14 +97,20 @@ export class AuthService {
 
   async refresh(token: string, metadata: SessionMetadata) {
     const session = await this.repository.findSession(hashRefreshToken(token));
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
+    const now = new Date();
+    const retryCutoff = new Date(now.getTime() - REFRESH_RETRY_GRACE_MS);
+    const retryable = Boolean(session?.revokedAt && session.replacedBySessionId && session.revokedAt >= retryCutoff);
+    if (!session || (session.revokedAt && !retryable) || session.expiresAt <= now) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
     const membership = await this.repository.findActiveContextByMembership(session.membershipId);
     if (!membership) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
     const refreshToken = newRefreshToken();
     await this.repository.transaction(async (tx) => {
       const replacement = await this.repository.createSession(tx, { userId: session.userId, membershipId: session.membershipId, tokenHash: hashRefreshToken(refreshToken), expiresAt: refreshExpiry(), ...(metadata.userAgent ? { userAgent: metadata.userAgent } : {}), ...(metadata.ipAddress ? { ipAddress: metadata.ipAddress } : {}) });
-      const claimed = await tx.refreshSession.updateMany({ where: { id: session.id, revokedAt: null, expiresAt: { gt: new Date() } }, data: { revokedAt: new Date(), replacedBySessionId: replacement.id, lastUsedAt: new Date() } });
-      if (claimed.count !== 1) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
+      const claimed = await tx.refreshSession.updateMany({ where: { id: session.id, revokedAt: null, expiresAt: { gt: now } }, data: { revokedAt: now, replacedBySessionId: replacement.id, lastUsedAt: now } });
+      if (claimed.count === 0) {
+        const retried = await tx.refreshSession.updateMany({ where: { id: session.id, revokedAt: { gte: retryCutoff }, replacedBySessionId: { not: null }, expiresAt: { gt: now } }, data: { replacedBySessionId: replacement.id, lastUsedAt: now } });
+        if (retried.count !== 1) throw new AppError(401, "Refresh session is invalid or expired.", "INVALID_REFRESH_SESSION");
+      }
     });
     return { ...safeData(membership), accessToken: issueAccessToken(toContext(membership)), refreshToken };
   }

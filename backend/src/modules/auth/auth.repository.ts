@@ -64,7 +64,7 @@ export class AuthRepository {
   }
 
   revokeSession(tokenHash: string) {
-    return this.db.refreshSession.updateMany({ where: { tokenHash, revokedAt: null }, data: { revokedAt: new Date() } });
+    return this.db.refreshSession.updateMany({ where: { tokenHash }, data: { revokedAt: new Date(), replacedBySessionId: null } });
   }
 
   async createPasswordReset(userId: string, tokenHash: string, expiresAt: Date) {
