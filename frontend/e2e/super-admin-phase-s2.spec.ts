@@ -42,9 +42,11 @@ test("invalid organization selection is safe and related links preserve selectio
   await expect(page.locator(".organization-related-links").getByRole("link", { name: "Services" })).toHaveAttribute("href", /section=services&organization=org-e2e-safe/);
 });
 
-test("owner invitation validates, prevents duplicate submission and never exposes its token", async ({ page }) => {
+test("owner invitation validates, prevents duplicate submission and offers its one-time link", async ({ page }) => {
   let invitationRequests = 0;
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await installSyntheticApi(page, { platformAdmin: true, platformOrganizations: true });
+  await page.route("**/api/v1/platform/invitations", (route) => route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ success: true, data: { emailDelivered: false, signupUrl: "https://staging.sathos.in/signup?token=synthetic-test-token" } }) }));
   page.on("request", (request) => {
     if (request.method() === "POST" && request.url().endsWith("/api/v1/platform/invitations")) invitationRequests += 1;
   });
@@ -56,7 +58,12 @@ test("owner invitation validates, prevents duplicate submission and never expose
   await page.getByRole("button", { name: "Invite organization owner" }).dblclick();
   await expect(page.getByText("Invitation created", { exact: true })).toBeVisible();
   expect(invitationRequests).toBe(1);
-  await expect(page.getByText(/signup\?token=/)).toHaveCount(0);
+  await expect(page.getByLabel("Secure invitation link")).toHaveValue("https://staging.sathos.in/signup?token=synthetic-test-token");
+  await expect(page.getByText("the email was not delivered", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Copy link" }).click();
+  await expect(page.getByText("Invitation link copied.", { exact: false })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Secure invitation link")).toHaveCount(0);
 });
 
 test("dangerous organization and invitation actions require accessible confirmation", async ({ page }) => {

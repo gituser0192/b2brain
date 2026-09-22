@@ -195,6 +195,10 @@
 .platform-invitations > form > button { align-self: end; }
 .invite-link-result { align-items: flex-start; display: grid; gap: 0.25rem; }
 .invite-link-result span { overflow-wrap: anywhere; }
+.invite-link-copy { display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr) auto; margin-top: 0.5rem; min-width: 0; }
+.invite-link-copy label, .invite-link-copy small { grid-column: 1 / -1; }
+.invite-link-copy input { min-width: 0; width: 100%; }
+.invite-link-copy button { white-space: nowrap; }
 .platform-dialog-backdrop { align-items: center; background: rgba(7, 19, 38, 0.6); display: flex; inset: 0; justify-content: center; padding: 1rem; position: fixed; z-index: 100; }
 .platform-confirmation { background: white; border-radius: 1rem; box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.25); max-width: 30rem; padding: 1.4rem; width: 100%; }
 .platform-confirmation > p { color: #168be0; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; margin: 0; text-transform: uppercase; }

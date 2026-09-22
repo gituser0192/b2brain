@@ -80,6 +80,8 @@ export function SuperAdminConsole() {
   const [plans, setPlans] = useState<ServicePlan[]>([]);
   const [inviteForm, setInviteForm] = useState({ email: "", organizationName: "" });
   const [inviteSuccess, setInviteSuccess] = useState("");
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [inviteCopyStatus, setInviteCopyStatus] = useState("");
   const [inviting, setInviting] = useState(false);
   const [organizationSearch, setOrganizationSearch] = useState("");
   const [organizationFilter, setOrganizationFilter] = useState<OrganizationFilter>("ALL");
@@ -187,10 +189,11 @@ export function SuperAdminConsole() {
   async function createInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (inviting) return;
-    setInviting(true); setError(""); setInviteSuccess("");
+    setInviting(true); setError(""); setInviteSuccess(""); setInviteUrl(""); setInviteCopyStatus("");
     try {
       const response = await authorizedRequest<InviteResponse>("/platform/invitations", { method: "POST", body: JSON.stringify(inviteForm) });
-      setInviteSuccess(response.data.emailDelivered ? "Invitation created and email delivery was accepted." : "Invitation created. Email delivery is not confirmed; review the pending invitation below.");
+      setInviteUrl(response.data.signupUrl);
+      setInviteSuccess(response.data.emailDelivered ? "Invitation created. The email provider accepted the message; inbox delivery is not guaranteed." : "Invitation created, but the email was not delivered. Copy the secure link and send it to the invited owner.");
       setInviteForm({ email: "", organizationName: "" });
       await load();
     } catch (reason) { setError(reason instanceof ApiError ? reason.message : "Unable to create invitation."); }
@@ -291,7 +294,7 @@ export function SuperAdminConsole() {
           <div className="organization-directory" role="list">{organizations.length === 0 ? <div className="platform-empty">No organizations registered.</div> : filteredOrganizations.length === 0 ? <div className="platform-empty">No organizations match this search or filter.</div> : filteredOrganizations.map((organization) => <Link role="listitem" key={organization.id} href={`/super-admin?section=organizations&organization=${encodeURIComponent(organization.id)}`} className={selected?.id === organization.id ? "active" : ""} aria-current={selected?.id === organization.id ? "true" : undefined}><span aria-hidden="true">{organization.name.slice(0, 2).toUpperCase()}</span><div><strong>{organization.name}</strong><small>{organization.owner?.email ?? "Owner unavailable"}</small><small>{organization.plan?.plan.name ?? "No plan"} · {organization.enabledServiceIds.length} services</small></div><em className={`account-status ${organization.status.toLowerCase()}`}>{organization.status.replaceAll("_", " ")}</em></Link>)}</div>
           <section className="platform-invitations">
             <form onSubmit={createInvitation}><div><p>Controlled onboarding</p><h2>Invite organization owner</h2><span>Only the invited email can use the link. The invitation does not activate an organization until accepted.</span></div><label><span>Organization name</span><input value={inviteForm.organizationName} onChange={(event) => setInviteForm({ ...inviteForm, organizationName: event.target.value })} placeholder="Company name" required maxLength={120} /></label><label><span>Owner email</span><input type="email" value={inviteForm.email} onChange={(event) => setInviteForm({ ...inviteForm, email: event.target.value })} placeholder="owner@company.com" required /></label><button disabled={inviting}>{inviting ? "Creating invitation…" : "Invite organization owner"}</button></form>
-            {inviteSuccess && <div className="invite-link-result" role="status"><strong>Invitation created</strong><span>{inviteSuccess}</span></div>}
+            {inviteSuccess && <div className="invite-link-result" role="status"><strong>Invitation created</strong><span>{inviteSuccess}</span>{inviteUrl && <div className="invite-link-copy"><label htmlFor="platform-invite-url">Secure invitation link</label><input id="platform-invite-url" value={inviteUrl} readOnly onFocus={(event) => event.currentTarget.select()} /><button type="button" onClick={() => void navigator.clipboard.writeText(inviteUrl).then(() => setInviteCopyStatus("Invitation link copied. Share it only with the invited owner."), () => setInviteCopyStatus("Copy failed. Select the link above and copy it manually."))}>Copy link</button><small>Shown only now. It cannot be retrieved from the pending invitation list later.</small>{inviteCopyStatus && <small>{inviteCopyStatus}</small>}</div>}</div>}
             <div className="pending-platform-invites"><div className="panel-title"><div><p>Owner access</p><h3>Pending invitations</h3></div><span>{pendingInvitations.length}</span></div>{pendingInvitations.length === 0 ? <p>No pending invitations.</p> : pendingInvitations.slice(0, 10).map((invitation) => <article key={invitation.id}><div><strong>{invitation.organizationName}</strong><span>{invitation.email} · {invitation.type === "REACTIVATE_ORGANIZATION" ? "Reactivation" : "New organization"}</span></div><small>Pending · expires {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invitation.expiresAt))}</small><button type="button" onClick={(event) => openConfirmation({ kind: "revoke", invitation }, event.currentTarget)}>Revoke</button></article>)}</div>
           </section>
         </div>
