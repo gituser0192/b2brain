@@ -6,6 +6,7 @@ import "./styles/foundations/reset.css";
 import "./styles/foundations/typography.css";
 import "./styles/layouts/auth.css";
 import "./styles/layouts/dashboard-shell.css";
+import "./styles/layouts/marketing.css";
 import "./globals.css";
 import "./styles/features/dashboard.css";
 import "./styles/features/automation.css";
