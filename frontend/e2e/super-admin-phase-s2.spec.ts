@@ -66,6 +66,25 @@ test("owner invitation validates, prevents duplicate submission and offers its o
   await expect(page.getByLabel("Secure invitation link")).toHaveCount(0);
 });
 
+test("completed owner signup requires an explicit Super Admin approval", async ({ page }) => {
+  const mutations: string[] = [];
+  await installSyntheticApi(page, { platformAdmin: true });
+  await page.route("**/api/v1/platform/overview", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ success: true, data: { organizations: [{ id: "org-pending-test", name: "Pending Test Company", slug: "pending-test", status: "PENDING_APPROVAL", createdAt: "2026-09-12T09:00:00.000Z", activeMemberCount: 1, enabledServiceIds: [], owner: { id: "owner-pending-test", firstName: "Test", lastName: "Owner", email: "pending@example.test", status: "ACTIVE", isPlatformAdmin: false }, plan: null }], services: [], invitations: [], plans: [] } }) }));
+  page.on("request", (request) => { if (request.method() !== "GET" && request.url().includes("/api/v1/platform/")) mutations.push(`${request.method()} ${request.url()}`); });
+  await page.goto("/super-admin?section=organizations&organization=org-pending-test");
+  await expect(page.getByRole("heading", { name: "Pending Test Company" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve login" })).toBeVisible();
+  expect(mutations).toEqual([]);
+  await page.getByRole("button", { name: "Approve login" }).click();
+  const dialog = page.getByRole("dialog", { name: "Approve Pending Test Company?" });
+  await expect(dialog).toContainText("Approval enables login");
+  expect(mutations).toEqual([]);
+  await dialog.getByRole("button", { name: "Approve login" }).click();
+  await expect.poll(() => mutations.length).toBe(1);
+  expect(mutations[0]).toContain("PATCH");
+  expect(mutations[0]).toContain("/platform/organizations/org-pending-test/access");
+});
+
 test("dangerous organization and invitation actions require accessible confirmation", async ({ page }) => {
   await installSyntheticApi(page, { platformAdmin: true, platformOrganizations: true });
   await page.goto("/super-admin?section=organizations");
