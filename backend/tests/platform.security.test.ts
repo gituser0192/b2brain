@@ -4,6 +4,7 @@ import { requirePlatformAdmin } from "../src/middleware/auth.js";
 import { createPlatformInvitationSchema, organizationServiceAssignmentSchema } from "../src/modules/platform/platform.validation.js";
 import { PlatformService } from "../src/modules/platform/platform.service.js";
 import type { PlatformRepository } from "../src/modules/platform/platform.repository.js";
+import type { EmailService } from "../src/shared/email/email.service.js";
 
 function request(isPlatformAdmin: boolean) {
   return {
@@ -55,5 +56,20 @@ describe("platform administration security", () => {
     await expect(service.removeOrganization(crypto.randomUUID())).rejects.toMatchObject({ code: "SUPER_ADMIN_ORGANIZATION_PROTECTED" });
     expect(setAccessMock).not.toHaveBeenCalled();
     expect(removeMock).not.toHaveBeenCalled();
+  });
+
+  it("sends a welcome email only on first approval, after access is saved", async () => {
+    const setOrganizationAccess = vi.fn().mockResolvedValueOnce({ approvedNow: true }).mockResolvedValueOnce({ approvedNow: false });
+    const repository = {
+      findOrganization: vi.fn().mockResolvedValue({ id: "org-1", name: "Acme" }),
+      setOrganizationAccess,
+      findOrganizationOwnerEmail: vi.fn().mockResolvedValue({ user: { email: "owner@example.com" } }),
+    } as unknown as PlatformRepository;
+    const organizationApproved = vi.fn().mockResolvedValue({ delivered: true });
+    const service = new PlatformService(repository, { organizationApproved } as unknown as EmailService);
+    await expect(service.setOrganizationAccess("org-1", { status: "ACTIVE" })).resolves.toMatchObject({ welcomeEmailAccepted: true });
+    await expect(service.setOrganizationAccess("org-1", { status: "ACTIVE" })).resolves.toMatchObject({ welcomeEmailAccepted: false });
+    expect(organizationApproved).toHaveBeenCalledOnce();
+    expect(organizationApproved).toHaveBeenCalledWith("owner@example.com", "Acme");
   });
 });

@@ -47,7 +47,13 @@ export class EmailService {
   }
   organizationInvitation(to: string, organizationName: string, path: string) {
     const url = `${env.FRONTEND_URL}${path}`;
-    return this.send({ to, subject: `Create your ${organizationName} workspace`, text: `Your SATHOS workspace invitation is ready: ${url}`, html: `<h2>Your SATHOS workspace is ready</h2><p>Create the owner account for ${organizationName}.</p><p><a href="${url}">Create workspace</a></p><p>This private link expires automatically.</p>` });
+    const safeName = organizationName.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
+    return this.send({ to, subject: `You're invited to SATHOS: ${organizationName}`, text: `You've been invited to create the owner account for ${organizationName}. Sign up here: ${url}\nYour organization will await Super Admin approval before you can sign in. This private link expires automatically.`, html: `<h2>You're invited to SATHOS</h2><p>Create the owner account for ${safeName}. Your organization will await Super Admin approval before you can sign in.</p><p><a href="${url}">Accept invitation</a></p><p>This private link expires automatically. Do not forward it.</p>` });
+  }
+  organizationApproved(to: string, organizationName: string) {
+    const url = `${env.FRONTEND_URL}/login`;
+    const safeName = organizationName.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
+    return this.send({ to, subject: `${organizationName} is approved on SATHOS`, text: `Your ${organizationName} organization has been approved. You can now sign in at ${url}. Your available services depend on your organization's plan and settings.`, html: `<h2>Welcome to SATHOS</h2><p>${safeName} has been approved. You can now sign in to your workspace.</p><p><a href="${url}">Sign in to SATHOS</a></p><p>Available services depend on your organization's plan and settings.</p>` });
   }
   passwordReset(to: string, path: string) {
     const url = `${env.FRONTEND_URL}${path}`;

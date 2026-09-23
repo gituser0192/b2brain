@@ -85,18 +85,26 @@ export class PlatformRepository {
     });
   }
 
+  findOrganizationOwnerEmail(organizationId: string) {
+    return prisma.organizationMembership.findFirst({
+      where: { organizationId, role: { code: "ORGANIZATION_OWNER" }, status: "ACTIVE", user: { status: "ACTIVE", deletedAt: null } },
+      select: { user: { select: { email: true } } },
+    });
+  }
+
   findService(id: string) {
     return prisma.service.findFirst({ where: { id, archivedAt: null } });
   }
 
   setOrganizationAccess(organizationId: string, status: "ACTIVE" | "SUSPENDED") {
     return prisma.$transaction(async (tx) => {
-      const organization = await tx.organization.update({ where: { id: organizationId, deletedAt: null }, data: { status } });
+      const approvedNow = status === "ACTIVE" && (await tx.organization.updateMany({ where: { id: organizationId, deletedAt: null, status: "PENDING_APPROVAL" }, data: { status } })).count === 1;
+      if (!approvedNow) await tx.organization.update({ where: { id: organizationId, deletedAt: null }, data: { status } });
       if (status === "SUSPENDED") {
         const memberships = await tx.organizationMembership.findMany({ where: { organizationId }, select: { id: true } });
         await tx.refreshSession.updateMany({ where: { membershipId: { in: memberships.map((item) => item.id) }, revokedAt: null }, data: { revokedAt: new Date() } });
       }
-      return organization;
+      return { approvedNow };
     });
   }
 

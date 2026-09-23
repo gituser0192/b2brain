@@ -124,8 +124,10 @@ export class PlatformService {
     const organization = await this.repository.findOrganization(organizationId);
     if (!organization) throw new AppError(404, "Organization was not found.", "ORGANIZATION_NOT_FOUND");
     if (input.status === "SUSPENDED" && await this.repository.organizationHasPlatformAdmin(organizationId)) throw new AppError(409, "A Super Admin organization cannot be suspended. Add a separate recovery administrator before changing platform ownership.", "SUPER_ADMIN_ORGANIZATION_PROTECTED");
-    await this.repository.setOrganizationAccess(organizationId, input.status);
-    return { organizationId, status: input.status };
+    const { approvedNow } = await this.repository.setOrganizationAccess(organizationId, input.status);
+    const owner = approvedNow ? await this.repository.findOrganizationOwnerEmail(organizationId) : null;
+    const welcomeEmailAccepted = owner ? (await this.email.organizationApproved(owner.user.email, organization.name)).delivered : false;
+    return { organizationId, status: input.status, welcomeEmailAccepted };
   }
 
   async removeOrganization(organizationId: string) {
