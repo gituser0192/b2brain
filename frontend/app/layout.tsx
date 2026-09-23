@@ -22,8 +22,10 @@ import "./styles/knowledge-management.css";
 import "./styles/dashboard-mobile.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://sathos.in"),
   title: { default: "SATHOS", template: "%s · SATHOS" },
-  description: "SATHOS — Built for what's next.",
+  description: "SATHOS brings customers, projects, finance, people and business intelligence into one connected workspace for growing businesses.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

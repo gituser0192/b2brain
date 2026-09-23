@@ -453,7 +453,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const page = pages[slug as Slug];
-  return page ? { title: page.eyebrow, description: page.intro } : {};
+  return page ? { title: page.eyebrow, description: page.intro, alternates: { canonical: `/${slug}` } } : {};
 }
 
 export default async function PublicPage({

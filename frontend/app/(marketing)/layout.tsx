@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
 const links = [["Services", "/services"], ["Why SATHOS", "/why-sathos"], ["How it works", "/how-it-works"], ["Security", "/security"], ["Pricing", "/pricing"]] as const;
+
+export const metadata: Metadata = { robots: { index: true, follow: true } };
 
 export default function MarketingLayout({ children }: Readonly<{ children: ReactNode }>) {
   return <div className="marketing-site">
