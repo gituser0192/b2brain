@@ -147,6 +147,8 @@ const envSchema = z
       .string()
       .optional()
       .transform((value) => value || undefined),
+    RESEND_API_KEY: z.string().min(1).optional().transform((value) => value || undefined),
+    RESEND_FROM: z.string().default("SATHOS <notifications@mail.sathos.in>"),
     EMAIL_FROM: z.string().default("SATHOS <no-reply@sathos.local>"),
     ENQUIRY_AI_MODE: z
       .enum(["deterministic", "hosted"])

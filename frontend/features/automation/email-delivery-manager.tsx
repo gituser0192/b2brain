@@ -40,7 +40,7 @@ export function EmailDeliveryManager() {
   const canManage = session?.membership.permissions.includes("AUTOMATION_MANAGE") ?? false;
   return <section className="email-delivery-manager">
     <header><div><p>Controlled delivery</p><h3>Email delivery connector</h3><span>Send only approved collection reminders, with tenant isolation, duplicate protection, and a complete audit trail.</span></div><b>{data.deliveries.filter((item) => item.status === "SENT").length} sent</b></header>
-    {!data.smtpConfigured && <div className="form-alert">SMTP is not configured on the backend. Delivery remains blocked.</div>}
+    {!data.smtpConfigured && <div className="form-alert">Email delivery is not configured on the backend. Delivery remains blocked.</div>}
     {data.smtpConfigured && activeConnectors.length === 0 && <div className="form-alert">Create and activate an EMAIL connector in the Automation Bridge.</div>}
     {notice && <div className="dashboard-notice success">{notice}</div>}{error && <div className="form-alert">{error}</div>}
     <div className="email-delivery-toolbar"><label><span>Active connector</span><select value={connectorId} onChange={(event) => setConnectorId(event.target.value)}><option value="">Select connector</option>{activeConnectors.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.provider}</option>)}</select></label><small>Approval authorizes the message. Clicking Send performs the external action.</small></div>
