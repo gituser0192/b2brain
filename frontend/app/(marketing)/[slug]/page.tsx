@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RequestAccessForm } from "./request-access-form";
 
 const pages = {
   services: {
@@ -471,12 +472,7 @@ export default async function PublicPage({
         <h1>{page.title}</h1>
         <p>{page.intro}</p>
         {slug === "contact" && (
-          <a
-            className="site-button"
-            href="mailto:sathsupport@sathos.in?subject=SATHOS%20private%20beta%20request"
-          >
-            Email SATHOS support
-          </a>
+          <a className="site-button" href="#request-access">Request access</a>
         )}
       </section>
       {slug === "services" ? (
@@ -856,14 +852,14 @@ export default async function PublicPage({
         </>
       ) : slug === "contact" ? (
         <>
+          <RequestAccessForm />
           <section className="site-contact-primary">
             <div>
               <span className="site-kicker">One clear contact</span>
-              <h2>Start with an email to our team.</h2>
+              <h2>Send your request from this page.</h2>
               <p>
-                Use the address below for private-beta requests, workspace
-                support and security or privacy questions. Choose a clear
-                subject so we can understand the request before replying.
+                Use the form above to request access. For workspace support,
+                security or privacy questions, you can also email our team.
               </p>
               <a
                 className="site-contact-email"
@@ -894,9 +890,9 @@ export default async function PublicPage({
                   <h3>{title}</h3>
                   <p>{copy}</p>
                   <a
-                    href={`mailto:sathsupport@sathos.in?subject=${encodeURIComponent(subject)}`}
+                    href={title === "Private-beta access" ? "#request-access" : `mailto:sathsupport@sathos.in?subject=${encodeURIComponent(subject)}`}
                   >
-                    Compose email →
+                    {title === "Private-beta access" ? "Request access →" : "Compose email →"}
                   </a>
                 </article>
               ))}

@@ -52,12 +52,18 @@ test("Pricing explains custom scope without inventing fixed plans", async ({ pag
   await expect(page.getByText("No invented “starting from” price", { exact: false })).toBeVisible();
 });
 
-test("Contact offers a real email path without a fake submission flow", async ({ page }) => {
+test("Request access submits on the website without opening a mail app", async ({ page }) => {
+  await page.route("**/api/v1/public/request-access", async route => route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ success: true }) }));
   await page.goto("/contact");
   await expect(page.getByRole("region", { name: "Contact SATHOS" }).getByRole("article")).toHaveCount(3);
   await expect(page.getByRole("link", { name: "sathsupport@sathos.in" }).first()).toHaveAttribute("href", "mailto:sathsupport@sathos.in");
   await expect(page.getByText("sending an email does not approve an account", { exact: false })).toBeVisible();
-  await expect(page.locator("form")).toHaveCount(0);
+  await page.getByLabel("Your name").fill("Test Owner");
+  await page.getByLabel("Work email").fill("owner@example.com");
+  await page.getByLabel("Organization").fill("Test Company");
+  await page.getByLabel("What would you like help with?").fill("We need help setting up a workspace.");
+  await page.getByRole("button", { name: "Send request" }).click();
+  await expect(page.getByRole("status")).toHaveText("Request received. Our team will contact you.");
 });
 
 test("Privacy remains a transparent beta notice rather than invented legal terms", async ({ page }) => {

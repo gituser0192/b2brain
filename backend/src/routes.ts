@@ -7,6 +7,7 @@ import { membershipRouter } from "./modules/memberships/membership.routes.js";
 import { roleRouter } from "./modules/roles/role.routes.js";
 import { serviceRouter } from "./modules/services/service.routes.js";
 import { platformRouter } from "./modules/platform/platform.routes.js";
+import { publicAccessRouter } from "./modules/platform/public-access.routes.js";
 import { customerRouter } from "./modules/customers/customer.routes.js";
 import {
   crmEngagementRouter,
@@ -90,6 +91,7 @@ apiRouter.use("/memberships", membershipRouter);
 apiRouter.use("/roles", roleRouter);
 apiRouter.use("/services", serviceRouter);
 apiRouter.use("/platform", platformRouter);
+apiRouter.use("/public", publicAccessRouter);
 apiRouter.use("/customers", customerRouter);
 apiRouter.use("/customers/:customerId/engagement", engagementRouter);
 apiRouter.use("/crm", crmEngagementRouter);

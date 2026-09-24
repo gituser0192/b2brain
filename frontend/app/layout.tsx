@@ -17,6 +17,7 @@ import "./styles/features/people.css";
 import "./styles/features/projects.css";
 import "./styles/features/crm.css";
 import "./styles/customer-enquiry-agent.css";
+import "./styles/request-access.css";
 import "./styles/features/workspace-agent.css";
 import "./styles/knowledge-management.css";
 import "./styles/dashboard-mobile.css";
