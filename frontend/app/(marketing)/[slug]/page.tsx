@@ -6,9 +6,9 @@ import { RequestAccessForm } from "./request-access-form";
 const pages = {
   services: {
     eyebrow: "Services",
-    title: "One workspace, shaped around your business.",
+    title: "Software and digital services for your business.",
     intro:
-      "Enable only the services your organization needs. Availability and permissions remain explicit for every user.",
+      "Run your work in SATHOS, and talk to our team about websites, online stores and digital growth. Each engagement is scoped to your needs.",
     sections: [
       [
         "Customer growth",
@@ -408,6 +408,7 @@ const pricingFactors = [
 
 const contactReasons = [
   ["Private-beta access", "Tell us what your organization does, your approximate team size and the first workflow you want to improve.", "SATHOS private beta request"],
+  ["Website or digital services", "Tell us what you want to build or improve, your business goals and when you would like to start.", "SATHOS website and digital services inquiry"],
   ["Existing workspace support", "Include the workspace name, the page or service involved and a clear description of the problem. Do not send passwords or tokens.", "SATHOS workspace support"],
   ["Security or privacy question", "Describe the concern without including credentials, private customer records or sensitive configuration values.", "SATHOS security and privacy question"],
 ] as const;
@@ -516,6 +517,26 @@ export default async function PublicPage({
                 </div>
               </article>
             ))}
+          </section>
+          <section className="site-digital-services" aria-labelledby="digital-services-title">
+            <header>
+              <span className="site-kicker">Done-for-you services</span>
+              <h2 id="digital-services-title">Your business online, built around your goals.</h2>
+              <p>Alongside the SATHOS workspace, we can help plan and deliver the digital presence your business needs.</p>
+            </header>
+            <div className="site-digital-grid">
+              <article><h3>Business websites</h3><p>Professional, mobile-friendly sites that explain your services and make it easy for people to enquire.</p></article>
+              <article><h3>Catalogues and online stores</h3><p>Present products or projects clearly, or build a store when you need online ordering. Scope depends on your catalogue and operations.</p></article>
+              <article><h3>Search and local presence</h3><p>Website SEO foundations and Google Business Profile support to help customers discover accurate information about your business.</p></article>
+              <article><h3>Digital marketing</h3><p>Campaign planning, ad setup and ongoing marketing support, with platform ad spend agreed separately.</p></article>
+              <article><h3>Content and social media</h3><p>Product listings, catalogue content and social content planned around what you want to communicate.</p></article>
+              <article><h3>Customer follow-up</h3><p>Organize enquiries and follow-ups in the SATHOS workspace where it fits your team and approved setup.</p></article>
+            </div>
+            <div className="site-digital-bottom">
+              <p>No fixed rate card: we agree the scope, timeline and price in a written proposal. Website and marketing work are separate from workspace access; results such as search rankings or sales are not guaranteed.</p>
+              <a className="site-button" href="mailto:sathsupport@sathos.in?subject=SATHOS%20website%20and%20digital%20services%20inquiry">Discuss your project</a>
+            </div>
+            <p className="site-digital-fallback">If the email button does not open on your device, write to <a href="mailto:sathsupport@sathos.in">sathsupport@sathos.in</a>.</p>
           </section>
           <section className="site-service-note">
             <div>

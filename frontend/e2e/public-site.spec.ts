@@ -7,9 +7,11 @@ test("public SATHOS website exposes the product journey without API mutations", 
   await expect(page.getByRole("heading", { name: "Run your business from one connected operating system." })).toBeVisible();
   await page.getByRole("link", { name: "Services", exact: true }).first().click();
   await expect(page).toHaveURL(/\/services$/);
-  await expect(page.getByRole("heading", { name: "One workspace, shaped around your business." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Software and digital services for your business." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Start with the problem, not the software." })).toBeVisible();
   await expect(page.getByRole("region", { name: "SATHOS service directory" }).getByRole("article")).toHaveCount(6);
+  await expect(page.getByRole("heading", { name: "Your business online, built around your goals." })).toBeVisible();
+  await expect(page.getByText("No fixed rate card:", { exact: false })).toBeVisible();
   expect(mutations).toEqual([]);
 });
 
@@ -55,7 +57,7 @@ test("Pricing explains custom scope without inventing fixed plans", async ({ pag
 test("Request access submits on the website without opening a mail app", async ({ page }) => {
   await page.route("**/api/v1/public/request-access", async route => route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ success: true }) }));
   await page.goto("/contact");
-  await expect(page.getByRole("region", { name: "Contact SATHOS" }).getByRole("article")).toHaveCount(3);
+  await expect(page.getByRole("region", { name: "Contact SATHOS" }).getByRole("article")).toHaveCount(4);
   await expect(page.getByRole("link", { name: "sathsupport@sathos.in" }).first()).toHaveAttribute("href", "mailto:sathsupport@sathos.in");
   await expect(page.getByText("sending an email does not approve an account", { exact: false })).toBeVisible();
   await page.getByLabel("Your name").fill("Test Owner");
