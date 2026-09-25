@@ -1,14 +1,29 @@
 /* People service workspace. Team membership and access styles belong in settings.css. */
 .people-workspace { padding: 28px; }
 .people-heading { align-items: flex-start; display: flex; gap: 24px; justify-content: space-between; }
-.people-heading h2 { font-size: clamp(28px, 3vw, 42px); margin: 8px 0; }
-.people-heading p { color: #667792; line-height: 1.55; margin: 0; max-width: 720px; }
+.people-heading h2 { font-size: 24px; font-weight: 650; margin: 6px 0; }
+.people-heading p { color: #667792; font-size: 14px; line-height: 1.55; margin: 0; max-width: 720px; }
 .people-heading a { color: #087de1; font-weight: 700; }
 .people-heading > button, .people-empty button { background: #087de1; border: 0; border-radius: 10px; color: white; font-weight: 750; padding: 12px 18px; }
-.people-kicker { color: #087de1; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.people-kicker { color: #087de1; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .people-kicker span { background: #fff4d8; border: 1px solid #e7c57c; border-radius: 999px; color: #815b08; margin-left: 8px; padding: 3px 7px; }
 .people-readonly { align-items: center; background: #fff9eb; border: 1px solid #edd79f; border-radius: 10px; display: flex; gap: 10px; margin-top: 20px; padding: 12px 16px; }
 .people-readonly span { color: #6f6250; font-size: 13px; }
+.people-first-run { align-items: center; background: linear-gradient(115deg, #eff6ff 0%, #fff 62%); border: 1px solid #d9e6f5; border-radius: 20px; display: grid; gap: 28px; grid-template-columns: 180px minmax(0, 1fr); margin-top: 30px; max-width: 1000px; padding: 42px 52px; }
+.people-first-run-art { align-items: center; display: flex; height: 170px; justify-content: center; position: relative; }
+.people-first-run-art::before { background: #e1efff; border-radius: 50%; content: ""; height: 156px; position: absolute; width: 156px; }
+.people-first-run-art span { background: white; border: 3px solid #73adeb; border-radius: 50%; box-shadow: 0 12px 24px #12589a1c; height: 54px; position: absolute; top: 37px; width: 54px; }
+.people-first-run-art span::after { background: white; border: 3px solid #73adeb; border-radius: 48% 48% 20% 20%; content: ""; height: 46px; left: -13px; position: absolute; top: 48px; width: 74px; }
+.people-first-run-art span:first-child { left: 16px; transform: scale(.7); }
+.people-first-run-art span:nth-child(2) { border-color: #087de1; left: 63px; z-index: 1; }
+.people-first-run-art span:nth-child(2)::after { border-color: #087de1; }
+.people-first-run-art span:last-child { right: 14px; transform: scale(.7); }
+.people-first-run-label { color: #0872cb; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.people-first-run h3 { color: #14233d; font-size: 24px; font-weight: 650; margin: 8px 0; }
+.people-first-run p { color: #5d6e87; line-height: 1.6; margin: 0 0 20px; max-width: 520px; }
+.people-first-run button { background: #087de1; border: 0; border-radius: 9px; color: white; font-size: 13px; font-weight: 650; padding: 10px 16px; }
+.people-first-run small { color: #687991; display: block; line-height: 1.5; margin-top: 18px; }
+.people-first-run a { color: #0872cb; font-weight: 700; }
 .people-metrics { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); margin: 24px 0; }
 .people-metrics article { background: white; border: 1px solid #dce5ef; border-radius: 14px; padding: 18px; }
 .people-metrics span { color: #6b7b91; display: block; font-size: 13px; }
@@ -51,6 +66,8 @@
   .people-workspace { padding: 16px 14px calc(90px + env(safe-area-inset-bottom)); }
   .people-heading { flex-direction: column; }
   .people-heading > button { width: 100%; }
+  .people-first-run { gap: 0; grid-template-columns: 1fr; padding: 22px; text-align: center; }
+  .people-first-run-art { height: 145px; margin: 0 auto; width: 180px; }
   .people-metrics { gap: 8px; }
   .people-metrics article { padding: 14px; }
   .people-toolbar { align-items: stretch; flex-direction: column; }

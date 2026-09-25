@@ -99,7 +99,9 @@ test("People reports loading state honestly", async ({ page }, testInfo) => {
 test("People reports empty state honestly", async ({ page }, testInfo) => {
   await installSyntheticApi(page, { enabledServices: services, permissions: manager, emptyEmployees: true });
   await page.goto("/people");
-  await expect(page.getByRole("heading", { name: "No employees found" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No employees yet" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add first employee" })).toHaveCount(1);
+  await expect(page.locator(".people-metrics, .people-toolbar")).toHaveCount(0);
   if (testInfo.project.name === "desktop") await expect(page).toHaveScreenshot("people-empty-desktop-win32.png");
 
 });
