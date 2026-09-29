@@ -130,6 +130,10 @@ const envSchema = z
     META_LEAD_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
     META_LEAD_GRAPH_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(10000),
     META_LEAD_GRAPH_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
+    META_INSTAGRAM_DM_ENABLED: z.string().default("false").transform((value) => value === "true"),
+    META_INSTAGRAM_VERIFY_TOKEN: z.string().min(16).optional().transform((value) => value || undefined),
+    META_INSTAGRAM_APP_SECRET: z.string().min(16).optional().transform((value) => value || undefined),
+    META_INSTAGRAM_ACCOUNT_ID: z.string().regex(/^\d{5,32}$/).optional().transform((value) => value || undefined),
     SMTP_HOST: z
       .string()
       .optional()
@@ -248,6 +252,12 @@ const envSchema = z
         context.addIssue({ code: "custom", path: ["META_LEAD_ADS_ENABLED"], message: "External channels must be enabled before Meta Lead Ads can be enabled." });
       for (const key of ["META_LEAD_VERIFY_TOKEN", "META_LEAD_APP_SECRET"] as const)
         if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when Meta Lead Ads is enabled.` });
+    }
+    if (value.META_INSTAGRAM_DM_ENABLED) {
+      if (!value.EXTERNAL_CHANNELS_ENABLED)
+        context.addIssue({ code: "custom", path: ["META_INSTAGRAM_DM_ENABLED"], message: "External channels must be enabled before Instagram DMs can be enabled." });
+      for (const key of ["META_INSTAGRAM_VERIFY_TOKEN", "META_INSTAGRAM_APP_SECRET", "META_INSTAGRAM_ACCOUNT_ID"] as const)
+        if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when Instagram DMs are enabled.` });
     }
     if (value.META_WHATSAPP_OUTBOUND_ENABLED) {
       if (!value.META_WHATSAPP_ENABLED)

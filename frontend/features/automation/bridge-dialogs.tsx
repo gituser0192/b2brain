@@ -473,6 +473,16 @@ function ConnectorDialog(props: BridgeDialogsProps) {
           />
         </label>
         <label>
+          <span>External account ID</span>
+          <input
+            value={form.externalAccountRef}
+            onChange={(event) =>
+              props.setConnector({ ...form, externalAccountRef: event.target.value })
+            }
+            placeholder="Instagram professional account ID"
+          />
+        </label>
+        <label>
           <span>Status</span>
           <select
             value={form.status}
