@@ -6,7 +6,6 @@ import type {
   ConnectorInput,
   EventDecisionInput,
   IntakeInput,
-  MetaLeadConnectorInput,
 } from "./bridge.validation.js";
 import { LeadAssignmentService } from "../inquiries/lead-assignment.service.js";
 import { LeadToCashAutomationService } from "./lead-to-cash-automation.service.js";
@@ -47,6 +46,7 @@ export class BridgeService {
     };
   }
   async createConnector(org: string, user: string, input: ConnectorInput) {
+    if (input.type === "SOCIAL" && ["META_INSTAGRAM_DM", "META_LEAD_ADS", "META_ADVERTISING"].includes(input.provider)) throw new AppError(409, "Use the managed Meta connection setup.", "META_MANAGED_SETUP_REQUIRED");
     const secret = randomBytes(24).toString("hex"),
       signingSecretHash = createHash("sha256").update(secret).digest("hex");
     const connector = await prisma.integrationConnector.create({
@@ -91,17 +91,13 @@ export class BridgeService {
     const configuration = connector.configuration as Record<string, unknown>;
     return prisma.integrationConnector.update({ where: { id }, data: { configuration: { ...configuration, websiteOrderIngestionEnabled: enabled }, updatedById: user }, select: connectorView });
   }
-  async configureMetaLead(org: string, user: string, id: string, input: MetaLeadConnectorInput) {
-    const connector = await prisma.integrationConnector.findFirst({ where: { id, organizationId: org, type: "SOCIAL", provider: "META_LEAD_ADS", deletedAt: null }, select: { id: true, configuration: true } });
-    if (!connector) throw new AppError(404, "Connector was not found.", "CONNECTOR_NOT_FOUND");
-    return prisma.integrationConnector.update({ where: { id }, data: { metaPageId: input.pageId, accessTokenEncrypted: encryptSecret(input.pageAccessToken), credentialsConfiguredAt: new Date(), status: "DRAFT", configuration: { ...(connector.configuration as Record<string, unknown>), metaLeadAllowedFormIds: input.allowedFormIds, metaLeadAuthorizationVerified: false }, updatedById: user }, select: connectorView });
-  }
   async updateConnector(
     org: string,
     user: string,
     id: string,
     input: ConnectorInput,
   ) {
+    if (input.type === "SOCIAL" && ["META_INSTAGRAM_DM", "META_LEAD_ADS", "META_ADVERTISING"].includes(input.provider)) throw new AppError(409, "Use the managed Meta connection setup.", "META_MANAGED_SETUP_REQUIRED");
     const current = await prisma.integrationConnector.findFirst({
       where: { id, organizationId: org, deletedAt: null },
     });
@@ -111,6 +107,7 @@ export class BridgeService {
         "Connector was not found.",
         "CONNECTOR_NOT_FOUND",
       );
+    if (current.type === "SOCIAL" && ["META_INSTAGRAM_DM", "META_LEAD_ADS", "META_ADVERTISING"].includes(current.provider)) throw new AppError(409, "Use the managed Meta connection setup.", "META_MANAGED_SETUP_REQUIRED");
     return prisma.integrationConnector.update({
       where: { id },
       data: { ...input, updatedById: user },
@@ -118,6 +115,8 @@ export class BridgeService {
     });
   }
   async archiveConnector(org: string, user: string, id: string) {
+    const meta = await prisma.integrationConnector.findFirst({ where: { id, organizationId: org, type: "SOCIAL", provider: { in: ["META_INSTAGRAM_DM", "META_LEAD_ADS", "META_ADVERTISING"] }, deletedAt: null }, select: { id: true } });
+    if (meta) throw new AppError(409, "Disconnect this Meta capability first.", "META_DISCONNECT_REQUIRED");
     if (
       (
         await prisma.integrationConnector.updateMany({

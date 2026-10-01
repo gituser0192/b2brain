@@ -1133,6 +1133,7 @@ model Organization {
   ticketAttachments              TicketAttachment[]
   providerServiceRequests        ProviderServiceRequest[]
   providerServiceMessages        ProviderServiceMessage[]
+  metaAssets                     MetaConnectedAsset[]
   managedWebsites                ManagedWebsite[]
   websiteRequests                WebsiteChangeRequest[]
   websiteDeployments             WebsiteDeployment[]
@@ -2738,6 +2739,7 @@ model ProviderServiceRequest {
   organizationId        String                   @db.Uuid
   requestNumber         String
   category              ProviderRequestCategory
+  metaHelpCapability    String?
   subject               String
   description           String
   priority              TicketPriority           @default(MEDIUM)
@@ -3274,6 +3276,13 @@ model IntegrationConnector {
   accessTokenEncrypted      String?
   appSecretEncrypted        String?
   credentialsConfiguredAt   DateTime?
+  credentialKeyVersion      Int                             @default(1)
+  credentialStatus          String                          @default("NOT_CONFIGURED")
+  credentialExpiresAt       DateTime?
+  credentialValidatedAt     DateTime?
+  reauthorizationReason     String?
+  disconnectedAt            DateTime?
+  providerRevokedAt         DateTime?
   configuration             Json
   lastReceivedAt            DateTime?
   lastSuccessfulAt          DateTime?
@@ -3290,7 +3299,9 @@ model IntegrationConnector {
   events                    IntegrationEvent[]
   messageDrafts             AutomationMessageDraft[]
   authorizationStates       IntegrationAuthorizationState[]
+  metaAssets                MetaConnectedAsset[]
 
+  @@unique([id, organizationId])
   @@index([organizationId, status, deletedAt])
   @@index([organizationId, type, deletedAt])
 }
@@ -3299,6 +3310,8 @@ model IntegrationAuthorizationState {
   id             String                 @id @default(uuid()) @db.Uuid
   stateHash      String                 @unique
   provider       String
+  capability     String?
+  loginVariant   String?
   organizationId String                 @db.Uuid
   membershipId   String                 @db.Uuid
   userId         String                 @db.Uuid
@@ -3316,6 +3329,29 @@ model IntegrationAuthorizationState {
   @@index([connectorId])
   @@index([organizationId])
   @@index([membershipId])
+}
+
+model MetaConnectedAsset {
+  id              String               @id @default(uuid()) @db.Uuid
+  organizationId  String               @db.Uuid
+  connectorId     String               @db.Uuid
+  capability      String
+  provider        String
+  loginVariant    String
+  assetType       String
+  assetId         String
+  routingStatus   String               @default("INACTIVE")
+  grantedScopes   Json                 @default("[]")
+  lastValidatedAt DateTime?
+  disconnectedAt  DateTime?
+  releasedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connector       IntegrationConnector @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@index([organizationId, connectorId, capability])
+  @@index([provider, assetType, assetId, capability, routingStatus])
 }
 
 model IntegrationEvent {

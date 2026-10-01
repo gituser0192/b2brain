@@ -22,19 +22,20 @@ import {
   type EmailDeliveryPolicyInput,
   websiteOrderCapabilitySchema,
   type WebsiteOrderCapabilityInput,
-  metaLeadConnectorSchema,
-  type MetaLeadConnectorInput,
 } from "./bridge.validation.js";
 import { EmailDeliveryService } from "./email-delivery.service.js";
 import { MetaLeadConnectionService } from "./meta-lead-connection.service.js";
 import { metaConnectionCallbackSchema, metaConnectionStartSchema, metaFormSelectionSchema, metaPageSelectionSchema, type MetaConnectionCallbackInput, type MetaConnectionStartInput, type MetaFormSelectionInput, type MetaPageSelectionInput } from "./meta-lead-connection.validation.js";
 import { WhatsappConnectionService } from "./whatsapp-connection.service.js";
+import { MetaFoundationService, metaHelpSchema, type MetaHelpInput } from "./meta-foundation.service.js";
+import { metaCapability } from "./meta-assets.service.js";
 import { whatsappAccountSelectionSchema, whatsappConnectionCallbackSchema, whatsappConnectionStartSchema, whatsappNumberSelectionSchema, type WhatsappAccountSelectionInput, type WhatsappConnectionCallbackInput, type WhatsappConnectionStartInput, type WhatsappNumberSelectionInput } from "./whatsapp-connection.validation.js";
 import rateLimit from "express-rate-limit";
 const service = new BridgeService(),
   emailDelivery = new EmailDeliveryService(),
   metaConnection = new MetaLeadConnectionService(),
   whatsappConnection = new WhatsappConnectionService(),
+  metaFoundation = new MetaFoundationService(),
   auth = (r: Parameters<RequestHandler>[0]) => {
     if (!r.auth)
       throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
@@ -64,6 +65,10 @@ bridgeRouter.get("/", requirePermission("AUTOMATION_VIEW"), async (r, s) =>
 );
 const metaLimit = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, message: { success: false, message: "Too many Meta setup requests. Try again later.", code: "RATE_LIMITED" } });
 const metaContext = (r: Parameters<RequestHandler>[0]) => { const c = auth(r); return { organizationId: c.organizationId, membershipId: c.membershipId, userId: c.userId }; };
+bridgeRouter.get("/meta-foundation", requirePermission("AUTOMATION_VIEW"), async (r, s) => s.json(success(await metaFoundation.overview(auth(r)))));
+bridgeRouter.post("/meta-foundation/help", metaLimit, requirePermission("AUTOMATION_VIEW"), validateBody(metaHelpSchema), async (r, s) => { const result = await metaFoundation.requestHelp(auth(r), r.body as MetaHelpInput); s.status(result.created ? 201 : 200).json(success(result)); });
+bridgeRouter.post("/meta-foundation/:capability/draft", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaFoundation.initialize(auth(r), metaCapability.parse(r.params.capability)))));
+bridgeRouter.post("/meta-foundation/:capability/:id/disconnect", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaFoundation.disconnect(auth(r), metaCapability.parse(r.params.capability), String(r.params.id)))));
 bridgeRouter.get("/connectors/:id/meta/status", requirePermission("AUTOMATION_VIEW"), async (r, s) => s.json(success(await metaConnection.status(metaContext(r), String(r.params.id)))));
 bridgeRouter.post("/connectors/:id/meta/authorize", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaConnectionStartSchema), async (r, s) => s.json(success(await metaConnection.start(metaContext(r), String(r.params.id), r.body as MetaConnectionStartInput))));
 bridgeRouter.post("/connectors/:id/meta/callback", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaConnectionCallbackSchema), async (r, s) => s.json(success(await metaConnection.callback(metaContext(r), String(r.params.id), r.body as MetaConnectionCallbackInput))));
@@ -112,10 +117,6 @@ bridgeRouter.post(
 bridgeRouter.put("/connectors/:id/website-orders", requirePermission("AUTOMATION_MANAGE"), validateBody(websiteOrderCapabilitySchema), async (r, s) => {
   const c = auth(r), input = r.body as WebsiteOrderCapabilityInput;
   s.json(success(await service.configureWebsiteOrders(c.organizationId, c.userId, String(r.params.id), input.enabled), "Website order capability updated."));
-});
-bridgeRouter.put("/connectors/:id/meta-lead", requirePermission("AUTOMATION_MANAGE"), validateBody(metaLeadConnectorSchema), async (r, s) => {
-  const c = auth(r);
-  s.json(success(await service.configureMetaLead(c.organizationId, c.userId, String(r.params.id), r.body as MetaLeadConnectorInput), "Meta Lead connector configuration saved for verification."));
 });
 bridgeRouter.post(
   "/connectors/:id/website-secret/rotate",

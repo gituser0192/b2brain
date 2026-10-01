@@ -4,6 +4,7 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
+import { resolveMetaAsset } from "./meta-assets.service.js";
 
 const id = z.string().regex(/^\d{1,32}$/);
 const payloadSchema = z.object({
@@ -39,16 +40,12 @@ export class InstagramDmService {
     if (!parsed.success) throw new AppError(400, "Instagram webhook payload is invalid.", "INVALID_INSTAGRAM_WEBHOOK");
     let processed = 0, duplicate = 0;
     for (const entry of parsed.data.entry) {
-      if (entry.id !== env.META_INSTAGRAM_ACCOUNT_ID) throw new AppError(404, "Instagram account is not configured.", "INSTAGRAM_ACCOUNT_UNAVAILABLE");
       for (const item of entry.messaging ?? []) {
         const message = item.message;
         if (!message || message.is_echo || item.sender.id === entry.id || item.recipient.id !== entry.id || !message.text?.trim()) continue;
-        const connectors = await prisma.integrationConnector.findMany({
-          where: { type: "SOCIAL", provider: "META_INSTAGRAM_DM", externalAccountRef: entry.id, status: "ACTIVE", deletedAt: null, organization: { status: "ACTIVE", deletedAt: null } },
-          select: { id: true, organizationId: true, createdById: true }, take: 2,
-        });
-        if (connectors.length !== 1) throw new AppError(404, "Instagram connector is unavailable.", "INSTAGRAM_CONNECTOR_UNAVAILABLE");
-        const connector = connectors[0]!;
+        const asset = await resolveMetaAsset({ capability: "INSTAGRAM_MESSAGES", provider: "META", assetType: "INSTAGRAM_ACCOUNT", assetId: entry.id });
+        const connector = await prisma.integrationConnector.findFirst({ where: { id: asset.connectorId, organizationId: asset.organizationId }, select: { id: true, organizationId: true, createdById: true } });
+        if (!connector) throw new AppError(404, "Instagram connector is unavailable.", "INSTAGRAM_CONNECTOR_UNAVAILABLE");
         const text = message.text.trim();
         try {
           await prisma.$transaction(async (tx) => {

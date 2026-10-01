@@ -2,12 +2,12 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  env: { EXTERNAL_CHANNELS_ENABLED: true, META_INSTAGRAM_DM_ENABLED: true, META_INSTAGRAM_VERIFY_TOKEN: "synthetic-verify-token", META_INSTAGRAM_APP_SECRET: "synthetic-app-secret", META_INSTAGRAM_ACCOUNT_ID: "123456789" },
-  findMany: vi.fn(), transaction: vi.fn(), eventCreate: vi.fn(), inquiryCreate: vi.fn(), eventUpdate: vi.fn(), connectorUpdate: vi.fn(),
+  env: { EXTERNAL_CHANNELS_ENABLED: true, META_INSTAGRAM_DM_ENABLED: true, META_INSTAGRAM_VERIFY_TOKEN: "synthetic-verify-token", META_INSTAGRAM_APP_SECRET: "synthetic-app-secret" },
+  findMany: vi.fn(), findConnector: vi.fn(), serviceCount: vi.fn(), plan: vi.fn(), transaction: vi.fn(), eventCreate: vi.fn(), inquiryCreate: vi.fn(), eventUpdate: vi.fn(), connectorUpdate: vi.fn(),
 }));
 vi.mock("../src/config/env.js", () => ({ env: state.env }));
 vi.mock("../src/database/prisma.js", () => ({ prisma: {
-  integrationConnector: { findMany: state.findMany },
+  metaConnectedAsset: { findMany: state.findMany }, integrationConnector: { findFirst: state.findConnector }, organizationService: { count: state.serviceCount }, organizationPlan: { findUnique: state.plan },
   $transaction: state.transaction,
 } }));
 import { InstagramDmService } from "../src/modules/automation-bridge/instagram-dm.service.js";
@@ -23,7 +23,9 @@ describe("Instagram DM intake", () => {
     const raw = Buffer.from(JSON.stringify(body));
     await expect(service.accept(raw, "sha256=bad", body)).rejects.toMatchObject({ code: "INVALID_WEBHOOK_SIGNATURE" });
     expect(state.findMany).not.toHaveBeenCalled();
-    state.findMany.mockResolvedValue([{ id: "connector", organizationId: "organization", createdById: "user" }]);
+    state.findMany.mockResolvedValue([{ id: "asset", connectorId: "connector", organizationId: "organization" }]);
+    state.findConnector.mockResolvedValue({ id: "connector", organizationId: "organization", createdById: "user" });
+    state.serviceCount.mockResolvedValue(2); state.plan.mockResolvedValue(null);
     state.eventCreate.mockResolvedValue({ id: "event", traceId: "trace" });
     state.inquiryCreate.mockResolvedValue({ id: "lead" });
     state.transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({ integrationEvent: { create: state.eventCreate, update: state.eventUpdate }, inquiry: { create: state.inquiryCreate }, integrationConnector: { update: state.connectorUpdate } }));

@@ -65,6 +65,7 @@ const envSchema = z
       .string()
       .optional()
       .transform((value) => value || undefined),
+    BRIDGE_ENCRYPTION_KEY_V2: z.string().optional().transform((value) => value || undefined),
     META_WHATSAPP_ENABLED: z
       .string()
       .default("false")
@@ -133,7 +134,6 @@ const envSchema = z
     META_INSTAGRAM_DM_ENABLED: z.string().default("false").transform((value) => value === "true"),
     META_INSTAGRAM_VERIFY_TOKEN: z.string().min(16).optional().transform((value) => value || undefined),
     META_INSTAGRAM_APP_SECRET: z.string().min(16).optional().transform((value) => value || undefined),
-    META_INSTAGRAM_ACCOUNT_ID: z.string().regex(/^\d{5,32}$/).optional().transform((value) => value || undefined),
     SMTP_HOST: z
       .string()
       .optional()
@@ -256,7 +256,7 @@ const envSchema = z
     if (value.META_INSTAGRAM_DM_ENABLED) {
       if (!value.EXTERNAL_CHANNELS_ENABLED)
         context.addIssue({ code: "custom", path: ["META_INSTAGRAM_DM_ENABLED"], message: "External channels must be enabled before Instagram DMs can be enabled." });
-      for (const key of ["META_INSTAGRAM_VERIFY_TOKEN", "META_INSTAGRAM_APP_SECRET", "META_INSTAGRAM_ACCOUNT_ID"] as const)
+      for (const key of ["META_INSTAGRAM_VERIFY_TOKEN", "META_INSTAGRAM_APP_SECRET"] as const)
         if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when Instagram DMs are enabled.` });
     }
     if (value.META_WHATSAPP_OUTBOUND_ENABLED) {

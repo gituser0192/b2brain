@@ -11,6 +11,7 @@ import type { BridgeConnector, BridgeDraft, BridgeEvent, BridgePayload } from ".
 import { MetaLeadSetup } from "./meta-lead-setup";
 import { WhatsappBusinessSetup } from "./whatsapp-business-setup";
 import { EmailDeliveryManager } from "./email-delivery-manager";
+import { MetaFoundationPanel } from "./meta-foundation-panel";
 const connectorBlank = {
     name: "",
     type: "WHATSAPP",
@@ -288,6 +289,7 @@ export function BridgeManager({ view, channel = null }: { view: "connections" | 
         onReply={(item) => void createReply(item)}
         onSendDraft={(id) => void sendDraft(id)}
       />}
+      {view === "connections" && (channel === null || channel === "meta") && !loading && !error && <MetaFoundationPanel />}
       {view === "connections" && channel === "meta" && connectors.filter(item => item.type === "SOCIAL" && item.provider === "META_LEAD_ADS").map(item => <MetaLeadSetup key={item.id} connectorId={item.id} canManage={canManage} />)}
       {view === "connections" && channel === "whatsapp" && connectors.filter(item => item.type === "WHATSAPP" && item.provider === "META_WHATSAPP_CLOUD").map(item => <WhatsappBusinessSetup key={item.id} connectorId={item.id} canManage={canManage} />)}
       {view === "connections" && channel === "email" && <EmailDeliveryManager />}

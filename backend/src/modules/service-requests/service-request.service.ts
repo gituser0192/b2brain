@@ -56,6 +56,7 @@ export class ServiceRequestService {
     organizationId: string,
     userId: string,
     input: CreateServiceRequestInput,
+    metaHelpCapability?: string,
   ) {
     const requestNumber = `B2-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
     const now = new Date();
@@ -68,6 +69,7 @@ export class ServiceRequestService {
         organizationId,
         requestNumber,
         ...input,
+        ...(metaHelpCapability ? { metaHelpCapability } : {}),
         customerUpdate: "Your request has been securely submitted to SATHOS.",
         responseDueAt: new Date(now.getTime() + responseHours * 3600000),
         resolutionDueAt: new Date(now.getTime() + resolutionHours * 3600000),

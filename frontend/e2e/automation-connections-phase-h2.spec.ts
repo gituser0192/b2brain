@@ -10,6 +10,11 @@ const connectors = [
 
 async function installConnections(page: Parameters<typeof installSyntheticApi>[0], permissions = ["AUTOMATION_VIEW", "AUTOMATION_MANAGE"]) {
   await installSyntheticApi(page, { permissions });
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { providerAvailable: false, approvalReady: false, items: [
+    { capability: "INSTAGRAM_MESSAGES", state: "NOT_CONFIGURED", canManage: permissions.includes("AUTOMATION_MANAGE"), connectorId: null },
+    { capability: "META_LEAD_ADS", state: "TEST_MODE", canManage: permissions.includes("AUTOMATION_MANAGE"), connectorId: "meta-test" },
+    { capability: "META_ADVERTISING", state: "NOT_CONFIGURED", canManage: permissions.includes("AUTOMATION_MANAGE"), connectorId: null },
+  ] } }) }));
   await page.route("**/api/v1/automation-bridge", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { connectors, events: [], metrics: { received: 0, completed: 0, failed: 0 } } }) }));
   await page.route("**/api/v1/automation-bridge/connectors/*/meta/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { connectorStatus: "ACTIVE", mode: "TEST", setupState: "READY_TEST", page: { name: "Synthetic Page", maskedId: "••••0001" }, forms: [], permissionsValid: true, subscriptionVerified: true, lastVerifiedAt: "2026-09-01T00:00:00.000Z", lastTestAt: "2026-09-01T00:00:00.000Z", lastSuccessfulLeadAt: null, canActivateProduction: false } }) }));
   await page.route("**/api/v1/automation-bridge/connectors/*/whatsapp-setup/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { connectorStatus: "DRAFT", mode: "TEST", setupState: "NOT_CONFIGURED", accounts: [], selectedAccount: null, selectedNumber: null, grantedScopes: [], permissionsValid: false, webhookReady: false, authorizationVerifiedAt: null, numberVerifiedAt: null, lastTestAt: null, outboundEnabled: false, canActivateProduction: false } }) }));
@@ -53,7 +58,7 @@ for (const channel of ["whatsapp", "meta", "website", "email"] as const) {
     await page.reload();
     await expect(page).toHaveURL(new RegExp(`channel=${channel}`));
     if (channel === "whatsapp") await expect(page.getByText("WhatsApp Business — Test Mode", { exact: true })).toBeVisible();
-    if (channel === "meta") await expect(page.getByText("Meta Lead Ads", { exact: true })).toBeVisible();
+    if (channel === "meta") await expect(page.getByLabel("Meta connection foundation").getByText("Meta Lead Ads", { exact: true })).toBeVisible();
     if (channel === "website") await expect(page.getByRole("heading", { name: "Website enquiries and draft orders" })).toBeVisible();
     if (channel === "email") await expect(page.getByRole("heading", { name: "Email delivery connector" })).toBeVisible();
     if (testInfo.project.name === "desktop") await expect(page.locator(".bridge-manager")).toHaveScreenshot(`automation-connection-${channel}-detail.png`);
@@ -87,6 +92,35 @@ test("advanced controls are permission filtered and opening details does not mut
   await expect(page.getByText("SMTP is not configured on the backend. Delivery remains blocked.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save delivery policy" })).toHaveCount(0);
   expect(writes).toBe(0);
+});
+
+test("Meta capabilities stay unavailable and help is the only deliberate write", async ({ page }) => {
+  let writes = 0;
+  page.on("request", request => { if (request.url().includes("/api/v1/automation-bridge") && request.method() !== "GET") writes += 1; });
+  await installConnections(page);
+  await page.route("**/api/v1/automation-bridge/meta-foundation/help", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { requestId: "synthetic-request", created: true, responseCommitmentHours: 24 } }) }));
+  await page.goto("/automation?section=connections&channel=meta");
+  const panel = page.getByLabel("Meta connection foundation");
+  await expect(panel.locator("article")).toHaveCount(3);
+  await expect(panel).toContainText("Test Mode — not live");
+  await expect(panel).toContainText("Setup unavailable pending Meta approval");
+  await expect(panel.locator('input[type="password"]')).toHaveCount(0);
+  await expect(panel.locator('input[name*="token"]')).toHaveCount(0);
+  await page.reload();
+  await expect(panel.locator("article")).toHaveCount(3);
+  expect(writes).toBe(0);
+  await panel.getByRole("button", { name: "Request SATHOS Help" }).first().click();
+  await expect(panel.getByRole("button", { name: "Help requested" })).toHaveCount(1);
+  expect(writes).toBe(1);
+});
+
+test("Meta read-only status has no setup or help mutation controls", async ({ page }) => {
+  await installConnections(page, ["AUTOMATION_VIEW"]);
+  await page.goto("/automation?section=connections&channel=meta");
+  const panel = page.getByLabel("Meta connection foundation");
+  await expect(panel.locator("article")).toHaveCount(3);
+  await expect(panel.getByRole("button", { name: "Request SATHOS Help" })).toHaveCount(0);
+  await expect(panel.getByRole("combobox")).toHaveCount(0);
 });
 
 test("advanced management remains accessible without exposing raw details on cards", async ({ page }) => {
