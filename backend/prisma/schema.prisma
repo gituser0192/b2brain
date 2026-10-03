@@ -3343,6 +3343,7 @@ model MetaConnectedAsset {
   routingStatus   String               @default("INACTIVE")
   grantedScopes   Json                 @default("[]")
   lastValidatedAt DateTime?
+  webhookCutoverAt DateTime?
   disconnectedAt  DateTime?
   releasedAt      DateTime?
   createdAt       DateTime             @default(now())
