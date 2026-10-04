@@ -33,6 +33,7 @@ import { inquiryRouter } from "./modules/inquiries/inquiry.routes.js";
 import {
   bridgeRouter,
   bridgeWebhookRouter,
+  instagramLoginRedirectRouter,
 } from "./modules/automation-bridge/bridge.routes.js";
 import {
   whatsappAdminRouter,
@@ -66,6 +67,7 @@ import { workspaceAgentRouter } from "./modules/workspace-agent/workspace-agent.
 import { websiteEnquiryWebhookRouter } from "./modules/automation-bridge/website-enquiry.routes.js";
 import { websiteOrderWebhookRouter } from "./modules/automation-bridge/website-order.routes.js";
 import { metaLeadWebhookRouter } from "./modules/automation-bridge/meta-lead.routes.js";
+import { instagramDmWebhookRouter } from "./modules/automation-bridge/instagram-dm.routes.js";
 import { success } from "./shared/responses/api-response.js";
 
 export const apiRouter = Router();
@@ -113,6 +115,7 @@ apiRouter.use("/procurement", procurementRouter);
 apiRouter.use("/calendar", calendarRouter);
 apiRouter.use("/inquiries", inquiryRouter);
 apiRouter.use("/automation-bridge", bridgeRouter);
+apiRouter.use("/instagram-login/redirect", instagramLoginRedirectRouter);
 apiRouter.use("/automation-policies", automationPolicyRouter);
 apiRouter.use("/automation-bridge", whatsappAdminRouter);
 apiRouter.use("/automation-bridge", websiteFormAdminRouter);
@@ -123,7 +126,7 @@ if (env.EXTERNAL_CHANNELS_ENABLED) {
   apiRouter.use("/integrations/website/enquiries", websiteEnquiryWebhookRouter);
   apiRouter.use("/integrations/website/orders", websiteOrderWebhookRouter);
   if (env.META_LEAD_ADS_ENABLED) apiRouter.use("/integrations/meta/leads", metaLeadWebhookRouter);
-  // M2: the multi-tenant contract is internal only; public Instagram intake waits for M3 approval.
+  if (env.META_INSTAGRAM_DM_ENABLED) apiRouter.use("/integrations/meta/instagram/dms", instagramDmWebhookRouter);
 }
 apiRouter.use("/stay", stayRouter);
 apiRouter.use("/voice-calls", voiceCallRouter);

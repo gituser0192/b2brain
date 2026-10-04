@@ -21,6 +21,11 @@ function safeRequestLog(value: unknown) {
   };
 }
 
+function safeResponseLog(value: unknown) {
+  const response = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return typeof response.statusCode === "number" ? { statusCode: response.statusCode } : {};
+}
+
 export const app = express();
 
 app.disable("x-powered-by");
@@ -34,6 +39,7 @@ app.use(pinoHttp({
   logger,
   serializers: {
     req: safeRequestLog,
+    res: safeResponseLog,
   },
 }));
 app.use("/api/v1", rateLimit({
@@ -43,6 +49,7 @@ app.use("/api/v1", rateLimit({
   legacyHeaders: false,
   message: { success: false, message: "Too many requests. Try again later.", code: "RATE_LIMITED" },
 }));
+app.use("/api/v1/integrations/meta/instagram/dms", express.raw({ type: "application/json", limit: "256kb" }));
 app.use(express.json({ limit: env.JSON_BODY_LIMIT, verify: (request, _response, buffer) => { (request as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer); } }));
 app.use(cookieParser());
 app.use("/api/v1", apiRouter);

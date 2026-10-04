@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../database/prisma.js";
+import { env } from "../../config/env.js";
 import { verifyServiceAccess } from "../../middleware/auth.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { ServiceRequestService } from "../service-requests/service-request.service.js";
@@ -36,12 +37,18 @@ export class MetaFoundationService {
         items.push({ capability, state: "SERVICE_UNAVAILABLE", canManage: false, connectorId: null });
         continue;
       }
-      const connector = await prisma.integrationConnector.findFirst({ where: { organizationId: context.organizationId, type: "SOCIAL", provider: metaProviderFor(capability), deletedAt: null, status: { not: "ARCHIVED" } }, select: { id: true, status: true, configuration: true, credentialStatus: true, credentialExpiresAt: true } });
+      const connector = await prisma.integrationConnector.findFirst({ where: { organizationId: context.organizationId, type: "SOCIAL", provider: metaProviderFor(capability), deletedAt: null, status: { not: "ARCHIVED" } }, select: { id: true, status: true, configuration: true, credentialStatus: true, credentialExpiresAt: true, credentialsConfiguredAt: true, accessTokenEncrypted: true, credentialKeyVersion: true, externalAccountRef: true } });
       const config = (connector?.configuration ?? {}) as { metaSetupMode?: string };
-      const state = !connector ? "NOT_CONFIGURED" : config.metaSetupMode === "TEST" ? "TEST_MODE" : connector.credentialExpiresAt && connector.credentialExpiresAt <= new Date() ? "EXPIRED" : connector.status === "PAUSED" ? "DISCONNECTED" : "INTERNAL_FOUNDATION_READY";
+      const instagramReady = capability === "INSTAGRAM_MESSAGES" && connector?.status === "ACTIVE" && connector.credentialStatus === "PRIVATE_TEST_READY";
+      const asset = instagramReady && connector.accessTokenEncrypted && connector.credentialKeyVersion === 2 && connector.credentialsConfiguredAt && connector.credentialExpiresAt && connector.credentialExpiresAt > new Date() && connector.externalAccountRef
+        ? await prisma.metaConnectedAsset.findFirst({ where: { organizationId: context.organizationId, connectorId: connector.id, capability: "INSTAGRAM_MESSAGES", provider: "META", loginVariant: "INSTAGRAM_LOGIN", assetType: "INSTAGRAM_ACCOUNT", assetId: connector.externalAccountRef, routingStatus: "ACTIVE", releasedAt: null, webhookCutoverAt: { gte: connector.credentialsConfiguredAt } }, select: { grantedScopes: true } })
+        : null;
+      const scopes = asset?.grantedScopes;
+      const scopesReady = Array.isArray(scopes) && ["instagram_business_basic", "instagram_business_manage_messages"].every(scope => scopes.includes(scope));
+      const state = !connector ? "NOT_CONFIGURED" : connector.status === "PAUSED" ? "DISCONNECTED" : connector.credentialExpiresAt && connector.credentialExpiresAt <= new Date() ? "RECONNECT_REQUIRED" : connector.credentialStatus === "NEEDS_ATTENTION" ? "NEEDS_ATTENTION" : instagramReady ? scopesReady ? "PRIVATE_TEST_READY" : "NEEDS_ATTENTION" : config.metaSetupMode === "TEST" ? "TEST_MODE" : connector.status === "DRAFT" ? "SETUP_IN_PROGRESS" : "INTERNAL_FOUNDATION_READY";
       items.push({ capability, state, canManage: writable && context.permissions.includes("AUTOMATION_MANAGE"), connectorId: connector?.id ?? null });
     }
-    return { providerAvailable: false, approvalReady: false, items };
+    return { providerAvailable: Boolean(env.META_INSTAGRAM_CONNECT_ENABLED && env.META_INSTAGRAM_PRIVATE_ORGANIZATION_ID === context.organizationId && env.META_INSTAGRAM_APP_ID && env.META_INSTAGRAM_APP_SECRET && env.META_INSTAGRAM_REDIRECT_URI && env.BRIDGE_ENCRYPTION_KEY_V2), inboundAvailable: Boolean(env.META_INSTAGRAM_DM_ENABLED && env.META_INSTAGRAM_SIGNATURE_PROVEN && env.EXTERNAL_CHANNELS_ENABLED), approvalReady: false, items };
   }
 
   async initialize(context: Context, capability: MetaCapability) {

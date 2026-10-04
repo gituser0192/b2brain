@@ -1,4 +1,5 @@
 import { Router, type RequestHandler } from "express";
+import { env } from "../../config/env.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import {
   requireActiveContext,
@@ -29,6 +30,8 @@ import { metaConnectionCallbackSchema, metaConnectionStartSchema, metaFormSelect
 import { WhatsappConnectionService } from "./whatsapp-connection.service.js";
 import { MetaFoundationService, metaHelpSchema, type MetaHelpInput } from "./meta-foundation.service.js";
 import { metaCapability } from "./meta-assets.service.js";
+import { InstagramLoginService } from "./instagram-login.service.js";
+import { z } from "zod";
 import { whatsappAccountSelectionSchema, whatsappConnectionCallbackSchema, whatsappConnectionStartSchema, whatsappNumberSelectionSchema, type WhatsappAccountSelectionInput, type WhatsappConnectionCallbackInput, type WhatsappConnectionStartInput, type WhatsappNumberSelectionInput } from "./whatsapp-connection.validation.js";
 import rateLimit from "express-rate-limit";
 const service = new BridgeService(),
@@ -36,6 +39,7 @@ const service = new BridgeService(),
   metaConnection = new MetaLeadConnectionService(),
   whatsappConnection = new WhatsappConnectionService(),
   metaFoundation = new MetaFoundationService(),
+  instagramLogin = new InstagramLoginService(),
   auth = (r: Parameters<RequestHandler>[0]) => {
     if (!r.auth)
       throw new AppError(401, "Authentication required.", "UNAUTHENTICATED");
@@ -43,6 +47,23 @@ const service = new BridgeService(),
   };
 export const bridgeRouter = Router();
 export const bridgeWebhookRouter = Router();
+export const instagramLoginRedirectRouter = Router();
+instagramLoginRedirectRouter.get("/", async (r, s) => {
+  s.setHeader("Cache-Control", "no-store"); s.setHeader("Referrer-Policy", "no-referrer");
+  const query = z.object({ state: z.string().regex(/^[A-Za-z0-9_-]{40,100}$/), code: z.string().min(1).max(2000) }).safeParse(r.query);
+  let outcome = "failed";
+  if (query.success) {
+    try { await instagramLogin.callbackFromRedirect(query.data.state, query.data.code); outcome = "connected"; }
+    catch { /* Never disclose provider or account details in redirects. */ }
+  } else {
+    const failed = z.object({ state: z.string().regex(/^[A-Za-z0-9_-]{40,100}$/) }).safeParse(r.query);
+    if (failed.success) {
+      try { await instagramLogin.cancelFromRedirect(failed.data.state); if (r.query.error === "access_denied") outcome = "cancelled"; }
+      catch { /* Invalid state is a generic failure. */ }
+    }
+  }
+  s.redirect(303, `${env.FRONTEND_URL.replace(/\/$/, "")}/automation?section=connections&channel=meta&instagram=${outcome}`);
+});
 bridgeWebhookRouter.post(
   "/:webhookKey",
   validateBody(intakeSchema),
@@ -69,6 +90,8 @@ bridgeRouter.get("/meta-foundation", requirePermission("AUTOMATION_VIEW"), async
 bridgeRouter.post("/meta-foundation/help", metaLimit, requirePermission("AUTOMATION_VIEW"), validateBody(metaHelpSchema), async (r, s) => { const result = await metaFoundation.requestHelp(auth(r), r.body as MetaHelpInput); s.status(result.created ? 201 : 200).json(success(result)); });
 bridgeRouter.post("/meta-foundation/:capability/draft", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaFoundation.initialize(auth(r), metaCapability.parse(r.params.capability)))));
 bridgeRouter.post("/meta-foundation/:capability/:id/disconnect", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await metaFoundation.disconnect(auth(r), metaCapability.parse(r.params.capability), String(r.params.id)))));
+bridgeRouter.post("/meta-foundation/instagram/:id/start", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await instagramLogin.start(metaContext(r), String(r.params.id)))));
+bridgeRouter.post("/meta-foundation/instagram/:id/refresh", metaLimit, requirePermission("AUTOMATION_MANAGE"), async (r, s) => s.json(success(await instagramLogin.refresh(metaContext(r), String(r.params.id)))));
 bridgeRouter.get("/connectors/:id/meta/status", requirePermission("AUTOMATION_VIEW"), async (r, s) => s.json(success(await metaConnection.status(metaContext(r), String(r.params.id)))));
 bridgeRouter.post("/connectors/:id/meta/authorize", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaConnectionStartSchema), async (r, s) => s.json(success(await metaConnection.start(metaContext(r), String(r.params.id), r.body as MetaConnectionStartInput))));
 bridgeRouter.post("/connectors/:id/meta/callback", metaLimit, requirePermission("AUTOMATION_MANAGE"), validateBody(metaConnectionCallbackSchema), async (r, s) => s.json(success(await metaConnection.callback(metaContext(r), String(r.params.id), r.body as MetaConnectionCallbackInput))));

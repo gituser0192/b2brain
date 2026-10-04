@@ -132,6 +132,12 @@ const envSchema = z
     META_LEAD_GRAPH_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(10000),
     META_LEAD_GRAPH_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
     META_INSTAGRAM_DM_ENABLED: z.string().default("false").transform((value) => value === "true"),
+    META_INSTAGRAM_SIGNATURE_PROVEN: z.string().default("false").transform((value) => value === "true"),
+    META_INSTAGRAM_CONNECT_ENABLED: z.string().default("false").transform((value) => value === "true"),
+    META_INSTAGRAM_PRIVATE_ORGANIZATION_ID: z.string().uuid().optional(),
+    META_INSTAGRAM_APP_ID: z.string().regex(/^\d+$/).optional(),
+    META_INSTAGRAM_REDIRECT_URI: z.string().url().optional(),
+    META_INSTAGRAM_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v26.0"),
     META_INSTAGRAM_VERIFY_TOKEN: z.string().min(16).optional().transform((value) => value || undefined),
     META_INSTAGRAM_APP_SECRET: z.string().min(16).optional().transform((value) => value || undefined),
     SMTP_HOST: z
@@ -258,6 +264,12 @@ const envSchema = z
         context.addIssue({ code: "custom", path: ["META_INSTAGRAM_DM_ENABLED"], message: "External channels must be enabled before Instagram DMs can be enabled." });
       for (const key of ["META_INSTAGRAM_VERIFY_TOKEN", "META_INSTAGRAM_APP_SECRET"] as const)
         if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required when Instagram DMs are enabled.` });
+    }
+    if (value.META_INSTAGRAM_CONNECT_ENABLED) {
+      if (!value.META_INSTAGRAM_DM_ENABLED || !value.EXTERNAL_CHANNELS_ENABLED)
+        context.addIssue({ code: "custom", path: ["META_INSTAGRAM_CONNECT_ENABLED"], message: "Instagram webhook configuration is required for private connection." });
+      for (const key of ["META_INSTAGRAM_PRIVATE_ORGANIZATION_ID", "META_INSTAGRAM_APP_ID", "META_INSTAGRAM_APP_SECRET", "META_INSTAGRAM_REDIRECT_URI", "BRIDGE_ENCRYPTION_KEY_V2"] as const)
+        if (!value[key]) context.addIssue({ code: "custom", path: [key], message: `${key} is required for private Instagram connection.` });
     }
     if (value.META_WHATSAPP_OUTBOUND_ENABLED) {
       if (!value.META_WHATSAPP_ENABLED)

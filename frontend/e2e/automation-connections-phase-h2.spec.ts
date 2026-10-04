@@ -103,7 +103,7 @@ test("Meta capabilities stay unavailable and help is the only deliberate write",
   const panel = page.getByLabel("Meta connection foundation");
   await expect(panel.locator("article")).toHaveCount(3);
   await expect(panel).toContainText("Test Mode — not live");
-  await expect(panel).toContainText("Setup unavailable pending Meta approval");
+  await expect(panel).toContainText("External customer access still requires Meta approval");
   await expect(panel.locator('input[type="password"]')).toHaveCount(0);
   await expect(panel.locator('input[name*="token"]')).toHaveCount(0);
   await page.reload();
@@ -123,6 +123,58 @@ test("Meta read-only status has no setup or help mutation controls", async ({ pa
   await expect(panel.getByRole("combobox")).toHaveCount(0);
 });
 
+test("private Instagram status is responsive and opening the panel remains read-only", async ({ page }) => {
+  let writes = 0;
+  page.on("request", request => { if (request.url().includes("/api/v1/automation-bridge") && request.method() !== "GET") writes += 1; });
+  await installConnections(page);
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { providerAvailable: true, inboundAvailable: false, approvalReady: false, items: [
+    { capability: "INSTAGRAM_MESSAGES", state: "NOT_CONFIGURED", canManage: true, connectorId: null },
+    { capability: "META_LEAD_ADS", state: "NOT_CONFIGURED", canManage: true, connectorId: null },
+    { capability: "META_ADVERTISING", state: "NOT_CONFIGURED", canManage: true, connectorId: null },
+  ] } }) }));
+  await page.goto("/automation?section=connections&channel=meta");
+  const panel = page.getByLabel("Meta connection foundation");
+  await expect(panel.getByRole("button", { name: "Connect Instagram" })).toBeVisible();
+  await expect(panel).toContainText("Inbound DM processing is blocked");
+  await expect(panel.locator('input[type="password"]')).toHaveCount(0);
+  expect(writes).toBe(0);
+});
+
+test("Meta status retry clears a recovered error without writing", async ({ page }) => {
+  let reads = 0, writes = 0;
+  page.on("request", request => { if (request.url().includes("/api/v1/automation-bridge") && request.method() !== "GET") writes++; });
+  await installConnections(page);
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => {
+    reads++;
+    return route.fulfill({ status: reads === 1 ? 503 : 200, contentType: "application/json", body: JSON.stringify(reads === 1 ? { success: false, message: "Status temporarily unavailable" } : { success: true, data: { providerAvailable: false, inboundAvailable: false, approvalReady: false, items: [
+      { capability: "INSTAGRAM_MESSAGES", state: "NOT_CONFIGURED", canManage: true, connectorId: null },
+      { capability: "META_LEAD_ADS", state: "NOT_CONFIGURED", canManage: true, connectorId: null },
+      { capability: "META_ADVERTISING", state: "NOT_CONFIGURED", canManage: true, connectorId: null },
+    ] } }) });
+  });
+  await page.goto("/automation?section=connections&channel=meta");
+  const panel = page.getByLabel("Meta connection foundation");
+  await expect(panel.getByRole("alert")).toBeVisible();
+  await panel.getByRole("button", { name: "Retry status" }).click();
+  await expect(panel).toContainText("Not configured");
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  expect(reads).toBe(2);
+  expect(writes).toBe(0);
+});
+
+test("Instagram redirect outcome never posts a provider code from the frontend", async ({ page }) => {
+  await installConnections(page);
+  let callbacks = 0;
+  await page.route("**/api/v1/automation-bridge/meta-foundation/instagram/*/callback", route => {
+    callbacks += 1;
+    return route.fulfill({ status: 404 });
+  });
+  await page.goto("/automation?section=connections&channel=meta&instagram=connected");
+  await expect(page.getByLabel("Meta connection foundation")).toBeVisible();
+  expect(callbacks).toBe(0);
+  await expect(page).not.toHaveURL(/code=|state=/);
+});
+
 test("advanced management remains accessible without exposing raw details on cards", async ({ page }) => {
   await installConnections(page);
   await page.goto("/automation?section=connections");
@@ -135,6 +187,7 @@ test("advanced management remains accessible without exposing raw details on car
 
 test("Connections reports loading, empty and complete failure states honestly", async ({ page }) => {
   await installSyntheticApi(page);
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { providerAvailable: false, inboundAvailable: false, approvalReady: false, items: [] } }) }));
   let releaseBridge: (() => void) | undefined;
   const bridgeGate = new Promise<void>((resolve) => { releaseBridge = resolve; });
   await page.route("**/api/v1/automation-bridge", async (route) => {

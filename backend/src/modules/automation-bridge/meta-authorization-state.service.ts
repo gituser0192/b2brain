@@ -11,7 +11,7 @@ type Variant = "INSTAGRAM_LOGIN" | "FACEBOOK_LOGIN";
 const digest = (state: string) => createHash("sha256").update(state).digest("hex");
 const relevantService = (capability: MetaCapability) => capability === "META_ADVERTISING" ? "MARKETING" : "LEADS";
 
-async function requireCurrentAccess(context: Context, capability: MetaCapability) {
+export async function requireCurrentAccess(context: Context, capability: MetaCapability) {
   const membership = await new AuthRepository().findActiveContextByMembership(context.membershipId);
   if (!membership || membership.organizationId !== context.organizationId || membership.userId !== context.userId)
     throw new AppError(403, "Meta connection is unavailable.", "META_CONNECTION_UNAVAILABLE");
@@ -27,6 +27,14 @@ async function requireCurrentAccess(context: Context, capability: MetaCapability
 }
 
 export class MetaAuthorizationStateService {
+  async consumeRedirect(capability: MetaCapability, loginVariant: Variant, state: string, expectedReturnPath: string) {
+    if (!/^[A-Za-z0-9_-]{40,100}$/.test(state)) throw new AppError(400, "Authorization state is invalid or expired.", "META_STATE_INVALID");
+    const saved = await prisma.integrationAuthorizationState.findUnique({ where: { stateHash: digest(state) }, select: { organizationId: true, membershipId: true, userId: true, connectorId: true } });
+    if (!saved) throw new AppError(400, "Authorization state is invalid or expired.", "META_STATE_INVALID");
+    const context = { organizationId: saved.organizationId, membershipId: saved.membershipId, userId: saved.userId };
+    await this.consume(context, saved.connectorId, capability, loginVariant, state, expectedReturnPath);
+    return { context, connectorId: saved.connectorId };
+  }
   async issue(context: Context, connectorId: string, capability: MetaCapability, loginVariant: Variant, requestedReturnPath: string) {
     const returnPath = metaConnectionReturnPath.parse(requestedReturnPath);
     await requireCurrentAccess(context, capability);
