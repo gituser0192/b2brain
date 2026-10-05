@@ -41,7 +41,13 @@ export class MetaAuthorizationStateService {
     const connector = await prisma.integrationConnector.findFirst({ where: { id: connectorId, organizationId: context.organizationId, provider: metaProviderFor(capability), type: "SOCIAL", status: "DRAFT", deletedAt: null }, select: { id: true } });
     if (!connector) throw new AppError(404, "Meta connection is unavailable.", "META_CONNECTION_UNAVAILABLE");
     const state = randomBytes(32).toString("base64url"), expiresAt = new Date(Date.now() + 10 * 60_000);
-    await prisma.integrationAuthorizationState.create({ data: { stateHash: digest(state), provider: "META", capability, loginVariant, connectorId, ...context, returnPath, expiresAt } });
+    const stateHash = digest(state), now = new Date();
+    await prisma.$transaction(async tx => {
+      const claimed = await tx.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, provider: metaProviderFor(capability), type: "SOCIAL", status: "DRAFT", deletedAt: null, ...(loginVariant === "INSTAGRAM_LOGIN" ? { credentialStatus: { in: ["NOT_CONFIGURED", "NEEDS_ATTENTION", "DISCONNECTED"] } } : {}) }, data: { reauthorizationReason: stateHash } });
+      if (claimed.count !== 1) throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
+      await tx.integrationAuthorizationState.updateMany({ where: { organizationId: context.organizationId, connectorId, consumedAt: null }, data: { consumedAt: now } });
+      await tx.integrationAuthorizationState.create({ data: { stateHash, provider: "META", capability, loginVariant, connectorId, ...context, returnPath, expiresAt } });
+    });
     return { state, expiresAt };
   }
 
@@ -54,7 +60,7 @@ export class MetaAuthorizationStateService {
       stateHash, provider: "META", capability, loginVariant, ...context, connectorId, returnPath, consumedAt: null, expiresAt: { gt: now },
       organization: { status: "ACTIVE", deletedAt: null }, user: { status: "ACTIVE", deletedAt: null },
       membership: { organizationId: context.organizationId, userId: context.userId, status: "ACTIVE" },
-      connector: { id: connectorId, organizationId: context.organizationId, provider: metaProviderFor(capability), type: "SOCIAL", status: "DRAFT", deletedAt: null },
+      connector: { id: connectorId, organizationId: context.organizationId, provider: metaProviderFor(capability), type: "SOCIAL", status: "DRAFT", reauthorizationReason: stateHash, deletedAt: null },
     }, data: { consumedAt: now } });
     if (count.count !== 1) throw new AppError(400, "Authorization state is invalid or expired.", "META_STATE_INVALID");
     return { returnPath };

@@ -140,6 +140,41 @@ test("private Instagram status is responsive and opening the panel remains read-
   expect(writes).toBe(0);
 });
 
+test("a pre-M3 Instagram connection exposes local reset before a fresh Connect", async ({ page }) => {
+  await installConnections(page);
+  let state = "RESET_REQUIRED", resets = 0;
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { providerAvailable: true, inboundAvailable: false, approvalReady: false, items: [
+    { capability: "INSTAGRAM_MESSAGES", state, canManage: true, connectorId: "synthetic-instagram" },
+  ] } }) }));
+  await page.route("**/api/v1/automation-bridge/meta-foundation/INSTAGRAM_MESSAGES/synthetic-instagram/disconnect", route => {
+    resets++; state = "DISCONNECTED";
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { disconnected: true, providerRevoked: false } }) });
+  });
+  await page.goto("/automation?section=connections&channel=meta");
+  const panel = page.getByLabel("Meta connection foundation");
+  await expect(panel).toContainText("Local reset required");
+  await expect(panel.getByRole("button", { name: "Connect Instagram" })).toHaveCount(0);
+  page.on("dialog", dialog => void dialog.accept());
+  await panel.getByRole("button", { name: "Disconnect locally" }).click();
+  await expect(panel.getByRole("button", { name: "Connect Instagram" })).toBeVisible();
+  expect(resets).toBe(1);
+});
+
+test("a setup-in-progress Instagram draft offers reset only to managers", async ({ page }) => {
+  await installConnections(page);
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { providerAvailable: true, inboundAvailable: false, approvalReady: false, items: [
+    { capability: "INSTAGRAM_MESSAGES", state: "SETUP_IN_PROGRESS", canManage: true, connectorId: "synthetic-instagram" },
+  ] } }) }));
+  await page.goto("/automation?section=connections&channel=meta");
+  await expect(page.getByLabel("Meta connection foundation").getByRole("button", { name: "Disconnect locally" })).toBeVisible();
+  await page.route("**/api/v1/automation-bridge/meta-foundation", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { providerAvailable: true, inboundAvailable: false, approvalReady: false, items: [
+    { capability: "INSTAGRAM_MESSAGES", state: "SETUP_IN_PROGRESS", canManage: false, connectorId: "synthetic-instagram" },
+  ] } }) }));
+  await page.reload();
+  await expect(page.getByLabel("Meta connection foundation").getByRole("button", { name: "Disconnect locally" })).toHaveCount(0);
+  await expect(page.getByLabel("Meta connection foundation").getByRole("button", { name: "Connect Instagram" })).toHaveCount(0);
+});
+
 test("Meta status retry clears a recovered error without writing", async ({ page }) => {
   let reads = 0, writes = 0;
   page.on("request", request => { if (request.url().includes("/api/v1/automation-bridge") && request.method() !== "GET") writes++; });

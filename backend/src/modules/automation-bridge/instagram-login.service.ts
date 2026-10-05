@@ -55,7 +55,7 @@ export class InstagramLoginService {
 
   private async completeConsumedCallback(context: Context, connectorId: string, state: string, code: string) {
     const generation = createHash("sha256").update(state).digest("hex");
-    const claimed = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, provider: "META_INSTAGRAM_DM", status: "DRAFT", deletedAt: null, credentialStatus: { in: ["NOT_CONFIGURED", "NEEDS_ATTENTION", "DISCONNECTED"] } }, data: { credentialStatus: "AUTHORIZING", reauthorizationReason: generation } });
+    const claimed = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, provider: "META_INSTAGRAM_DM", status: "DRAFT", deletedAt: null, reauthorizationReason: generation, credentialStatus: { in: ["NOT_CONFIGURED", "NEEDS_ATTENTION", "DISCONNECTED"] } }, data: { credentialStatus: "AUTHORIZING" } });
     if (claimed.count !== 1) throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
     // No code/token/secret enters logs, audit metadata, frontend responses, or provider errors.
     let authorization;

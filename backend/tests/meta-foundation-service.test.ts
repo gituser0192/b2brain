@@ -25,14 +25,14 @@ describe("Meta connection preparation", () => {
   });
   it.each([
     ["matching current asset", {}, "PRIVATE_TEST_READY"],
-    ["no asset", null, "NEEDS_ATTENTION"],
-    ["inactive asset", { routingStatus: "INACTIVE" }, "NEEDS_ATTENTION"],
-    ["released asset", { releasedAt: new Date() }, "NEEDS_ATTENTION"],
-    ["other connector", { connectorId: "other" }, "NEEDS_ATTENTION"],
-    ["other organization", { organizationId: randomUUID() }, "NEEDS_ATTENTION"],
-    ["missing cutover", { webhookCutoverAt: null }, "NEEDS_ATTENTION"],
-    ["previous generation", { webhookCutoverAt: new Date("2026-01-01") }, "NEEDS_ATTENTION"],
-    ["missing required scope", { grantedScopes: ["instagram_business_basic"] }, "NEEDS_ATTENTION"],
+    ["no asset", null, "RESET_REQUIRED"],
+    ["inactive asset", { routingStatus: "INACTIVE" }, "RESET_REQUIRED"],
+    ["released asset", { releasedAt: new Date() }, "RESET_REQUIRED"],
+    ["other connector", { connectorId: "other" }, "RESET_REQUIRED"],
+    ["other organization", { organizationId: randomUUID() }, "RESET_REQUIRED"],
+    ["missing cutover", { webhookCutoverAt: null }, "RESET_REQUIRED"],
+    ["previous generation", { webhookCutoverAt: new Date("2026-01-01") }, "RESET_REQUIRED"],
+    ["missing required scope", { grantedScopes: ["instagram_business_basic"] }, "RESET_REQUIRED"],
   ])("projects %s as %s", async (_name, changes, expected) => {
     const configuredAt = new Date("2026-09-01");
     const asset = changes === null ? null : { organizationId: context.organizationId, connectorId: "connector", capability: "INSTAGRAM_MESSAGES", provider: "META", loginVariant: "INSTAGRAM_LOGIN", assetType: "INSTAGRAM_ACCOUNT", assetId: "1234567890", routingStatus: "ACTIVE", releasedAt: null, webhookCutoverAt: new Date("2026-09-02"), grantedScopes: ["instagram_business_basic", "instagram_business_manage_messages"], ...changes };
@@ -53,6 +53,13 @@ describe("Meta connection preparation", () => {
     const result = await new MetaFoundationService().overview(context as never);
     expect(result.items[0]?.state).not.toBe("PRIVATE_TEST_READY");
     expect(calls.asset).not.toHaveBeenCalled();
+  });
+  it("marks an active pre-M3 connector as requiring local reset, not a working connection", async () => {
+    calls.find.mockImplementation(({ where }: { where: { provider: string } }) => where.provider === "META_INSTAGRAM_DM" ? { id: "connector", status: "ACTIVE", credentialStatus: "NOT_CONFIGURED" } : null);
+    const result = await new MetaFoundationService().overview(context as never);
+    expect(result.items[0]).toMatchObject({ state: "RESET_REQUIRED", connectorId: "connector", canManage: true });
+    expect(calls.asset).not.toHaveBeenCalled();
+    expect(calls.update).not.toHaveBeenCalled();
   });
   it("keeps a refreshed token ready against the unchanged authorization generation", async () => {
     const generation = new Date("2026-09-01T00:00:00.000Z");

@@ -3,15 +3,15 @@ import { AppError } from "../src/shared/errors/app-error.js";
 
 const state = vi.hoisted(() => ({
   env: { META_INSTAGRAM_CONNECT_ENABLED: true, META_INSTAGRAM_PRIVATE_ORGANIZATION_ID: "11111111-1111-4111-8111-111111111111" },
-  consume: vi.fn(), consumeRedirect: vi.fn(), access: vi.fn(), owner: vi.fn(), connector: vi.fn(), assetCreate: vi.fn(), assetFind: vi.fn(), assetUpdate: vi.fn(), assetActivate: vi.fn(), connectorUpdate: vi.fn(), connectorUpdateMany: vi.fn(), audit: vi.fn(), transaction: vi.fn(), encrypted: vi.fn(), decrypted: vi.fn(),
+  consume: vi.fn(), consumeRedirect: vi.fn(), issue: vi.fn(), access: vi.fn(), owner: vi.fn(), connector: vi.fn(), assetCreate: vi.fn(), assetFind: vi.fn(), assetUpdate: vi.fn(), assetActivate: vi.fn(), connectorUpdate: vi.fn(), connectorUpdateMany: vi.fn(), audit: vi.fn(), transaction: vi.fn(), encrypted: vi.fn(), decrypted: vi.fn(), disconnected: vi.fn(),
 }));
 vi.mock("../src/config/env.js", () => ({ env: state.env }));
 vi.mock("../src/modules/automation-bridge/meta-authorization-state.service.js", () => ({
-  MetaAuthorizationStateService: class { consume = state.consume; consumeRedirect = state.consumeRedirect; issue = vi.fn(); }, requireCurrentAccess: state.access,
+  MetaAuthorizationStateService: class { consume = state.consume; consumeRedirect = state.consumeRedirect; issue = state.issue; }, requireCurrentAccess: state.access,
 }));
 vi.mock("../src/modules/automation-bridge/instagram-login.provider.js", () => ({ instagramAuthorizationUrl: vi.fn(() => "https://www.instagram.com/oauth/authorize?synthetic=1"), OfficialInstagramLoginProvider: class {} }));
 vi.mock("../src/modules/automation-bridge/bridge.crypto.js", () => ({ encryptSecret: state.encrypted, decryptSecret: state.decrypted }));
-vi.mock("../src/modules/automation-bridge/meta-assets.service.js", () => ({ disconnectMetaAsset: vi.fn() }));
+vi.mock("../src/modules/automation-bridge/meta-assets.service.js", () => ({ disconnectMetaAsset: state.disconnected }));
 vi.mock("../src/database/prisma.js", () => ({ prisma: {
   metaConnectedAsset: { findFirst: state.owner }, integrationConnector: { findFirst: state.connector, updateMany: state.connectorUpdateMany },
   $transaction: state.transaction,
@@ -28,6 +28,7 @@ beforeEach(() => {
   state.assetFind.mockResolvedValue(null); state.connectorUpdateMany.mockResolvedValue({ count: 1 });
   state.assetActivate.mockResolvedValue({ count: 1 });
   state.encrypted.mockReturnValue("ciphertext"); provider.exchange.mockResolvedValue(grant); provider.subscribe.mockResolvedValue(true);
+  state.issue.mockResolvedValue({ state: "synthetic-state", expiresAt: new Date(Date.now() + 600000) });
   state.decrypted.mockReturnValue("synthetic-old-token"); state.consumeRedirect.mockResolvedValue({ context, connectorId: "connector" });
   state.transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({
     integrationConnector: { findFirst: state.connector, update: state.connectorUpdate, updateMany: state.connectorUpdateMany },
@@ -37,6 +38,21 @@ beforeEach(() => {
 });
 
 describe("private Instagram authorization", () => {
+  it("requires an explicit local reset for an active pre-M3 connector", async () => {
+    state.connector.mockResolvedValueOnce({ status: "ACTIVE", credentialStatus: "NOT_CONFIGURED", credentialExpiresAt: null });
+    await expect(new InstagramLoginService(provider).start(context, "connector")).rejects.toMatchObject({ code: "INSTAGRAM_ALREADY_CONNECTED" });
+    expect(state.issue).not.toHaveBeenCalled(); expect(state.disconnected).not.toHaveBeenCalled();
+  });
+  it("starts a fresh authorization after local reset while keeping the same scoped connector", async () => {
+    state.connector.mockResolvedValueOnce({ status: "PAUSED", credentialStatus: "DISCONNECTED" });
+    await expect(new InstagramLoginService(provider).start(context, "connector")).resolves.toMatchObject({ authorizationUrl: expect.stringContaining("instagram.com/oauth/authorize") as unknown as string });
+    expect(state.connectorUpdateMany.mock.calls[0]?.[0]).toMatchObject({ where: { id: "connector", organizationId: context.organizationId, status: "PAUSED" }, data: { status: "DRAFT", credentialStatus: "NOT_CONFIGURED" } });
+    expect(state.issue).toHaveBeenCalledWith(context, "connector", "INSTAGRAM_MESSAGES", "INSTAGRAM_LOGIN", "/automation");
+  });
+  it("rejects a different organization before issuing a state or changing a connector", async () => {
+    await expect(new InstagramLoginService(provider).start({ ...context, organizationId: "other" }, "connector")).rejects.toMatchObject({ code: "INSTAGRAM_PRIVATE_ONLY" });
+    expect(state.issue).not.toHaveBeenCalled(); expect(state.connectorUpdateMany).not.toHaveBeenCalled();
+  });
   it("blocks all other organizations before consuming state or calling Meta", async () => {
     await expect(new InstagramLoginService(provider).callback({ ...context, organizationId: "other" }, "connector", "state", "code")).rejects.toMatchObject({ code: "INSTAGRAM_PRIVATE_ONLY" });
     expect(state.consume).not.toHaveBeenCalled(); expect(provider.exchange).not.toHaveBeenCalled();
@@ -77,6 +93,7 @@ describe("private Instagram authorization", () => {
     state.connectorUpdateMany.mockResolvedValueOnce({ count: 0 });
     await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).rejects.toMatchObject({ code: "INSTAGRAM_SETUP_CHANGED" });
     expect(provider.exchange).not.toHaveBeenCalled();
+    expect(state.connectorUpdateMany.mock.calls[0]?.[0]).toMatchObject({ where: { reauthorizationReason: expect.any(String) as unknown as string } });
   });
   it("does not report ready when asset activation changes no row", async () => {
     state.assetActivate.mockResolvedValueOnce({ count: 0 });
