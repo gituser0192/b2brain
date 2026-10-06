@@ -5,8 +5,10 @@ import { AppError } from "../../shared/errors/app-error.js";
 
 const providerId = z.union([z.string().regex(/^\d{5,32}$/), z.number().int().positive().safe()]);
 const token = z.string().min(1).max(8192);
-const shortToken = z.object({ access_token: token, user_id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]), permissions: z.string().min(1).max(8192) }).strict();
-const shortTokenResponse = z.object({ data: z.array(shortToken).length(1) }).strict();
+const numericOAuthId = z.number().int().positive().safe().transform(String);
+const shortToken = z.object({ access_token: token, user_id: z.union([z.string().regex(/^[1-9]\d{0,63}$/), numericOAuthId]), permissions: z.string().min(1).max(8192) }).strict();
+const flatShortToken = z.object({ access_token: token, user_id: numericOAuthId, permissions: z.array(z.string().min(1).max(128)).min(1).max(50) }).strict();
+const shortTokenResponse = z.union([z.object({ data: z.array(shortToken).length(1) }).strict(), flatShortToken]);
 const longToken = z.object({ access_token: token, expires_in: z.number().int().min(1).max(90 * 24 * 60 * 60), token_type: z.enum(["bearer", "Bearer"]).optional() }).strict();
 const account = z.object({ user_id: providerId, id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]).optional(), username: z.string().min(1).max(128).optional(), account_type: z.enum(["BUSINESS", "MEDIA_CREATOR", "Business", "Media_Creator"]) }).strict();
 const requiredScopes = ["instagram_business_basic", "instagram_business_manage_messages"] as const;
@@ -35,8 +37,8 @@ function codeExchangeContract(response: Response, bytes: number | undefined, par
     documentedRequiredFieldsPresent: ["access_token", "user_id", "permissions"].every(field => entry !== null && Object.hasOwn(entry, field)),
   };
 }
-function normalizePermissions(value: string) {
-  const scopes = value.split(",").map(scope => scope.trim());
+function normalizePermissions(value: string | string[]) {
+  const scopes = (typeof value === "string" ? value.split(",") : value).map(scope => scope.trim());
   if (scopes.length > 50 || scopes.some(scope => !/^[a-z][a-z0-9_]{0,127}$/.test(scope)))
     throw new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
   return [...new Set(scopes)];
@@ -134,14 +136,15 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     form.set("client_id", appId); form.set("client_secret", secret);
     form.set("grant_type", "authorization_code"); form.set("redirect_uri", redirectUri); form.set("code", code);
     let contract: ReturnType<typeof codeExchangeContract> | undefined;
-    let short: z.infer<typeof shortToken>, scopes: string[];
+    let short: z.infer<typeof shortToken> | z.infer<typeof flatShortToken>, scopes: string[];
     try {
       const exchanged = shortTokenResponse.safeParse(await providerJson("https://api.instagram.com/oauth/access_token", { method: "POST", body: form }, result => { contract = result; }));
       if (!exchanged.success) throw new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
-      short = exchanged.data.data[0]!;
+      short = "data" in exchanged.data ? exchanged.data.data[0]! : exchanged.data;
       scopes = normalizePermissions(short.permissions);
     } catch (error) {
-      if (contract) logger.info({ codeExchangeResponse: contract }, "Instagram code exchange response contract");
+      const malformed = error instanceof InstagramProviderDiagnosticError ? error.diagnosticCategory === "MALFORMED_RESPONSE" : error instanceof AppError && error.code === "INSTAGRAM_PROVIDER_INVALID";
+      if (contract && malformed) logger.info({ codeExchangeResponse: contract }, "Instagram code exchange response contract");
       throw error;
     }
     onStage?.("LONG_LIVED_TOKEN_EXCHANGE");
