@@ -18,6 +18,10 @@ function codeExchangeContract(response: Response, bytes: number | undefined, par
   const data = object?.data;
   const entry = Array.isArray(data) && data.length === 1 && data[0] !== null && typeof data[0] === "object" && !Array.isArray(data[0])
     ? data[0] as Record<string, unknown> : object;
+  const userId = entry?.user_id;
+  const userIdNumericSafety = typeof userId !== "number" ? "NOT_NUMERIC"
+    : !Number.isInteger(userId) ? "NON_INTEGER_NUMBER"
+      : Number.isSafeInteger(userId) ? "SAFE_INTEGER" : "UNSAFE_INTEGER";
   const fields = Object.fromEntries(contractFields.map(field => {
     const present = entry !== null && Object.hasOwn(entry, field);
     const item = present ? entry[field] : undefined;
@@ -34,6 +38,7 @@ function codeExchangeContract(response: Response, bytes: number | undefined, par
     dataIsArray: Array.isArray(data),
     ...(Array.isArray(data) ? { dataLength: Math.min(data.length, 51) } : {}),
     fields,
+    userIdNumericSafety,
     documentedRequiredFieldsPresent: ["access_token", "user_id", "permissions"].every(field => entry !== null && Object.hasOwn(entry, field)),
   };
 }

@@ -57,6 +57,25 @@ describe("official Instagram Login adapter without live calls", () => {
     expect(logs.info).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["SAFE_INTEGER", 123456789],
+    ["UNSAFE_INTEGER", Number.MAX_SAFE_INTEGER + 1],
+    ["NON_INTEGER_NUMBER", 123.5],
+    ["NOT_NUMERIC", "123456789"],
+  ])("logs only numeric safety category %s for a malformed code exchange", async (expected, userId) => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(json({
+      access_token: "synthetic-private-token", user_id: userId,
+      permissions: ["instagram_business_basic", "instagram_business_manage_messages"],
+      token_type: "synthetic-private-extra-field",
+    }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID" });
+    expect(logs.info).toHaveBeenCalledTimes(1);
+    expect(logs.info.mock.calls[0]?.[0]).toMatchObject({ codeExchangeResponse: { userIdNumericSafety: expected } });
+    const logged = JSON.stringify(logs.info.mock.calls);
+    expect(logged).not.toContain(String(userId));
+    expect(logged).not.toMatch(/synthetic-private|instagram_business_basic|instagram_business_manage_messages/);
+  });
+
   it("logs only bounded, allow-listed shape metadata for a rejected code-exchange response", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(json({ data: [{
       access_token: "synthetic-private-token", user_id: "123456789", permissions: ["instagram_business_basic"],
