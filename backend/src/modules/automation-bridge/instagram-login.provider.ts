@@ -9,9 +9,17 @@ const longToken = z.object({ access_token: token, expires_in: z.number().int().m
 const account = z.object({ user_id: providerId, id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]).optional(), username: z.string().min(1).max(128).optional(), account_type: z.enum(["BUSINESS", "MEDIA_CREATOR", "Business", "Media_Creator"]) }).strict();
 const requiredScopes = ["instagram_business_basic", "instagram_business_manage_messages"] as const;
 export type InstagramAuthorization = { token: string; expiresAt: Date; scopes: string[]; accountId: string; username?: string };
+export type InstagramOAuthProviderStage = "CODE_EXCHANGE" | "LONG_LIVED_TOKEN_EXCHANGE" | "ACCOUNT_DISCOVERY" | "SCOPE_VALIDATION";
+export type InstagramProviderFailureCategory = "TIMEOUT" | "HTTP_AUTH_REJECTION" | "MALFORMED_RESPONSE" | "PROVIDER_REJECTION" | "PROVIDER_FAILURE";
+
+export class InstagramProviderDiagnosticError extends AppError {
+  constructor(public readonly diagnosticCategory: InstagramProviderFailureCategory) {
+    super(502, "Instagram authorization could not be completed.", "INSTAGRAM_PROVIDER_FAILURE");
+  }
+}
 
 export interface InstagramLoginProvider {
-  exchange(code: string): Promise<InstagramAuthorization>;
+  exchange(code: string, onStage?: (stage: InstagramOAuthProviderStage) => void): Promise<InstagramAuthorization>;
   subscribe(accountId: string, token: string): Promise<boolean>;
   refresh(token: string): Promise<{ token: string; expiresAt: Date }>;
 }
@@ -39,10 +47,10 @@ export function instagramAuthorizationUrl(state: string) {
 async function providerJson(url: string, init?: RequestInit): Promise<unknown> {
   try {
     const response = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000), cache: "no-store", redirect: "error" });
-    if (!/^application\/(?:[\w.+-]+\+)?json(?:\s*;|\s*$)/i.test(response.headers.get("content-type") ?? "")) throw new Error("Invalid provider response");
+    if (!/^application\/(?:[\w.+-]+\+)?json(?:\s*;|\s*$)/i.test(response.headers.get("content-type") ?? "")) throw new InstagramProviderDiagnosticError("MALFORMED_RESPONSE");
     const limit = 64 * 1024;
-    if (Number(response.headers.get("content-length")) > limit) throw new Error("Provider response too large");
-    if (!response.body) throw new Error("Provider response empty");
+    if (Number(response.headers.get("content-length")) > limit) throw new InstagramProviderDiagnosticError("MALFORMED_RESPONSE");
+    if (!response.body) throw new InstagramProviderDiagnosticError("MALFORMED_RESPONSE");
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = []; let length = 0;
     try {
@@ -50,7 +58,7 @@ async function providerJson(url: string, init?: RequestInit): Promise<unknown> {
         const { done, value } = await reader.read();
         if (done) break;
         length += value.byteLength;
-        if (length > limit) throw new Error("Provider response too large");
+        if (length > limit) throw new InstagramProviderDiagnosticError("MALFORMED_RESPONSE");
         chunks.push(value);
       }
     } finally { await reader.cancel().catch(() => undefined); }
@@ -59,13 +67,14 @@ async function providerJson(url: string, init?: RequestInit): Promise<unknown> {
       const failure = z.object({ error: z.object({ code: z.number().int().min(0).max(999999), error_subcode: z.number().int().min(0).max(999999).optional(), message: z.string().max(512).optional(), type: z.string().max(80).optional() }) }).safeParse(data);
       if (failure.success && failure.data.error.code === 190)
         throw new AppError(409, "Instagram reconnection is required.", "INSTAGRAM_PROVIDER_RECONNECT_REQUIRED");
-      throw new Error("Provider rejected request");
+      throw new InstagramProviderDiagnosticError(response.status === 401 || response.status === 403 ? "HTTP_AUTH_REJECTION" : "PROVIDER_REJECTION");
     }
     return data;
   } catch (error) {
-    if (error instanceof AppError && error.code === "INSTAGRAM_PROVIDER_RECONNECT_REQUIRED") throw error;
+    if (error instanceof InstagramProviderDiagnosticError || error instanceof AppError && error.code === "INSTAGRAM_PROVIDER_RECONNECT_REQUIRED") throw error;
     // Never include provider response bodies: they may contain tokens or authorization codes.
-    throw new AppError(502, "Instagram authorization could not be completed.", "INSTAGRAM_PROVIDER_FAILURE");
+    const category = error instanceof SyntaxError ? "MALFORMED_RESPONSE" : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "TIMEOUT" : "PROVIDER_FAILURE";
+    throw new InstagramProviderDiagnosticError(category);
   }
 }
 
@@ -79,7 +88,8 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     return { token: refreshed.data.access_token, expiresAt: new Date(Date.now() + refreshed.data.expires_in * 1000) };
   }
 
-  async exchange(code: string): Promise<InstagramAuthorization> {
+  async exchange(code: string, onStage?: (stage: InstagramOAuthProviderStage) => void): Promise<InstagramAuthorization> {
+    onStage?.("CODE_EXCHANGE");
     const { appId, secret, redirectUri } = configuration();
     const form = new FormData();
     form.set("client_id", appId); form.set("client_secret", secret);
@@ -87,12 +97,14 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     const exchanged = z.union([shortToken, z.object({ data: z.array(shortToken).length(1) })]).safeParse(await providerJson("https://api.instagram.com/oauth/access_token", { method: "POST", body: form }));
     if (!exchanged.success) throw new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
     const short = "data" in exchanged.data ? exchanged.data.data[0]! : exchanged.data;
+    onStage?.("LONG_LIVED_TOKEN_EXCHANGE");
     const longUrl = new URL("https://graph.instagram.com/access_token");
     longUrl.searchParams.set("grant_type", "ig_exchange_token");
     longUrl.searchParams.set("client_secret", secret);
     longUrl.searchParams.set("access_token", short.access_token);
     const long = longToken.safeParse(await providerJson(longUrl.toString()));
     if (!long.success) throw new AppError(502, "Instagram token response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
+    onStage?.("ACCOUNT_DISCOVERY");
     const meUrl = new URL(`https://graph.instagram.com/${env.META_INSTAGRAM_API_VERSION}/me`);
     meUrl.searchParams.set("fields", "user_id,username,account_type");
     meUrl.searchParams.set("access_token", long.data.access_token);
@@ -102,6 +114,7 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     const accountId = String(me.user_id);
     if (!/^\d{5,32}$/.test(accountId) || !["BUSINESS", "MEDIA_CREATOR", "Business", "Media_Creator"].includes(me.account_type ?? ""))
       throw new AppError(409, "A professional Instagram account is required.", "INSTAGRAM_PROFESSIONAL_REQUIRED");
+    onStage?.("SCOPE_VALIDATION");
     if (!requiredScopes.every(scope => short.permissions?.includes(scope)))
       throw new AppError(409, "Instagram messaging permission was not granted.", "INSTAGRAM_SCOPE_MISSING");
     // OAuth user_id is deliberately not substituted for /me.user_id.

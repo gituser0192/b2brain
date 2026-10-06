@@ -29,7 +29,9 @@ describe("official Instagram Login adapter without live calls", () => {
     mocked.mockResolvedValueOnce(json({ user_id: "123456789", id: "different-app-scoped-id", username: "professional", account_type: "BUSINESS" }) as never);
     mocked.mockResolvedValueOnce(json({ success: true }) as never);
     const provider = new OfficialInstagramLoginProvider();
-    const result = await provider.exchange("synthetic-code");
+    const stages: string[] = [];
+    const result = await provider.exchange("synthetic-code", stage => stages.push(stage));
+    expect(stages).toEqual(["CODE_EXCHANGE", "LONG_LIVED_TOKEN_EXCHANGE", "ACCOUNT_DISCOVERY", "SCOPE_VALIDATION"]);
     expect(result).toMatchObject({ accountId: "123456789", token: "long", username: "professional" });
     expect(mocked.mock.calls[0]?.[0]).toBe("https://api.instagram.com/oauth/access_token");
     expect((mocked.mock.calls[0]?.[1]?.body as FormData).get("grant_type")).toBe("authorization_code");
@@ -44,6 +46,20 @@ describe("official Instagram Login adapter without live calls", () => {
   it("fails closed on provider errors without returning the provider body", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({ access_token: "sensitive" }) } as never);
     await expect(new OfficialInstagramLoginProvider().exchange("synthetic-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_FAILURE", message: "Instagram authorization could not be completed." });
+  });
+
+  it.each([
+    ["CODE_EXCHANGE", 0], ["LONG_LIVED_TOKEN_EXCHANGE", 1], ["ACCOUNT_DISCOVERY", 2], ["SCOPE_VALIDATION", 3],
+  ])("identifies the failing provider stage %s", async (expected, badAt) => {
+    const responses = [
+      json(badAt === 0 ? {} : { access_token: "short", user_id: "app-scoped-id", permissions: badAt === 3 ? [] : ["instagram_business_basic", "instagram_business_manage_messages"] }),
+      json(badAt === 1 ? {} : { access_token: "long", expires_in: 5184000 }),
+      json(badAt === 2 ? {} : { user_id: "123456789", account_type: "BUSINESS" }),
+    ];
+    for (const response of responses) vi.mocked(globalThis.fetch).mockResolvedValueOnce(response);
+    const stages: string[] = [];
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-code", stage => stages.push(stage))).rejects.toBeInstanceOf(Error);
+    expect(stages.at(-1)).toBe(expected);
   });
 
   it("uses the documented long-lived token refresh endpoint", async () => {
@@ -73,8 +89,15 @@ describe("official Instagram Login adapter without live calls", () => {
   it("fails closed on a timed-out provider request without retrying or exposing the token", async () => {
     const mocked = vi.mocked(globalThis.fetch);
     mocked.mockRejectedValueOnce(new DOMException("synthetic-private-token", "TimeoutError"));
-    await expect(new OfficialInstagramLoginProvider().refresh("synthetic-private-token")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_FAILURE", message: "Instagram authorization could not be completed." });
+    await expect(new OfficialInstagramLoginProvider().refresh("synthetic-private-token")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_FAILURE", message: "Instagram authorization could not be completed.", diagnosticCategory: "TIMEOUT" });
     expect(mocked).toHaveBeenCalledTimes(1);
+  });
+  it("classifies authentication rejection and malformed responses without provider text", async () => {
+    const mocked = vi.mocked(globalThis.fetch);
+    mocked.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 10, message: "synthetic-private-token" } }), { status: 401, headers: { "content-type": "application/json" } }));
+    await expect(new OfficialInstagramLoginProvider().refresh("synthetic-private-token")).rejects.toMatchObject({ diagnosticCategory: "HTTP_AUTH_REJECTION", code: "INSTAGRAM_PROVIDER_FAILURE", message: "Instagram authorization could not be completed." });
+    mocked.mockResolvedValueOnce(new Response("{synthetic-private-token", { headers: { "content-type": "application/json" } }));
+    await expect(new OfficialInstagramLoginProvider().refresh("synthetic-private-token")).rejects.toMatchObject({ diagnosticCategory: "MALFORMED_RESPONSE", code: "INSTAGRAM_PROVIDER_FAILURE", message: "Instagram authorization could not be completed." });
   });
   it("classifies a documented credential error without returning provider text", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 190, message: "synthetic-private-token" } }), { status: 400, headers: { "content-type": "application/json" } }));

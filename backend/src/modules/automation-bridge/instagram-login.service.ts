@@ -1,16 +1,34 @@
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { decryptSecret, encryptSecret } from "./bridge.crypto.js";
 import { disconnectMetaAsset } from "./meta-assets.service.js";
 import { MetaAuthorizationStateService, requireCurrentAccess } from "./meta-authorization-state.service.js";
-import { instagramAuthorizationUrl, OfficialInstagramLoginProvider, type InstagramLoginProvider } from "./instagram-login.provider.js";
+import { instagramAuthorizationUrl, InstagramProviderDiagnosticError, OfficialInstagramLoginProvider, type InstagramLoginProvider, type InstagramOAuthProviderStage, type InstagramProviderFailureCategory } from "./instagram-login.provider.js";
 
 type Context = { organizationId: string; membershipId: string; userId: string };
+type DiagnosticStage = InstagramOAuthProviderStage | "STATE_CONSUMPTION" | "CREDENTIAL_BINDING" | "PROVIDER_SUBSCRIPTION" | "FINAL_COMPARE_AND_SWAP" | "ASSET_ACTIVATION" | "CALLBACK_COMPLETED";
+type DiagnosticCategory = InstagramProviderFailureCategory | "STATE_REJECTED" | "ACCESS_REJECTED" | "STALE_GENERATION" | "MISSING_SCOPE" | "ACCOUNT_INELIGIBLE" | "OWNERSHIP_CONFLICT" | "SUBSCRIPTION_REJECTION" | "INTERNAL_FAILURE" | "SUCCESS";
 const capability = "INSTAGRAM_MESSAGES", variant = "INSTAGRAM_LOGIN";
 const stateService = new MetaAuthorizationStateService();
+const diagnosticReason = (stage: DiagnosticStage, category: DiagnosticCategory) => `OAUTH_${stage}_${category}`;
+const logDiagnostic = (stage: DiagnosticStage, category: DiagnosticCategory) => logger.info({ stage, category }, "Instagram OAuth callback diagnostic");
+function diagnosticCategory(error: unknown): DiagnosticCategory {
+  if (error instanceof InstagramProviderDiagnosticError) return error.diagnosticCategory;
+  if (error instanceof AppError) {
+    if (error.code === "INSTAGRAM_SETUP_CHANGED") return "STALE_GENERATION";
+    if (error.code === "INSTAGRAM_SCOPE_MISSING") return "MISSING_SCOPE";
+    if (error.code === "INSTAGRAM_PROFESSIONAL_REQUIRED") return "ACCOUNT_INELIGIBLE";
+    if (error.code === "INSTAGRAM_ACCOUNT_OWNED") return "OWNERSHIP_CONFLICT";
+    if (error.code === "INSTAGRAM_PROVIDER_RECONNECT_REQUIRED") return "HTTP_AUTH_REJECTION";
+    if (error.code === "INSTAGRAM_PROVIDER_INVALID" || error.code === "INSTAGRAM_ACCOUNT_INVALID") return "MALFORMED_RESPONSE";
+    if (error.code === "INSTAGRAM_PROVIDER_FAILURE") return "PROVIDER_FAILURE";
+  }
+  return "INTERNAL_FAILURE";
+}
 
 export class InstagramLoginService {
   constructor(private readonly provider: InstagramLoginProvider = new OfficialInstagramLoginProvider()) {}
@@ -37,14 +55,26 @@ export class InstagramLoginService {
   }
 
   async callback(context: Context, connectorId: string, state: string, code: string) {
-    this.privateAccess(context);
-    await stateService.consume(context, connectorId, capability, variant, state, "/automation");
+    try {
+      this.privateAccess(context);
+      await stateService.consume(context, connectorId, capability, variant, state, "/automation");
+    } catch (error) {
+      logDiagnostic("STATE_CONSUMPTION", error instanceof AppError && error.code === "INSTAGRAM_PRIVATE_ONLY" ? "ACCESS_REJECTED" : "STATE_REJECTED");
+      throw error;
+    }
     return this.completeConsumedCallback(context, connectorId, state, code);
   }
 
   async callbackFromRedirect(state: string, code: string) {
-    const { context, connectorId } = await stateService.consumeRedirect(capability, variant, state, "/automation");
-    this.privateAccess(context);
+    let consumed;
+    try {
+      consumed = await stateService.consumeRedirect(capability, variant, state, "/automation");
+      this.privateAccess(consumed.context);
+    } catch (error) {
+      logDiagnostic("STATE_CONSUMPTION", error instanceof AppError && error.code === "INSTAGRAM_PRIVATE_ONLY" ? "ACCESS_REJECTED" : "STATE_REJECTED");
+      throw error;
+    }
+    const { context, connectorId } = consumed;
     return this.completeConsumedCallback(context, connectorId, state, code);
   }
 
@@ -56,15 +86,22 @@ export class InstagramLoginService {
   private async completeConsumedCallback(context: Context, connectorId: string, state: string, code: string) {
     const generation = createHash("sha256").update(state).digest("hex");
     const claimed = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, provider: "META_INSTAGRAM_DM", status: "DRAFT", deletedAt: null, reauthorizationReason: generation, credentialStatus: { in: ["NOT_CONFIGURED", "NEEDS_ATTENTION", "DISCONNECTED"] } }, data: { credentialStatus: "AUTHORIZING" } });
-    if (claimed.count !== 1) throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
+    if (claimed.count !== 1) {
+      logDiagnostic("CREDENTIAL_BINDING", "STALE_GENERATION");
+      throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
+    }
     // No code/token/secret enters logs, audit metadata, frontend responses, or provider errors.
+    let stage: DiagnosticStage = "CODE_EXCHANGE";
     let authorization;
-    try { authorization = await this.provider.exchange(code); }
+    try { authorization = await this.provider.exchange(code, next => { stage = next; }); }
     catch (error) {
-      await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", credentialStatus: "AUTHORIZING", reauthorizationReason: generation }, data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: "AUTHORIZATION_FAILED" } });
+      const category = diagnosticCategory(error);
+      const updated = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", credentialStatus: "AUTHORIZING", reauthorizationReason: generation }, data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: diagnosticReason(stage, category) } });
+      logDiagnostic(stage, updated.count === 1 ? category : "STALE_GENERATION");
       throw error;
     }
     try {
+    stage = "CREDENTIAL_BINDING";
     const owner = await prisma.metaConnectedAsset.findFirst({ where: { provider: "META", assetType: "INSTAGRAM_ACCOUNT", assetId: authorization.accountId, releasedAt: null }, select: { connectorId: true } });
     if (owner && owner.connectorId !== connectorId) throw new AppError(409, "This Instagram account already belongs to a connection.", "INSTAGRAM_ACCOUNT_OWNED");
     const encrypted = encryptSecret(authorization.token, 2, { organizationId: context.organizationId, connectorId });
@@ -87,23 +124,31 @@ export class InstagramLoginService {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new AppError(409, "This Instagram account already belongs to a connection.", "INSTAGRAM_ACCOUNT_OWNED");
       throw error;
     }
-    let subscribed = false;
-    try { subscribed = await this.provider.subscribe(authorization.accountId, authorization.token); } catch { /* Status remains honest. */ }
+    stage = "PROVIDER_SUBSCRIPTION";
+    let subscribed = false, subscriptionCategory: DiagnosticCategory = "SUBSCRIPTION_REJECTION";
+    try { subscribed = await this.provider.subscribe(authorization.accountId, authorization.token); }
+    catch (error) { subscriptionCategory = diagnosticCategory(error); }
     if (!subscribed) {
-      const failed = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", credentialStatus: "SUBSCRIPTION_PENDING", reauthorizationReason: generation, accessTokenEncrypted: encrypted, externalAccountRef: authorization.accountId }, data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: "SUBSCRIPTION_FAILED" } });
+      const failed = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", credentialStatus: "SUBSCRIPTION_PENDING", reauthorizationReason: generation, accessTokenEncrypted: encrypted, externalAccountRef: authorization.accountId }, data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: diagnosticReason(stage, subscriptionCategory) } });
       if (failed.count !== 1) throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
+      logDiagnostic(stage, subscriptionCategory);
       return { state: "NEEDS_ATTENTION", account: { username: authorization.username ?? null }, subscriptionVerified: false };
     }
+    stage = "FINAL_COMPARE_AND_SWAP";
     await prisma.$transaction(async tx => {
       const changed = await tx.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", credentialStatus: "SUBSCRIPTION_PENDING", reauthorizationReason: generation, accessTokenEncrypted: encrypted, credentialKeyVersion: 2, externalAccountRef: authorization.accountId }, data: { status: "ACTIVE", credentialStatus: "PRIVATE_TEST_READY", reauthorizationReason: null, credentialValidatedAt: new Date(), updatedById: context.userId } });
       if (changed.count !== 1) throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
+      stage = "ASSET_ACTIVATION";
       const activated = await tx.metaConnectedAsset.updateMany({ where: { connectorId, organizationId: context.organizationId, provider: "META", assetType: "INSTAGRAM_ACCOUNT", assetId: authorization.accountId, routingStatus: "INACTIVE", releasedAt: null }, data: { routingStatus: "ACTIVE", lastValidatedAt: new Date(), webhookCutoverAt: new Date() } });
       if (activated.count !== 1) throw new AppError(409, "Connection setup changed; restart authorization.", "INSTAGRAM_SETUP_CHANGED");
       await tx.auditEvent.create({ data: { organizationId: context.organizationId, actorType: "USER", actorUserId: context.userId, serviceCode: "AUTOMATION", actionCode: "INSTAGRAM_PRIVATE_TEST_READY", sourceType: "INTEGRATION_CONNECTOR", sourceId: connectorId, summary: "Instagram account authorization and subscription completed for private testing." } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    logDiagnostic("CALLBACK_COMPLETED", "SUCCESS");
     return { state: "PRIVATE_TEST_READY", account: { username: authorization.username ?? null }, subscriptionVerified: true };
     } catch (error) {
-      await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", reauthorizationReason: generation, credentialStatus: { in: ["AUTHORIZING", "SUBSCRIPTION_PENDING"] } }, data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: "AUTHORIZATION_FAILED" } });
+      const category = diagnosticCategory(error);
+      const updated = await prisma.integrationConnector.updateMany({ where: { id: connectorId, organizationId: context.organizationId, status: "DRAFT", reauthorizationReason: generation, credentialStatus: { in: ["AUTHORIZING", "SUBSCRIPTION_PENDING"] } }, data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: diagnosticReason(stage, category) } });
+      logDiagnostic(stage, updated.count === 1 ? category : "STALE_GENERATION");
       throw error;
     }
   }

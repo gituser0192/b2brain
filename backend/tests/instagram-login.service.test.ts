@@ -3,13 +3,18 @@ import { AppError } from "../src/shared/errors/app-error.js";
 
 const state = vi.hoisted(() => ({
   env: { META_INSTAGRAM_CONNECT_ENABLED: true, META_INSTAGRAM_PRIVATE_ORGANIZATION_ID: "11111111-1111-4111-8111-111111111111" },
-  consume: vi.fn(), consumeRedirect: vi.fn(), issue: vi.fn(), access: vi.fn(), owner: vi.fn(), connector: vi.fn(), assetCreate: vi.fn(), assetFind: vi.fn(), assetUpdate: vi.fn(), assetActivate: vi.fn(), connectorUpdate: vi.fn(), connectorUpdateMany: vi.fn(), audit: vi.fn(), transaction: vi.fn(), encrypted: vi.fn(), decrypted: vi.fn(), disconnected: vi.fn(),
+  consume: vi.fn(), consumeRedirect: vi.fn(), issue: vi.fn(), access: vi.fn(), owner: vi.fn(), connector: vi.fn(), assetCreate: vi.fn(), assetFind: vi.fn(), assetUpdate: vi.fn(), assetActivate: vi.fn(), connectorUpdate: vi.fn(), connectorUpdateMany: vi.fn(), audit: vi.fn(), transaction: vi.fn(), encrypted: vi.fn(), decrypted: vi.fn(), disconnected: vi.fn(), log: vi.fn(),
 }));
 vi.mock("../src/config/env.js", () => ({ env: state.env }));
+vi.mock("../src/config/logger.js", () => ({ logger: { info: state.log } }));
 vi.mock("../src/modules/automation-bridge/meta-authorization-state.service.js", () => ({
   MetaAuthorizationStateService: class { consume = state.consume; consumeRedirect = state.consumeRedirect; issue = state.issue; }, requireCurrentAccess: state.access,
 }));
-vi.mock("../src/modules/automation-bridge/instagram-login.provider.js", () => ({ instagramAuthorizationUrl: vi.fn(() => "https://www.instagram.com/oauth/authorize?synthetic=1"), OfficialInstagramLoginProvider: class {} }));
+vi.mock("../src/modules/automation-bridge/instagram-login.provider.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/modules/automation-bridge/instagram-login.provider.js")>(),
+  instagramAuthorizationUrl: vi.fn(() => "https://www.instagram.com/oauth/authorize?synthetic=1"),
+  OfficialInstagramLoginProvider: class {},
+}));
 vi.mock("../src/modules/automation-bridge/bridge.crypto.js", () => ({ encryptSecret: state.encrypted, decryptSecret: state.decrypted }));
 vi.mock("../src/modules/automation-bridge/meta-assets.service.js", () => ({ disconnectMetaAsset: state.disconnected }));
 vi.mock("../src/database/prisma.js", () => ({ prisma: {
@@ -23,7 +28,7 @@ const grant = { token: "private-synthetic-token", expiresAt: new Date(Date.now()
 const provider = { exchange: vi.fn(), subscribe: vi.fn(), refresh: vi.fn() };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   state.owner.mockResolvedValue(null); state.connector.mockResolvedValue({ id: "connector", status: "DRAFT", configuration: {} });
   state.assetFind.mockResolvedValue(null); state.connectorUpdateMany.mockResolvedValue({ count: 1 });
   state.assetActivate.mockResolvedValue({ count: 1 });
@@ -67,6 +72,9 @@ describe("private Instagram authorization", () => {
     expect(state.assetActivate.mock.calls[0]?.[0]).toMatchObject({ data: { webhookCutoverAt: expect.any(Date) as unknown as Date } });
     expect(configuredAt).toBeInstanceOf(Date);
     expect((state.assetActivate.mock.calls[0]?.[0] as { data: { webhookCutoverAt: Date } }).data.webhookCutoverAt.getTime()).toBeGreaterThanOrEqual(configuredAt.getTime());
+    expect(state.connectorUpdateMany.mock.calls.find(([input]) => (input as { data: { credentialStatus?: string } }).data.credentialStatus === "PRIVATE_TEST_READY")?.[0]).toMatchObject({ data: { reauthorizationReason: null } });
+    expect(state.log).toHaveBeenCalledWith({ stage: "CALLBACK_COMPLETED", category: "SUCCESS" }, "Instagram OAuth callback diagnostic");
+    expect(JSON.stringify(state.log.mock.calls)).not.toMatch(/private-synthetic-token|test-account|123456789/);
   });
   it("rejects an account already owned by another connector", async () => {
     state.owner.mockResolvedValue({ connectorId: "another" });
@@ -78,16 +86,82 @@ describe("private Instagram authorization", () => {
     await expect(new InstagramLoginService(provider).callback(context, "connector", "state", "code")).resolves.toMatchObject({ state: "NEEDS_ATTENTION", subscriptionVerified: false });
     expect(state.assetActivate).not.toHaveBeenCalled();
     expect(state.connectorUpdateMany.mock.calls.some(([input]) => (input as { data: { credentialStatus: string } }).data.credentialStatus === "NEEDS_ATTENTION")).toBe(true);
+    expect(state.connectorUpdateMany.mock.calls.at(-1)?.[0]).toMatchObject({ data: { reauthorizationReason: "OAUTH_PROVIDER_SUBSCRIPTION_SUBSCRIPTION_REJECTION" } });
+    expect(state.log).toHaveBeenCalledWith({ stage: "PROVIDER_SUBSCRIPTION", category: "SUBSCRIPTION_REJECTION" }, "Instagram OAuth callback diagnostic");
+  });
+  it("redacts a thrown subscription error and persists no plaintext token", async () => {
+    provider.subscribe.mockRejectedValueOnce(new Error("synthetic-private-token-account-url"));
+    await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).resolves.toMatchObject({ state: "NEEDS_ATTENTION" });
+    expect(state.connectorUpdateMany.mock.calls.at(-1)?.[0]).toMatchObject({ data: { reauthorizationReason: "OAUTH_PROVIDER_SUBSCRIPTION_INTERNAL_FAILURE" } });
+    expect(state.log).toHaveBeenCalledWith({ stage: "PROVIDER_SUBSCRIPTION", category: "INTERNAL_FAILURE" }, "Instagram OAuth callback diagnostic");
+    expect(JSON.stringify(state.log.mock.calls)).not.toMatch(/synthetic-private-token-account-url|123456789/);
+    expect(JSON.stringify(state.connectorUpdateMany.mock.calls)).not.toContain("private-synthetic-token");
   });
   it("does not persist a token when code exchange fails", async () => {
-    provider.exchange.mockRejectedValue(new Error("synthetic provider error"));
+    provider.exchange.mockRejectedValue(new Error("synthetic-secret-code-token-account-url"));
     await expect(new InstagramLoginService(provider).callback(context, "connector", "state", "code")).rejects.toThrow();
     expect(state.transaction).not.toHaveBeenCalled(); expect(state.encrypted).not.toHaveBeenCalled();
+    expect(state.log).toHaveBeenCalledWith({ stage: "CODE_EXCHANGE", category: "INTERNAL_FAILURE" }, "Instagram OAuth callback diagnostic");
+    expect(JSON.stringify(state.log.mock.calls)).not.toContain("synthetic-secret-code-token-account-url");
+    expect(JSON.stringify(state.connectorUpdateMany.mock.calls)).not.toContain("synthetic-secret-code-token-account-url");
+  });
+  it("records a bounded state-consumption failure without calling the provider", async () => {
+    state.consumeRedirect.mockRejectedValueOnce(new AppError(400, "synthetic-secret-state", "META_STATE_INVALID"));
+    await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).rejects.toMatchObject({ code: "META_STATE_INVALID" });
+    expect(provider.exchange).not.toHaveBeenCalled();
+    expect(state.connectorUpdateMany).not.toHaveBeenCalled();
+    expect(state.log).toHaveBeenCalledWith({ stage: "STATE_CONSUMPTION", category: "STATE_REJECTED" }, "Instagram OAuth callback diagnostic");
+    expect(JSON.stringify(state.log.mock.calls)).not.toContain("synthetic-secret-state");
+  });
+  it.each([
+    ["CODE_EXCHANGE", "INSTAGRAM_PROVIDER_FAILURE", "PROVIDER_FAILURE"],
+    ["LONG_LIVED_TOKEN_EXCHANGE", "INSTAGRAM_PROVIDER_INVALID", "MALFORMED_RESPONSE"],
+    ["ACCOUNT_DISCOVERY", "INSTAGRAM_ACCOUNT_INVALID", "MALFORMED_RESPONSE"],
+    ["ACCOUNT_DISCOVERY", "INSTAGRAM_PROFESSIONAL_REQUIRED", "ACCOUNT_INELIGIBLE"],
+    ["SCOPE_VALIDATION", "INSTAGRAM_SCOPE_MISSING", "MISSING_SCOPE"],
+  ])("persists only the %s/%s stage and safe category", async (stage, code, category) => {
+    provider.exchange.mockImplementationOnce((_code: string, onStage: (value: string) => void) => {
+      onStage(stage);
+      throw new AppError(502, "synthetic-private-token-account-url", code);
+    });
+    await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "synthetic-code")).rejects.toMatchObject({ code });
+    expect(state.connectorUpdateMany.mock.calls.at(-1)?.[0]).toMatchObject({
+      where: { organizationId: context.organizationId, reauthorizationReason: expect.any(String) as unknown as string },
+      data: { credentialStatus: "NEEDS_ATTENTION", reauthorizationReason: `OAUTH_${stage}_${category}` },
+    });
+    expect(state.log).toHaveBeenCalledWith({ stage, category }, "Instagram OAuth callback diagnostic");
+    expect(JSON.stringify(state.log.mock.calls)).not.toMatch(/synthetic-private|synthetic-code/);
+    expect(JSON.stringify(state.connectorUpdateMany.mock.calls)).not.toMatch(/synthetic-private|synthetic-code/);
+  });
+  it("classifies an ownership failure before storing credentials", async () => {
+    state.owner.mockResolvedValueOnce({ connectorId: "another" });
+    await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).rejects.toMatchObject({ code: "INSTAGRAM_ACCOUNT_OWNED" });
+    expect(state.encrypted).not.toHaveBeenCalled();
+    expect(state.log).toHaveBeenCalledWith({ stage: "CREDENTIAL_BINDING", category: "OWNERSHIP_CONFLICT" }, "Instagram OAuth callback diagnostic");
+  });
+  it("classifies the final compare-and-swap failure without activating an asset", async () => {
+    state.connectorUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).rejects.toMatchObject({ code: "INSTAGRAM_SETUP_CHANGED" });
+    expect(state.assetActivate).not.toHaveBeenCalled();
+    expect(state.log).toHaveBeenCalledWith({ stage: "FINAL_COMPARE_AND_SWAP", category: "STALE_GENERATION" }, "Instagram OAuth callback diagnostic");
+  });
+  it("does not overwrite a newer authorization generation after a concurrent retry", async () => {
+    let rejectOld: ((error: Error) => void) | undefined;
+    provider.exchange.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }));
+    state.connectorUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    const oldCallback = new InstagramLoginService(provider).callbackFromRedirect("old-state", "old-code");
+    await vi.waitFor(() => expect(provider.exchange).toHaveBeenCalledTimes(1));
+    await new InstagramLoginService(provider).start(context, "connector");
+    rejectOld?.(new Error("synthetic-private-old-token"));
+    await expect(oldCallback).rejects.toThrow();
+    expect(state.connectorUpdateMany.mock.calls.at(-1)?.[0]).toMatchObject({ where: { reauthorizationReason: expect.any(String) as unknown as string } });
+    expect(state.log).toHaveBeenCalledWith({ stage: "CODE_EXCHANGE", category: "STALE_GENERATION" }, "Instagram OAuth callback diagnostic");
+    expect(JSON.stringify(state.log.mock.calls)).not.toContain("synthetic-private-old-token");
   });
   it("consumes redirect state and exchanges the code without a frontend callback", async () => {
     await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).resolves.toMatchObject({ state: "PRIVATE_TEST_READY" });
     expect(state.consumeRedirect).toHaveBeenCalledWith("INSTAGRAM_MESSAGES", "INSTAGRAM_LOGIN", "state", "/automation");
-    expect(provider.exchange).toHaveBeenCalledWith("code");
+    expect(provider.exchange).toHaveBeenCalledWith("code", expect.any(Function));
   });
   it("does not let a stale callback claim credentials", async () => {
     state.connectorUpdateMany.mockResolvedValueOnce({ count: 0 });
@@ -98,6 +172,7 @@ describe("private Instagram authorization", () => {
   it("does not report ready when asset activation changes no row", async () => {
     state.assetActivate.mockResolvedValueOnce({ count: 0 });
     await expect(new InstagramLoginService(provider).callbackFromRedirect("state", "code")).rejects.toMatchObject({ code: "INSTAGRAM_SETUP_CHANGED" });
+    expect(state.log).toHaveBeenCalledWith({ stage: "ASSET_ACTIVATION", category: "STALE_GENERATION" }, "Instagram OAuth callback diagnostic");
   });
   it("cannot mark a new credential expired after a reconnect race", async () => {
     state.connector.mockResolvedValueOnce({ accessTokenEncrypted: "old-ciphertext", credentialKeyVersion: 2, credentialStatus: "PRIVATE_TEST_READY", credentialExpiresAt: new Date(Date.now() - 1000) });
