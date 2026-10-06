@@ -4,11 +4,13 @@ const env = vi.hoisted(() => ({
   META_INSTAGRAM_CONNECT_ENABLED: true, META_INSTAGRAM_APP_ID: "123456", META_INSTAGRAM_APP_SECRET: "synthetic-private-secret",
   META_INSTAGRAM_REDIRECT_URI: "https://api.example.test/api/v1/instagram-login/redirect", META_INSTAGRAM_API_VERSION: "v26.0", NODE_ENV: "production",
 }));
+const logs = vi.hoisted(() => ({ info: vi.fn<(fields: unknown, message: string) => void>() }));
 vi.mock("../src/config/env.js", () => ({ env }));
+vi.mock("../src/config/logger.js", () => ({ logger: logs }));
 import { instagramAuthorizationUrl, OfficialInstagramLoginProvider } from "../src/modules/automation-bridge/instagram-login.provider.js";
 
 const originalFetch = globalThis.fetch;
-afterEach(() => { globalThis.fetch = originalFetch; });
+afterEach(() => { globalThis.fetch = originalFetch; logs.info.mockClear(); });
 beforeEach(() => { globalThis.fetch = vi.fn(); });
 const json = (value: unknown) => new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } });
 
@@ -41,6 +43,60 @@ describe("official Instagram Login adapter without live calls", () => {
     expect(subscription.pathname).toBe("/v26.0/123456789/subscribed_apps");
     expect(subscription.searchParams.get("subscribed_fields")).toBe("messages");
     expect(mocked.mock.calls[3]?.[1]?.method).toBe("POST");
+    expect(logs.info).not.toHaveBeenCalled();
+  });
+
+  it("logs only bounded, allow-listed shape metadata for a rejected code-exchange response", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(json({ data: [{
+      access_token: "synthetic-private-token", user_id: "123456789", permissions: ["instagram_business_basic"],
+      token_type: "bearer", expires_in: 3600, unknown_secret_field: "synthetic-private-secret",
+    }] }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID" });
+    expect(logs.info).toHaveBeenCalledTimes(1);
+    const contract = (logs.info.mock.calls[0]?.[0] as { codeExchangeResponse: { fields: Record<string, unknown> } }).codeExchangeResponse;
+    expect(contract).toMatchObject({
+      statusClass: "2XX", contentType: "JSON", byteBucket: "UP_TO_1K", topLevelKind: "OBJECT",
+      dataExists: true, dataIsArray: true, dataLength: 1, documentedRequiredFieldsPresent: true,
+      fields: {
+        access_token: { present: true, type: "STRING" }, expires_in: { present: true, type: "NUMBER" },
+        permissions: { present: true, type: "ARRAY" }, token_type: { present: true, type: "STRING" },
+        user_id: { present: true, type: "STRING" },
+      },
+    });
+    expect(Object.keys(contract.fields)).toEqual(["access_token", "expires_in", "permissions", "token_type", "user_id"]);
+    expect(JSON.stringify(logs.info.mock.calls)).not.toMatch(/synthetic-private|123456789|unknown_secret_field|instagram_business_basic|3600|bearer/);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("distinguishes flat, non-JSON, invalid-JSON and capped multi-entry responses without values", async () => {
+    const responses = [
+      json({ access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic" }),
+      new Response("<html>synthetic-private-token</html>", { status: 200, headers: { "content-type": "text/html" } }),
+      new Response("{synthetic-private-token", { status: 200, headers: { "content-type": "application/json" } }),
+      json({ data: Array.from({ length: 80 }, () => ({})) }),
+    ];
+    for (const response of responses) {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce(response);
+      await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toBeInstanceOf(Error);
+    }
+    expect(logs.info).toHaveBeenCalledTimes(4);
+    const contracts = logs.info.mock.calls.map(call => (call[0] as { codeExchangeResponse: Record<string, unknown> }).codeExchangeResponse);
+    expect(contracts[0]).toMatchObject({ dataExists: false, fields: { access_token: { present: true, type: "STRING" } } });
+    expect(contracts[1]).toMatchObject({ contentType: "OTHER", dataExists: false });
+    expect(contracts[1]).not.toHaveProperty("byteBucket");
+    expect(contracts[2]).toMatchObject({ contentType: "JSON", topLevelKind: "INVALID_JSON", byteBucket: "UP_TO_1K" });
+    expect(contracts[3]).toMatchObject({ dataLength: 51, documentedRequiredFieldsPresent: false });
+    expect(JSON.stringify(logs.info.mock.calls)).not.toMatch(/synthetic-private|123456789|instagram_business_basic|<html>/);
+  });
+
+  it("records shape, not scope text or provider error text, for later code-exchange failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(json({ data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,,instagram_business_manage_messages" }] }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID" });
+    expect(logs.info.mock.calls[0]?.[0]).toMatchObject({ codeExchangeResponse: { statusClass: "2XX", fields: { permissions: { present: true, type: "STRING" } }, documentedRequiredFieldsPresent: true } });
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 10, message: "synthetic-private-token" } }), { status: 401, headers: { "content-type": "application/json" } }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ diagnosticCategory: "HTTP_AUTH_REJECTION" });
+    expect(logs.info.mock.calls[1]?.[0]).toMatchObject({ codeExchangeResponse: { statusClass: "4XX", fields: { access_token: { present: false, type: "ABSENT" } }, documentedRequiredFieldsPresent: false } });
+    expect(JSON.stringify(logs.info.mock.calls)).not.toMatch(/synthetic-private|123456789|instagram_business_basic|instagram_business_manage_messages/);
   });
 
   it("fails closed on provider errors without returning the provider body", async () => {
