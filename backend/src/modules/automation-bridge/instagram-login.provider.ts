@@ -4,10 +4,17 @@ import { AppError } from "../../shared/errors/app-error.js";
 
 const providerId = z.union([z.string().regex(/^\d{5,32}$/), z.number().int().positive().safe()]);
 const token = z.string().min(1).max(8192);
-const shortToken = z.object({ access_token: token, user_id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]), permissions: z.array(z.string().min(1).max(128)).max(50) }).strict();
+const shortToken = z.object({ access_token: token, user_id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]), permissions: z.string().min(1).max(8192) }).strict();
+const shortTokenResponse = z.object({ data: z.array(shortToken).length(1) }).strict();
 const longToken = z.object({ access_token: token, expires_in: z.number().int().min(1).max(90 * 24 * 60 * 60), token_type: z.enum(["bearer", "Bearer"]).optional() }).strict();
 const account = z.object({ user_id: providerId, id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]).optional(), username: z.string().min(1).max(128).optional(), account_type: z.enum(["BUSINESS", "MEDIA_CREATOR", "Business", "Media_Creator"]) }).strict();
 const requiredScopes = ["instagram_business_basic", "instagram_business_manage_messages"] as const;
+function normalizePermissions(value: string) {
+  const scopes = value.split(",").map(scope => scope.trim());
+  if (scopes.length > 50 || scopes.some(scope => !/^[a-z][a-z0-9_]{0,127}$/.test(scope)))
+    throw new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
+  return [...new Set(scopes)];
+}
 export type InstagramAuthorization = { token: string; expiresAt: Date; scopes: string[]; accountId: string; username?: string };
 export type InstagramOAuthProviderStage = "CODE_EXCHANGE" | "LONG_LIVED_TOKEN_EXCHANGE" | "ACCOUNT_DISCOVERY" | "SCOPE_VALIDATION";
 export type InstagramProviderFailureCategory = "TIMEOUT" | "HTTP_AUTH_REJECTION" | "MALFORMED_RESPONSE" | "PROVIDER_REJECTION" | "PROVIDER_FAILURE";
@@ -94,9 +101,10 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     const form = new FormData();
     form.set("client_id", appId); form.set("client_secret", secret);
     form.set("grant_type", "authorization_code"); form.set("redirect_uri", redirectUri); form.set("code", code);
-    const exchanged = z.union([shortToken, z.object({ data: z.array(shortToken).length(1) })]).safeParse(await providerJson("https://api.instagram.com/oauth/access_token", { method: "POST", body: form }));
+    const exchanged = shortTokenResponse.safeParse(await providerJson("https://api.instagram.com/oauth/access_token", { method: "POST", body: form }));
     if (!exchanged.success) throw new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
-    const short = "data" in exchanged.data ? exchanged.data.data[0]! : exchanged.data;
+    const short = exchanged.data.data[0]!;
+    const scopes = normalizePermissions(short.permissions);
     onStage?.("LONG_LIVED_TOKEN_EXCHANGE");
     const longUrl = new URL("https://graph.instagram.com/access_token");
     longUrl.searchParams.set("grant_type", "ig_exchange_token");
@@ -115,10 +123,10 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     if (!/^\d{5,32}$/.test(accountId) || !["BUSINESS", "MEDIA_CREATOR", "Business", "Media_Creator"].includes(me.account_type ?? ""))
       throw new AppError(409, "A professional Instagram account is required.", "INSTAGRAM_PROFESSIONAL_REQUIRED");
     onStage?.("SCOPE_VALIDATION");
-    if (!requiredScopes.every(scope => short.permissions?.includes(scope)))
+    if (!requiredScopes.every(scope => scopes.includes(scope)))
       throw new AppError(409, "Instagram messaging permission was not granted.", "INSTAGRAM_SCOPE_MISSING");
     // OAuth user_id is deliberately not substituted for /me.user_id.
-    return { token: long.data.access_token, expiresAt: new Date(Date.now() + long.data.expires_in * 1000), scopes: short.permissions ?? [], accountId, ...(me.username ? { username: me.username } : {}) };
+    return { token: long.data.access_token, expiresAt: new Date(Date.now() + long.data.expires_in * 1000), scopes, accountId, ...(me.username ? { username: me.username } : {}) };
   }
 
   async subscribe(accountId: string, token: string): Promise<boolean> {

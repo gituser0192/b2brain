@@ -24,7 +24,7 @@ describe("official Instagram Login adapter without live calls", () => {
 
   it("exchanges the code server-side, discovers /me.user_id, and subscribes to messages only", async () => {
     const mocked = vi.mocked(globalThis.fetch);
-    mocked.mockResolvedValueOnce(json({ data: [{ access_token: "short", user_id: "app-scoped-id", permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }] }) as never);
+    mocked.mockResolvedValueOnce(json({ data: [{ access_token: "short", user_id: "app-scoped-id", permissions: " instagram_business_basic , instagram_business_manage_messages , instagram_business_basic " }] }) as never);
     mocked.mockResolvedValueOnce(json({ access_token: "long", expires_in: 5184000, token_type: "bearer" }) as never);
     mocked.mockResolvedValueOnce(json({ user_id: "123456789", id: "different-app-scoped-id", username: "professional", account_type: "BUSINESS" }) as never);
     mocked.mockResolvedValueOnce(json({ success: true }) as never);
@@ -32,7 +32,7 @@ describe("official Instagram Login adapter without live calls", () => {
     const stages: string[] = [];
     const result = await provider.exchange("synthetic-code", stage => stages.push(stage));
     expect(stages).toEqual(["CODE_EXCHANGE", "LONG_LIVED_TOKEN_EXCHANGE", "ACCOUNT_DISCOVERY", "SCOPE_VALIDATION"]);
-    expect(result).toMatchObject({ accountId: "123456789", token: "long", username: "professional" });
+    expect(result).toMatchObject({ accountId: "123456789", token: "long", username: "professional", scopes: ["instagram_business_basic", "instagram_business_manage_messages"] });
     expect(mocked.mock.calls[0]?.[0]).toBe("https://api.instagram.com/oauth/access_token");
     expect((mocked.mock.calls[0]?.[1]?.body as FormData).get("grant_type")).toBe("authorization_code");
     expect(new URL(mocked.mock.calls[2]?.[0] as string).pathname).toBe("/v26.0/me");
@@ -52,7 +52,7 @@ describe("official Instagram Login adapter without live calls", () => {
     ["CODE_EXCHANGE", 0], ["LONG_LIVED_TOKEN_EXCHANGE", 1], ["ACCOUNT_DISCOVERY", 2], ["SCOPE_VALIDATION", 3],
   ])("identifies the failing provider stage %s", async (expected, badAt) => {
     const responses = [
-      json(badAt === 0 ? {} : { access_token: "short", user_id: "app-scoped-id", permissions: badAt === 3 ? [] : ["instagram_business_basic", "instagram_business_manage_messages"] }),
+      json(badAt === 0 ? {} : { data: [{ access_token: "short", user_id: "app-scoped-id", permissions: badAt === 3 ? "instagram_business_basic" : "instagram_business_basic,instagram_business_manage_messages" }] }),
       json(badAt === 1 ? {} : { access_token: "long", expires_in: 5184000 }),
       json(badAt === 2 ? {} : { user_id: "123456789", account_type: "BUSINESS" }),
     ];
@@ -60,6 +60,43 @@ describe("official Instagram Login adapter without live calls", () => {
     const stages: string[] = [];
     await expect(new OfficialInstagramLoginProvider().exchange("synthetic-code", stage => stages.push(stage))).rejects.toBeInstanceOf(Error);
     expect(stages.at(-1)).toBe(expected);
+  });
+
+  it.each([
+    ["flat response", { access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages" }],
+    ["array permissions", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }] }],
+    ["multiple token entries", { data: [
+      { access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages" },
+      { access_token: "synthetic-private-token", user_id: "987654321", permissions: "instagram_business_basic,instagram_business_manage_messages" },
+    ] }],
+    ["missing token", { data: [{ user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages" }] }],
+    ["missing user ID", { data: [{ access_token: "synthetic-private-token", permissions: "instagram_business_basic,instagram_business_manage_messages" }] }],
+    ["undocumented token field", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages", token_type: "bearer" }] }],
+    ["undocumented envelope field", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages" }], token_type: "bearer" }],
+    ["empty permission", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,,instagram_business_manage_messages" }] }],
+    ["malformed permission", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages;other" }] }],
+    ["oversized permission", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: `instagram_business_basic,${"x".repeat(129)},instagram_business_manage_messages` }] }],
+    ["oversized permission string", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: "x".repeat(8193) }] }],
+    ["too many permissions", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: Array.from({ length: 51 }, (_, i) => `scope_${i}`).join(",") }] }],
+    ["oversized token", { data: [{ access_token: "x".repeat(8193), user_id: "123456789", permissions: "instagram_business_basic,instagram_business_manage_messages" }] }],
+    ["oversized user ID", { data: [{ access_token: "synthetic-private-token", user_id: "9".repeat(65), permissions: "instagram_business_basic,instagram_business_manage_messages" }] }],
+  ])("rejects %s without exposing provider content or retrying", async (_case, response) => {
+    const mocked = vi.mocked(globalThis.fetch);
+    mocked.mockResolvedValueOnce(json(response));
+    const failure: unknown = await new OfficialInstagramLoginProvider().exchange("synthetic-private-code").catch((error: unknown) => error);
+    expect(failure).toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID", message: "Instagram authorization response was invalid." });
+    expect(JSON.stringify(failure)).not.toMatch(/synthetic-private|123456789|987654321/);
+    expect(mocked).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["instagram_business_basic", "instagram_business_manage_messages"])("requires %s after normalization", async missing => {
+    const granted = ["instagram_business_basic", "instagram_business_manage_messages"].filter(scope => scope !== missing).join(",");
+    const mocked = vi.mocked(globalThis.fetch);
+    mocked.mockResolvedValueOnce(json({ data: [{ access_token: "short", user_id: "123456789", permissions: granted }] }));
+    mocked.mockResolvedValueOnce(json({ access_token: "long", expires_in: 5184000 }));
+    mocked.mockResolvedValueOnce(json({ user_id: "123456789", account_type: "BUSINESS" }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-code")).rejects.toMatchObject({ code: "INSTAGRAM_SCOPE_MISSING" });
+    expect(mocked).toHaveBeenCalledTimes(3);
   });
 
   it("uses the documented long-lived token refresh endpoint", async () => {
