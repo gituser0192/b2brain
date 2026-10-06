@@ -13,6 +13,7 @@ const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; logs.info.mockClear(); });
 beforeEach(() => { globalThis.fetch = vi.fn(); });
 const json = (value: unknown) => new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } });
+const rawJson = (body: string) => new Response(body, { status: 200, headers: { "content-type": "application/json" } });
 
 describe("official Instagram Login adapter without live calls", () => {
   it("builds the exact minimal code authorization URL without a secret", () => {
@@ -57,23 +58,90 @@ describe("official Instagram Login adapter without live calls", () => {
     expect(logs.info).not.toHaveBeenCalled();
   });
 
+  it("preserves the exact above-safe numeric lexeme from authored raw JSON", async () => {
+    const id = "9007199254740993";
+    const body = `{"access_token":"short","user_id":${id},"permissions":["instagram_business_basic","instagram_business_manage_messages"]}`;
+    expect(body).toContain(`"user_id":${id}`);
+    expect(JSON.stringify({ user_id: Number(id) })).not.toContain(id); // JSON.stringify of a JS number would already be rounded.
+    const parse = JSON.parse;
+    let internalId: unknown;
+    const spy = vi.spyOn(JSON, "parse").mockImplementation((text, reviver): unknown => parse(text, reviver && ((key: string, value: unknown, context?: { source?: string }) => {
+      const transformed = (reviver as (key: string, value: unknown, context?: { source?: string }) => unknown)(key, value, context);
+      if (key === "user_id") internalId = transformed;
+      return transformed;
+    })) as unknown);
+    try {
+      const mocked = vi.mocked(globalThis.fetch);
+      mocked.mockResolvedValueOnce(rawJson(body));
+      mocked.mockResolvedValueOnce(json({ access_token: "long", expires_in: 5184000 }));
+      mocked.mockResolvedValueOnce(json({ user_id: "123456789", account_type: "BUSINESS" }));
+      await expect(new OfficialInstagramLoginProvider().exchange("synthetic-code")).resolves.toMatchObject({ token: "long", accountId: "123456789" });
+      expect(typeof Reflect.get(internalId as object, "digits")).toBe("string");
+      expect(Reflect.get(internalId as object, "digits")).toBe(id);
+      expect(JSON.stringify(internalId)).toBe("{}");
+      expect(mocked).toHaveBeenCalledTimes(3);
+      expect(logs.info).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); }
+  });
+
+  it("accepts the 32-digit boundary in raw numeric form", async () => {
+    const mocked = vi.mocked(globalThis.fetch);
+    mocked.mockResolvedValueOnce(rawJson(`{"access_token":"short","user_id":${"9".repeat(32)},"permissions":["instagram_business_basic","instagram_business_manage_messages"]}`));
+    mocked.mockResolvedValueOnce(json({ access_token: "long", expires_in: 5184000 }));
+    mocked.mockResolvedValueOnce(json({ user_id: "123456789", account_type: "BUSINESS" }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-code")).resolves.toMatchObject({ token: "long" });
+    expect(logs.info).not.toHaveBeenCalled();
+  });
+
   it.each([
-    ["SAFE_INTEGER", 123456789],
-    ["UNSAFE_INTEGER", Number.MAX_SAFE_INTEGER + 1],
-    ["NON_INTEGER_NUMBER", 123.5],
-    ["NOT_NUMERIC", "123456789"],
-  ])("logs only numeric safety category %s for a malformed code exchange", async (expected, userId) => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(json({
-      access_token: "synthetic-private-token", user_id: userId,
-      permissions: ["instagram_business_basic", "instagram_business_manage_messages"],
-      token_type: "synthetic-private-extra-field",
-    }));
-    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID" });
-    expect(logs.info).toHaveBeenCalledTimes(1);
-    expect(logs.info.mock.calls[0]?.[0]).toMatchObject({ codeExchangeResponse: { userIdNumericSafety: expected } });
+    ["zero", "0"], ["negative", "-12345"], ["decimal", "12345.0"], ["exponent", "1e5"],
+    ["signed", "+12345"], ["leading zero", "012345"], ["malformed", "1_2345"],
+    ["too short", "1234"], ["too long", "9".repeat(33)],
+  ])("rejects a %s raw numeric user_id without exposing its lexeme", async (_case, lexeme) => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(rawJson(`{"access_token":"synthetic-private-token","user_id":${lexeme},"permissions":["instagram_business_basic","instagram_business_manage_messages"]}`));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID", message: "Instagram authorization response was invalid." });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     const logged = JSON.stringify(logs.info.mock.calls);
-    expect(logged).not.toContain(String(userId));
+    expect(logged).not.toContain(lexeme);
     expect(logged).not.toMatch(/synthetic-private|instagram_business_basic|instagram_business_manage_messages/);
+  });
+
+  it("fails before fetching when JSON.parse reviver source text is unavailable", async () => {
+    const parse = JSON.parse;
+    const spy = vi.spyOn(JSON, "parse").mockImplementation((text, reviver): unknown => parse(text, reviver && ((key, value) => reviver(key, value) as unknown)) as unknown);
+    try {
+      await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID", message: "Instagram authorization response was invalid." });
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(logs.info).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); }
+  });
+
+  it("rejects a numeric ID if source text disappears after the runtime probe", async () => {
+    const parse = JSON.parse;
+    const spy = vi.spyOn(JSON, "parse").mockImplementation((text, reviver): unknown => text === '{"user_id":1}' ? parse(text, reviver) as unknown : parse(text, reviver && ((key, value) => reviver(key, value) as unknown)) as unknown);
+    try {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce(rawJson('{"access_token":"synthetic-private-token","user_id":9007199254740993,"permissions":["instagram_business_basic","instagram_business_manage_messages"]}'));
+      await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID" });
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(logs.info.mock.calls)).not.toMatch(/9007199254740993|synthetic-private|instagram_business_basic|instagram_business_manage_messages/);
+    } finally { spy.mockRestore(); }
+  });
+
+  it("rejects a provider object that imitates the internal numeric ID marker", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(rawJson('{"access_token":"synthetic-private-token","user_id":{"digits":"9007199254740993"},"permissions":["instagram_business_basic","instagram_business_manage_messages"]}'));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ code: "INSTAGRAM_PROVIDER_INVALID" });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(logs.info.mock.calls)).not.toMatch(/9007199254740993|synthetic-private|instagram_business_basic|instagram_business_manage_messages/);
+  });
+
+  it("keeps the code-exchange size and JSON Content-Type gates", async () => {
+    const mocked = vi.mocked(globalThis.fetch);
+    mocked.mockResolvedValueOnce(rawJson("synthetic-private-body".repeat(4096)));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ diagnosticCategory: "MALFORMED_RESPONSE" });
+    mocked.mockResolvedValueOnce(new Response("synthetic-private-body", { headers: { "content-type": "text/plain" } }));
+    await expect(new OfficialInstagramLoginProvider().exchange("synthetic-private-code")).rejects.toMatchObject({ diagnosticCategory: "MALFORMED_RESPONSE" });
+    expect(mocked).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(logs.info.mock.calls)).not.toMatch(/synthetic-private-body|synthetic-private-code/);
   });
 
   it("logs only bounded, allow-listed shape metadata for a rejected code-exchange response", async () => {
@@ -153,7 +221,6 @@ describe("official Instagram Login adapter without live calls", () => {
     ["array permissions", { data: [{ access_token: "synthetic-private-token", user_id: "123456789", permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }] }],
     ["flat string ID", { access_token: "synthetic-private-token", user_id: "123456789", permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["flat permission string", { access_token: "synthetic-private-token", user_id: 123456789, permissions: "instagram_business_basic,instagram_business_manage_messages" }],
-    ["unsafe numeric ID", { access_token: "synthetic-private-token", user_id: Number.MAX_SAFE_INTEGER + 1, permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["fractional numeric ID", { access_token: "synthetic-private-token", user_id: 1.5, permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["zero numeric ID", { access_token: "synthetic-private-token", user_id: 0, permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["negative numeric ID", { access_token: "synthetic-private-token", user_id: -1, permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
@@ -161,6 +228,7 @@ describe("official Instagram Login adapter without live calls", () => {
     ["array ID", { access_token: "synthetic-private-token", user_id: [123456789], permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["null ID", { access_token: "synthetic-private-token", user_id: null, permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["malformed wrapped ID", { data: [{ access_token: "synthetic-private-token", user_id: "not-an-id", permissions: "instagram_business_basic,instagram_business_manage_messages" }] }],
+    ["wrapped whitespace ID", { data: [{ access_token: "synthetic-private-token", user_id: " 123456789 ", permissions: "instagram_business_basic,instagram_business_manage_messages" }] }],
     ["flat unknown field", { access_token: "synthetic-private-token", user_id: 123456789, permissions: ["instagram_business_basic", "instagram_business_manage_messages"], token_type: "bearer" }],
     ["flat missing token", { user_id: 123456789, permissions: ["instagram_business_basic", "instagram_business_manage_messages"] }],
     ["flat empty permissions", { access_token: "synthetic-private-token", user_id: 123456789, permissions: [] }],

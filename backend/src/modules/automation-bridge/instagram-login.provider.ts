@@ -5,7 +5,12 @@ import { AppError } from "../../shared/errors/app-error.js";
 
 const providerId = z.union([z.string().regex(/^\d{5,32}$/), z.number().int().positive().safe()]);
 const token = z.string().min(1).max(8192);
-const numericOAuthId = z.number().int().positive().safe().transform(String);
+class NumericOAuthId {
+  readonly #digits: string;
+  constructor(digits: string) { this.#digits = digits; }
+  get digits() { return this.#digits; }
+}
+const numericOAuthId = z.instanceof(NumericOAuthId).transform(id => id.digits);
 const shortToken = z.object({ access_token: token, user_id: z.union([z.string().regex(/^[1-9]\d{0,63}$/), numericOAuthId]), permissions: z.string().min(1).max(8192) }).strict();
 const flatShortToken = z.object({ access_token: token, user_id: numericOAuthId, permissions: z.array(z.string().min(1).max(128)).min(1).max(50) }).strict();
 const shortTokenResponse = z.union([z.object({ data: z.array(shortToken).length(1) }).strict(), flatShortToken]);
@@ -13,19 +18,29 @@ const longToken = z.object({ access_token: token, expires_in: z.number().int().m
 const account = z.object({ user_id: providerId, id: z.union([z.string().min(1).max(64), z.number().int().positive().safe()]).optional(), username: z.string().min(1).max(128).optional(), account_type: z.enum(["BUSINESS", "MEDIA_CREATOR", "Business", "Media_Creator"]) }).strict();
 const requiredScopes = ["instagram_business_basic", "instagram_business_manage_messages"] as const;
 const contractFields = ["access_token", "expires_in", "permissions", "token_type", "user_id"] as const;
+const invalidCodeExchange = () => new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
+function codeExchangeReviver(key: string, value: unknown, context?: { source?: string }) {
+  if (key !== "user_id" || typeof value !== "number") return value;
+  const digits = context?.source;
+  if (typeof digits !== "string" || !/^[1-9]\d{4,31}$/.test(digits)) throw invalidCodeExchange();
+  return new NumericOAuthId(digits);
+}
+function requireJsonSourceContext() {
+  try {
+    const probe = JSON.parse('{"user_id":1}', (key, value: unknown, context?: { source?: string }) => key === "user_id" && typeof value === "number" ? context?.source : value) as { user_id?: unknown };
+    if (probe?.user_id === "1") return;
+  } catch { /* Unsupported runtime: fail closed before spending the authorization code. */ }
+  throw invalidCodeExchange();
+}
 function codeExchangeContract(response: Response, bytes: number | undefined, parsed: boolean, value: unknown) {
   const object = parsed && value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
   const data = object?.data;
   const entry = Array.isArray(data) && data.length === 1 && data[0] !== null && typeof data[0] === "object" && !Array.isArray(data[0])
     ? data[0] as Record<string, unknown> : object;
-  const userId = entry?.user_id;
-  const userIdNumericSafety = typeof userId !== "number" ? "NOT_NUMERIC"
-    : !Number.isInteger(userId) ? "NON_INTEGER_NUMBER"
-      : Number.isSafeInteger(userId) ? "SAFE_INTEGER" : "UNSAFE_INTEGER";
   const fields = Object.fromEntries(contractFields.map(field => {
     const present = entry !== null && Object.hasOwn(entry, field);
     const item = present ? entry[field] : undefined;
-    const type = !present ? "ABSENT" : item === null ? "NULL" : Array.isArray(item) ? "ARRAY" : typeof item === "string" ? "STRING" : typeof item === "number" ? "NUMBER" : typeof item === "object" ? "OBJECT" : undefined;
+    const type = !present ? "ABSENT" : item === null ? "NULL" : Array.isArray(item) ? "ARRAY" : typeof item === "string" ? "STRING" : typeof item === "number" || item instanceof NumericOAuthId ? "NUMBER" : typeof item === "object" ? "OBJECT" : undefined;
     return [field, { present, ...(type ? { type } : {}) }];
   }));
   const contentType = response.headers?.get?.("content-type");
@@ -38,7 +53,6 @@ function codeExchangeContract(response: Response, bytes: number | undefined, par
     dataIsArray: Array.isArray(data),
     ...(Array.isArray(data) ? { dataLength: Math.min(data.length, 51) } : {}),
     fields,
-    userIdNumericSafety,
     documentedRequiredFieldsPresent: ["access_token", "user_id", "permissions"].every(field => entry !== null && Object.hasOwn(entry, field)),
   };
 }
@@ -105,7 +119,7 @@ async function providerJson(url: string, init?: RequestInit, onCodeExchangeContr
         chunks.push(value);
       }
     } finally { await reader.cancel().catch(() => undefined); }
-    data = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+    data = JSON.parse(Buffer.concat(chunks).toString("utf8"), onCodeExchangeContract && response.ok ? codeExchangeReviver : undefined) as unknown;
     parsed = true;
     if (!response.ok) {
       const failure = z.object({ error: z.object({ code: z.number().int().min(0).max(999999), error_subcode: z.number().int().min(0).max(999999).optional(), message: z.string().max(512).optional(), type: z.string().max(80).optional() }) }).safeParse(data);
@@ -115,7 +129,8 @@ async function providerJson(url: string, init?: RequestInit, onCodeExchangeContr
     }
     return data;
   } catch (error) {
-    if (error instanceof InstagramProviderDiagnosticError || error instanceof AppError && error.code === "INSTAGRAM_PROVIDER_RECONNECT_REQUIRED") throw error;
+    if (error instanceof InstagramProviderDiagnosticError || error instanceof AppError && (error.code === "INSTAGRAM_PROVIDER_RECONNECT_REQUIRED" || onCodeExchangeContract && error.code === "INSTAGRAM_PROVIDER_INVALID")) throw error;
+    if (onCodeExchangeContract && error instanceof SyntaxError) throw invalidCodeExchange();
     // Never include provider response bodies: they may contain tokens or authorization codes.
     const category = error instanceof SyntaxError ? "MALFORMED_RESPONSE" : error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "TIMEOUT" : "PROVIDER_FAILURE";
     throw new InstagramProviderDiagnosticError(category);
@@ -143,8 +158,9 @@ export class OfficialInstagramLoginProvider implements InstagramLoginProvider {
     let contract: ReturnType<typeof codeExchangeContract> | undefined;
     let short: z.infer<typeof shortToken> | z.infer<typeof flatShortToken>, scopes: string[];
     try {
+      requireJsonSourceContext();
       const exchanged = shortTokenResponse.safeParse(await providerJson("https://api.instagram.com/oauth/access_token", { method: "POST", body: form }, result => { contract = result; }));
-      if (!exchanged.success) throw new AppError(502, "Instagram authorization response was invalid.", "INSTAGRAM_PROVIDER_INVALID");
+      if (!exchanged.success) throw invalidCodeExchange();
       short = "data" in exchanged.data ? exchanged.data.data[0]! : exchanged.data;
       scopes = normalizePermissions(short.permissions);
     } catch (error) {
