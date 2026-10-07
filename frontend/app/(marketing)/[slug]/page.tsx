@@ -415,25 +415,27 @@ const contactReasons = [
 
 const privacyTopics = [
   ["Account and organization information", "Names, work email addresses, organization details, membership, roles and authentication-related records needed to provide access."],
-  ["Business workspace information", "Records entered into enabled services, such as customers, leads, projects, tasks, finance records, employees, approvals and activity."],
+  ["Business workspace information", "Records entered into enabled services, such as CRM customers and leads, projects, tasks, finance records, employees, approvals and activity."],
+  ["Connected Instagram information", "If an authorized organization connects a professional Instagram account, SATHOS stores encrypted connector credentials and account-binding metadata. DM-derived messages and leads are processed only when inbound processing is approved and enabled for that organization."],
   ["Support communications", "Information you choose to include when requesting access, asking a question or reporting a problem."],
   ["Security and technical information", "Session, request, audit and diagnostic information used to operate, protect and troubleshoot the service."],
 ] as const;
 
 const privacyUses = [
-  ["Provide the workspace", "Authenticate users, enforce organization boundaries and operate enabled services."],
+  ["Provide the workspace", "Authenticate users, enforce organization boundaries, operate enabled services and, when approved and enabled, route Instagram inquiries to the connected organization."],
   ["Protect the service", "Investigate suspicious activity, maintain auditability and enforce permissions."],
   ["Support customers", "Respond to access requests, service questions and reported problems."],
   ["Improve reliability", "Understand failures and improve the product without presenting missing information as verified business data."],
 ] as const;
 
 const betaTerms = [
-  ["Private-beta availability", "Features may change, remain incomplete or be withdrawn. Beta, Test Mode, Simulator and Draft functionality must not be treated as a verified live external service."],
-  ["Authorized accounts", "Organizations are responsible for invited users, suitable role assignments, account security and promptly removing access that is no longer required."],
+  ["Private-beta availability", "SATHOS is offered for limited private-beta evaluation. Features may change, contain errors or become unavailable. Beta, Test Mode, Simulator and Draft functionality must not be treated as a verified live external service; uninterrupted or error-free availability is not promised."],
+  ["Authorized accounts", "Organizations are responsible for invited users, suitable role assignments, account security and promptly removing access that is no longer required. Do not share login credentials."],
   ["Lawful business information", "Customers must have the authority and lawful basis needed to enter, manage and use business, employee and customer information in the workspace."],
-  ["Human judgment", "Dashboards, assessments, Agent responses and suggested actions support decisions; they do not replace professional, financial, legal or operational judgment."],
+  ["Human judgment", "Dashboards, assessments, Agent responses and suggested actions support decisions; they do not replace professional, financial, legal or operational judgment. Do not use SATHOS as the only record of critical business, financial, legal or compliance information."],
   ["Controlled automation", "Customers must review connection states and confirmation details. Test activity, drafts and simulations do not prove that an external message or action was delivered."],
-  ["Acceptable use", "The workspace must not be used to gain unauthorized access, interfere with the service, distribute unlawful content or misuse another organization’s information."],
+  ["Instagram connections", "Only an authorized organization manager may connect a professional Instagram account. Private testing does not enable external customer access or outbound Instagram replies. Meta or Instagram availability and approval are not guaranteed. Local disconnection disables SATHOS access but does not itself revoke Meta authorization."],
+  ["Acceptable use", "Do not share credentials, gain unauthorized access, abuse or interfere with the service, distribute unlawful content or misuse another organization’s information."],
 ] as const;
 
 const unresolvedTerms = [
@@ -964,7 +966,8 @@ export default async function PublicPage({
                 legal notice and must be reviewed by qualified counsel before a
                 public or paid launch.
               </p>
-              <strong>Last reviewed: 21 September 2026</strong>
+              <p>SATHOS is an early-access software service currently operated by Harsh Soni in India and has not yet been incorporated as a separate legal entity.</p>
+              <strong>Draft updated: 7 October 2026. Legal review pending.</strong>
             </div>
           </section>
           <section className="site-privacy-topics" aria-label="Information processed by SATHOS">
@@ -1013,10 +1016,13 @@ export default async function PublicPage({
               <span className="site-kicker">Retention and requests</span>
               <h2>Final periods must be documented before launch.</h2>
               <p>
-                Retention, deletion, legal-request and cross-border processing
-                terms require formal review and must not be inferred from this
-                beta notice. Send current privacy questions or requests to the
-                address below.
+                We retain information while needed to provide the service, protect it,
+                and meet applicable legal and audit requirements. Exact periods and
+                cross-border terms need professional review before public launch.
+                An authorized manager can use Automation → Connections → Instagram
+                Messages → Disconnect locally to clear SATHOS connection credentials
+                and routing; this does not revoke access at Meta or erase historical
+                records. To request deletion, follow our <Link href="/data-deletion">data deletion instructions</Link> or contact us below.
               </p>
               <a href="mailto:sathsupport@sathos.in?subject=SATHOS%20privacy%20request">
                 sathsupport@sathos.in →
@@ -1029,6 +1035,7 @@ export default async function PublicPage({
               Never include passwords, OTPs, access tokens, app secrets,
               encryption keys, webhook secrets or database connection strings
               in a privacy or support message.
+              <p>To operate the service, SATHOS uses Vercel for the website, Render for the API, Neon for database hosting, and the configured email-delivery provider for access-request and account emails. Processing may occur internationally; the precise locations and processor terms need review before public launch.</p>
             </p>
           </section>
         </>
@@ -1046,7 +1053,8 @@ export default async function PublicPage({
                 qualified legal counsel before public customers, automated
                 acceptance or payments are introduced.
               </p>
-              <strong>Last reviewed: 21 September 2026</strong>
+              <p>SATHOS is an early-access software service currently operated by Harsh Soni in India and has not yet been incorporated as a separate legal entity. Registration is planned, with no promised date.</p>
+              <strong>Proposed effective date: 7 October 2026, subject to owner and legal approval.</strong>
             </div>
           </section>
           <section className="site-terms-rules" aria-label="SATHOS private beta terms">
@@ -1094,6 +1102,7 @@ export default async function PublicPage({
               <h2>Commercial and legal terms still to be finalized.</h2>
               <p>
                 These subjects must be agreed in a reviewed written contract;
+                <li>No guarantee of Meta or Instagram availability or approval</li>
                 this page does not silently decide them.
               </p>
             </header>
@@ -1107,6 +1116,7 @@ export default async function PublicPage({
         </>
       ) : (
         <section className="site-page-grid">
+              <p>Nothing in these notes excludes rights or liabilities that cannot legally be excluded.</p>
           {page.sections.map(([title, copy]) => (
             <article key={title}>
               <h2>{title}</h2>
@@ -1124,6 +1134,7 @@ export default async function PublicPage({
         <div className="site-actions">
           <Link className="site-button" href="/contact">
             Request access
+            <p>For Instagram data requests, see our <Link href="/data-deletion">data deletion instructions</Link>.</p>
           </Link>
           <Link href="/login">Sign in →</Link>
         </div>

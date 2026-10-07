@@ -70,15 +70,38 @@ test("Request access submits on the website without opening a mail app", async (
 
 test("Privacy remains a transparent beta notice rather than invented legal terms", async ({ page }) => {
   await page.goto("/privacy");
-  await expect(page.getByRole("region", { name: "Information processed by SATHOS" }).getByRole("article")).toHaveCount(4);
+  await expect(page.getByRole("region", { name: "Information processed by SATHOS" }).getByRole("article")).toHaveCount(5);
+  await expect(page.getByText("SATHOS stores encrypted connector credentials", { exact: false })).toBeVisible();
+  await expect(page.getByText("DM-derived messages and leads are processed only when inbound processing is approved", { exact: false })).toBeVisible();
+  await expect(page.getByText("SATHOS is an early-access software service currently operated by Harsh Soni in India", { exact: false })).toBeVisible();
+  await expect(page.getByText("Processing may occur internationally", { exact: false })).toBeVisible();
   await expect(page.getByText("must be reviewed by qualified counsel", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Final periods must be documented before launch." })).toBeVisible();
 });
 
 test("Terms remain a reviewable beta framework rather than final legal claims", async ({ page }) => {
   await page.goto("/terms");
-  await expect(page.getByRole("region", { name: "SATHOS private beta terms" }).getByRole("article")).toHaveCount(6);
+  await expect(page.getByRole("region", { name: "SATHOS private beta terms" }).getByRole("article")).toHaveCount(7);
+  await expect(page.getByText("SATHOS is an early-access software service currently operated by Harsh Soni in India", { exact: false })).toBeVisible();
+  await expect(page.getByText("Do not use SATHOS as the only record of critical business", { exact: false })).toBeVisible();
+  await expect(page.getByText("Nothing in these notes excludes rights or liabilities that cannot legally be excluded.")).toBeVisible();
   await expect(page.getByText("They are not final commercial terms", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Commercial and legal terms still to be finalized." })).toBeVisible();
   await expect(page.getByText("Governing law and dispute-resolution terms")).toBeVisible();
+});
+
+test("Data deletion instructions are public and usable on mobile", async ({ page }) => {
+  const mutations: string[] = [];
+  page.on("request", request => { if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) mutations.push(`${request.method()} ${new URL(request.url()).pathname}`); });
+  await page.goto("/data-deletion");
+  await expect(page.getByRole("heading", { name: "Request deletion of your SATHOS data" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Data deletion instructions" }).getByRole("article")).toHaveCount(4);
+  await expect(page.getByText("SATHOS is an early-access software service currently operated by Harsh Soni in India", { exact: false })).toBeVisible();
+  await expect(page.getByText("fraud-prevention or legally required records", { exact: false })).toBeVisible();
+  await expect(page.getByText("It does not revoke access at Meta", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "sathsupport@sathos.in" }).first()).toHaveAttribute("href", /mailto:sathsupport@sathos\.in/);
+  // The shared auth provider may refresh an existing session on any public page.
+  expect(mutations.filter(request => request !== "POST /api/v1/auth/refresh")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });

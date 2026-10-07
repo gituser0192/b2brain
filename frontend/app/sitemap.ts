@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const publicPaths = ["", "/services", "/why-sathos", "/how-it-works", "/security", "/pricing", "/contact", "/privacy", "/terms"];
+const publicPaths = ["", "/services", "/why-sathos", "/how-it-works", "/security", "/pricing", "/contact", "/privacy", "/terms", "/data-deletion"];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return publicPaths.map((path) => ({ url: `https://sathos.in${path}` }));
