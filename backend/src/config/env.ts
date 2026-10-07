@@ -133,6 +133,7 @@ const envSchema = z
     META_LEAD_GRAPH_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
     META_INSTAGRAM_DM_ENABLED: z.string().default("false").transform((value) => value === "true"),
     META_INSTAGRAM_SIGNATURE_PROVEN: z.string().default("false").transform((value) => value === "true"),
+    META_INSTAGRAM_SIGNATURE_PROOF_ENABLED: z.string().default("false").transform((value) => value === "true"),
     META_INSTAGRAM_CONNECT_ENABLED: z.string().default("false").transform((value) => value === "true"),
     META_INSTAGRAM_PRIVATE_ORGANIZATION_ID: z.string().uuid().optional(),
     META_INSTAGRAM_APP_ID: z.string().regex(/^\d+$/).optional(),

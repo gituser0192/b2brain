@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 import { prisma } from "../../database/prisma.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import { resolveMetaAsset } from "./meta-assets.service.js";
@@ -27,23 +28,52 @@ export class InstagramDmService {
   }
 
   async accept(raw: Buffer | undefined, signature: string | undefined) {
-    if (!raw?.length || raw.length > 256 * 1024) throw new AppError(413, "Instagram webhook payload is invalid.", "INVALID_INSTAGRAM_WEBHOOK");
-    if (!env.META_INSTAGRAM_DM_ENABLED || !env.META_INSTAGRAM_SIGNATURE_PROVEN || !env.EXTERNAL_CHANNELS_ENABLED || !env.META_INSTAGRAM_APP_SECRET || !/^sha256=[a-f0-9]{64}$/i.test(signature ?? ""))
+    const proofOnly = env.META_INSTAGRAM_SIGNATURE_PROOF_ENABLED && !env.META_INSTAGRAM_SIGNATURE_PROVEN &&
+      process.env.RENDER_SERVICE_ID === "srv-da9v5q1f2nfc738nimqg" &&
+      process.env.RENDER_EXTERNAL_HOSTNAME === "b2brain-staging-api.onrender.com" &&
+      Boolean(env.META_INSTAGRAM_PRIVATE_ORGANIZATION_ID);
+    if (!raw?.length || raw.length > 256 * 1024) {
+      if (proofOnly) logger.info({ signature: "invalid", payload: "invalid", bytes: Math.min(raw?.length ?? 0, 256 * 1024 + 1) }, "Instagram webhook signature proof");
+      throw new AppError(413, "Instagram webhook payload is invalid.", "INVALID_INSTAGRAM_WEBHOOK");
+    }
+    if (!env.META_INSTAGRAM_DM_ENABLED || (!env.META_INSTAGRAM_SIGNATURE_PROVEN && !proofOnly) || !env.EXTERNAL_CHANNELS_ENABLED || !env.META_INSTAGRAM_APP_SECRET)
       throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+    if (!/^sha256=[a-f0-9]{64}$/i.test(signature ?? "")) {
+      if (proofOnly) logger.info({ signature: "invalid", bytes: raw.length }, "Instagram webhook signature proof");
+      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+    }
     const supplied = Buffer.from(signature!.slice(7), "hex");
     const expected = createHmac("sha256", env.META_INSTAGRAM_APP_SECRET).update(raw).digest();
-    if (!timingSafeEqual(supplied, expected)) throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+    if (!timingSafeEqual(supplied, expected)) {
+      if (proofOnly) logger.info({ signature: "invalid", bytes: raw.length }, "Instagram webhook signature proof");
+      throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
+    }
+    const rejectPayload = (status: number, code: string, entries = 0, events = 0): never => {
+      if (proofOnly) logger.info({ signature: "valid", payload: "invalid", bytes: raw.length, entries: Math.min(entries, 400), events: Math.min(events, 201) }, "Instagram webhook signature proof");
+      throw new AppError(status, status === 413 ? "Instagram webhook batch is too large." : "Instagram webhook payload is invalid.", code);
+    };
     let decoded: unknown;
     try { decoded = JSON.parse(raw.toString("utf8")); }
-    catch { throw new AppError(400, "Instagram webhook payload is invalid.", "INVALID_INSTAGRAM_WEBHOOK"); }
+    catch { return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK"); }
     const parsed = payload.safeParse(decoded);
-    if (!parsed.success) throw new AppError(400, "Instagram webhook payload is invalid.", "INVALID_INSTAGRAM_WEBHOOK");
+    if (!parsed.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK");
     const envelopes = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
-    let workload = 0;
+    let entries = 0, workload = 0;
     for (const item of envelopes) for (const candidate of item.entry) {
+      entries++;
+      if (proofOnly) {
+        const checked = entry.safeParse(candidate);
+        if (!checked.success || !checked.data.messaging?.length || checked.data.messaging.some(event => !message.safeParse(event).success))
+          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
+      }
       const messaging = typeof candidate === "object" && candidate !== null ? (candidate as { messaging?: unknown }).messaging : undefined;
       workload += Array.isArray(messaging) ? messaging.length : 1;
-      if (workload > 200) throw new AppError(413, "Instagram webhook batch is too large.", "INSTAGRAM_WEBHOOK_BATCH_LIMIT");
+      if (workload > 200) return rejectPayload(413, "INSTAGRAM_WEBHOOK_BATCH_LIMIT", entries, workload);
+    }
+    if (proofOnly) {
+      if (!entries) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK");
+      logger.info({ signature: "valid", payload: "valid", bytes: raw.length, entries, events: workload }, "Instagram webhook signature proof");
+      return { accepted: true, proofOnly: true };
     }
     let processed = 0, duplicate = 0, ignored = 0;
     for (const item of envelopes) for (const rawEntry of item.entry) {
