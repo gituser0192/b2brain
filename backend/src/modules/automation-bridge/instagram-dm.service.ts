@@ -17,6 +17,48 @@ const entry = z.object({ id, messaging: z.array(z.unknown()).max(50).optional() 
 const envelope = z.object({ object: z.literal("instagram"), entry: z.array(z.unknown()).max(20) }).passthrough();
 const payload = z.union([envelope, z.array(envelope).min(1).max(20)]);
 
+// Temporary, failure-only proof diagnostic. Never copy values or unknown keys from Meta.
+const shapeObject = (value: unknown): Record<string, unknown> | undefined =>
+  value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+const shapeType = (value: unknown): "ABSENT" | "NULL" | "STRING" | "NUMBER" | "BOOLEAN" | "ARRAY" | "OBJECT" =>
+  value === undefined ? "ABSENT" : value === null ? "NULL" : Array.isArray(value) ? "ARRAY" :
+    typeof value === "string" ? "STRING" : typeof value === "number" ? "NUMBER" :
+      typeof value === "boolean" ? "BOOLEAN" : "OBJECT";
+const allowedFields = (value: Record<string, unknown> | undefined, names: readonly string[]) =>
+  names.filter(name => value !== undefined && Object.hasOwn(value, name));
+const logRejectedShape = (decoded: unknown, stage: "ENVELOPE" | "ENTRY" | "MESSAGING" | "EVENT", candidate?: unknown, event?: unknown) => {
+  const root = shapeObject(decoded);
+  const firstEnvelope = shapeObject(Array.isArray(decoded) ? decoded[0] : decoded);
+  const rawEntries = firstEnvelope?.entry;
+  const currentEntry = shapeObject(candidate ?? (Array.isArray(rawEntries) ? rawEntries[0] : undefined));
+  const messaging = currentEntry?.messaging;
+  const firstEvent = shapeObject(event ?? (Array.isArray(messaging) ? messaging[0] : undefined));
+  const sender = shapeObject(firstEvent?.sender);
+  const recipient = shapeObject(firstEvent?.recipient);
+  const dm = shapeObject(firstEvent?.message);
+  const changes = currentEntry?.changes;
+  logger.info({
+    stage,
+    topLevel: Array.isArray(decoded) ? "ARRAY" : root ? "OBJECT" : "OTHER",
+    topFields: allowedFields(root ?? firstEnvelope, ["object", "entry"]),
+    objectIsInstagram: firstEnvelope?.object === "instagram",
+    entryCount: Array.isArray(rawEntries) ? Math.min(rawEntries.length, 21) : 0,
+    entryFields: allowedFields(currentEntry, ["id", "messaging", "changes"]),
+    messagingType: shapeType(messaging),
+    messagingCount: Array.isArray(messaging) ? Math.min(messaging.length, 51) : 0,
+    changesType: shapeType(changes),
+    changeFields: allowedFields(shapeObject(Array.isArray(changes) ? changes[0] : undefined), ["field", "value"]),
+    eventFields: allowedFields(firstEvent, ["sender", "recipient", "timestamp", "message"]),
+    fieldTypes: {
+      senderId: shapeType(sender?.id), recipientId: shapeType(recipient?.id),
+      timestamp: shapeType(firstEvent?.timestamp), messageMid: shapeType(dm?.mid),
+      messageText: shapeType(dm?.text), messageIsEcho: shapeType(dm?.is_echo),
+      messageIsDeleted: shapeType(dm?.is_deleted),
+    },
+    envelopeVariant: Array.isArray(messaging) ? "MESSAGING" : Array.isArray(changes) ? "CHANGES" : "UNKNOWN",
+  }, "Instagram webhook rejected structure");
+};
+
 export class InstagramDmService {
   verify(mode: unknown, token: unknown, challenge: unknown) {
     if (!env.META_INSTAGRAM_DM_ENABLED || mode !== "subscribe" || typeof token !== "string" || typeof challenge !== "string" || !/^\d+$/.test(challenge) || !env.META_INSTAGRAM_VERIFY_TOKEN)
@@ -56,15 +98,28 @@ export class InstagramDmService {
     try { decoded = JSON.parse(raw.toString("utf8")); }
     catch { return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK"); }
     const parsed = payload.safeParse(decoded);
-    if (!parsed.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK");
+    if (!parsed.success) {
+      if (proofOnly) logRejectedShape(decoded, "ENVELOPE");
+      return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK");
+    }
     const envelopes = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
     let entries = 0, workload = 0;
     for (const item of envelopes) for (const candidate of item.entry) {
       entries++;
       if (proofOnly) {
         const checked = entry.safeParse(candidate);
-        if (!checked.success || !checked.data.messaging?.length || checked.data.messaging.some(event => !message.safeParse(event).success))
+        if (!checked.success) {
+          logRejectedShape(decoded, "ENTRY", candidate);
           return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
+        }
+        if (!checked.data.messaging?.length) {
+          logRejectedShape(decoded, "MESSAGING", candidate);
+          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
+        }
+        for (const event of checked.data.messaging) if (!message.safeParse(event).success) {
+          logRejectedShape(decoded, "EVENT", candidate, event);
+          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
+        }
       }
       const messaging = typeof candidate === "object" && candidate !== null ? (candidate as { messaging?: unknown }).messaging : undefined;
       workload += Array.isArray(messaging) ? messaging.length : 1;

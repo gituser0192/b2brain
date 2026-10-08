@@ -27,8 +27,19 @@ const enableProof = () => {
 const expectProofIsolated = () => {
   for (const query of [state.assets, state.binding, state.connector, state.serviceCount, state.plan, state.transaction, state.lock, state.eventCreate, state.eventFind, state.inquiryFind, state.inquiryCreate, state.timelineCreate, state.eventUpdate, state.connectorUpdate])
     expect(query).not.toHaveBeenCalled();
-  for (const [record] of state.proofLog.mock.calls) {
+  for (const [record, label] of state.proofLog.mock.calls) {
     const fields = record as Record<string, unknown>;
+    if (label === "Instagram webhook rejected structure") {
+      expect(Object.keys(fields).sort()).toEqual([
+        "stage", "topLevel", "topFields", "objectIsInstagram", "entryCount", "entryFields",
+        "messagingType", "messagingCount", "changesType", "changeFields", "eventFields",
+        "fieldTypes", "envelopeVariant",
+      ].sort());
+      expect(Object.keys(fields.fieldTypes as object).sort()).toEqual([
+        "senderId", "recipientId", "timestamp", "messageMid", "messageText", "messageIsEcho", "messageIsDeleted",
+      ].sort());
+      continue;
+    }
     expect(Object.keys(fields)).toEqual(expect.arrayContaining(["signature", "bytes"]));
     expect(Object.keys(fields).every(key => ["signature", "payload", "bytes", "entries", "events"].includes(key))).toBe(true);
     expect(["valid", "invalid"]).toContain(fields.signature);
@@ -94,8 +105,39 @@ describe("Instagram DM private intake", () => {
     }
     const oversized = Buffer.alloc(256 * 1024 + 1);
     await expect(service.accept(oversized, signed(oversized))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
-    expect(state.proofLog.mock.calls).toHaveLength(5);
-    expect(state.proofLog.mock.calls.map(call => (call[0] as { payload: string }).payload)).toEqual(Array(5).fill("invalid"));
+    const proofCalls = state.proofLog.mock.calls.filter(call => call[1] === "Instagram webhook signature proof");
+    expect(proofCalls).toHaveLength(5);
+    expect(proofCalls.map(call => (call[0] as { payload: string }).payload)).toEqual(Array(5).fill("invalid"));
+    expectProofIsolated();
+  });
+
+  it("records only allow-listed structure for a signed but incompatible messaging event", async () => {
+    enableProof();
+    const data = raw({ object: "instagram", entry: [{
+      id: "123456789", unknownCustomerField: "private-unknown-value",
+      messaging: [{ sender: { id: "987654321" }, recipient: { id: "123456789" }, timestamp: "private-timestamp", message: { mid: "m-1", text: "What is the price?", is_echo: false } }],
+    }] });
+    await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
+    const diagnostic: unknown = state.proofLog.mock.calls.find(call => call[1] === "Instagram webhook rejected structure")?.[0];
+    expect(diagnostic).toMatchObject({
+      stage: "EVENT", topLevel: "OBJECT", topFields: ["object", "entry"], objectIsInstagram: true,
+      entryCount: 1, entryFields: ["id", "messaging"], messagingType: "ARRAY", messagingCount: 1,
+      changesType: "ABSENT", changeFields: [], envelopeVariant: "MESSAGING",
+      fieldTypes: { senderId: "STRING", recipientId: "STRING", timestamp: "STRING", messageMid: "STRING", messageText: "STRING", messageIsEcho: "BOOLEAN", messageIsDeleted: "ABSENT" },
+    });
+    expect(JSON.stringify(state.proofLog.mock.calls)).not.toMatch(/private-unknown-value|private-timestamp|What is the price\?|987654321|123456789|m-1|synthetic-app-secret|sha256=/);
+    expectProofIsolated();
+  });
+
+  it("distinguishes a changes-shaped signed delivery without accepting or processing it", async () => {
+    enableProof();
+    const data = raw({ object: "instagram", entry: [{ id: "123456789", changes: [{ field: "messages", value: { text: "private-message" } }] }] });
+    await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
+    expect(state.proofLog.mock.calls.find(call => call[1] === "Instagram webhook rejected structure")?.[0]).toMatchObject({
+      stage: "MESSAGING", entryFields: ["id", "changes"], messagingType: "ABSENT", changesType: "ARRAY",
+      changeFields: ["field", "value"], envelopeVariant: "CHANGES",
+    });
+    expect(JSON.stringify(state.proofLog.mock.calls)).not.toContain("private-message");
     expectProofIsolated();
   });
 
