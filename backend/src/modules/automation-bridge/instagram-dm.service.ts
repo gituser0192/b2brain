@@ -26,7 +26,7 @@ const shapeType = (value: unknown): "ABSENT" | "NULL" | "STRING" | "NUMBER" | "B
       typeof value === "boolean" ? "BOOLEAN" : "OBJECT";
 const allowedFields = (value: Record<string, unknown> | undefined, names: readonly string[]) =>
   names.filter(name => value !== undefined && Object.hasOwn(value, name));
-const logRejectedShape = (decoded: unknown, stage: "ENVELOPE" | "ENTRY" | "MESSAGING" | "EVENT", candidate?: unknown, event?: unknown) => {
+const rejectedShape = (decoded: unknown, stage: "ENVELOPE" | "ENTRY" | "MESSAGING" | "EVENT", candidate?: unknown, event?: unknown) => {
   const root = shapeObject(decoded);
   const firstEnvelope = shapeObject(Array.isArray(decoded) ? decoded[0] : decoded);
   const rawEntries = firstEnvelope?.entry;
@@ -37,7 +37,7 @@ const logRejectedShape = (decoded: unknown, stage: "ENVELOPE" | "ENTRY" | "MESSA
   const recipient = shapeObject(firstEvent?.recipient);
   const dm = shapeObject(firstEvent?.message);
   const changes = currentEntry?.changes;
-  logger.info({
+  return {
     stage,
     topLevel: Array.isArray(decoded) ? "ARRAY" : root ? "OBJECT" : "OTHER",
     topFields: allowedFields(root ?? firstEnvelope, ["object", "entry"]),
@@ -56,8 +56,11 @@ const logRejectedShape = (decoded: unknown, stage: "ENVELOPE" | "ENTRY" | "MESSA
       messageIsDeleted: shapeType(dm?.is_deleted),
     },
     envelopeVariant: Array.isArray(messaging) ? "MESSAGING" : Array.isArray(changes) ? "CHANGES" : "UNKNOWN",
-  }, "Instagram webhook rejected structure");
+  };
 };
+
+type ProofRejection = "INVALID_JSON" | "INVALID_ENVELOPE" | "ZERO_ENTRIES" | "INVALID_ENTRY" |
+  "MISSING_MESSAGING" | "INVALID_EVENT" | "ZERO_EVENTS" | "EVENT_LIMIT";
 
 export class InstagramDmService {
   verify(mode: unknown, token: unknown, challenge: unknown) {
@@ -70,6 +73,7 @@ export class InstagramDmService {
   }
 
   async accept(raw: Buffer | undefined, signature: string | undefined) {
+    const appSecret = env.META_INSTAGRAM_APP_SECRET;
     const proofOnly = env.META_INSTAGRAM_SIGNATURE_PROOF_ENABLED && !env.META_INSTAGRAM_SIGNATURE_PROVEN &&
       process.env.RENDER_SERVICE_ID === "srv-da9v5q1f2nfc738nimqg" &&
       process.env.RENDER_EXTERNAL_HOSTNAME === "b2brain-staging-api.onrender.com" &&
@@ -78,55 +82,52 @@ export class InstagramDmService {
       if (proofOnly) logger.info({ signature: "invalid", payload: "invalid", bytes: Math.min(raw?.length ?? 0, 256 * 1024 + 1) }, "Instagram webhook signature proof");
       throw new AppError(413, "Instagram webhook payload is invalid.", "INVALID_INSTAGRAM_WEBHOOK");
     }
-    if (!env.META_INSTAGRAM_DM_ENABLED || (!env.META_INSTAGRAM_SIGNATURE_PROVEN && !proofOnly) || !env.EXTERNAL_CHANNELS_ENABLED || !env.META_INSTAGRAM_APP_SECRET)
+    if (!env.META_INSTAGRAM_DM_ENABLED || (!env.META_INSTAGRAM_SIGNATURE_PROVEN && !proofOnly) || !env.EXTERNAL_CHANNELS_ENABLED || !appSecret)
       throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
     if (!/^sha256=[a-f0-9]{64}$/i.test(signature ?? "")) {
       if (proofOnly) logger.info({ signature: "invalid", bytes: raw.length }, "Instagram webhook signature proof");
       throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
     }
     const supplied = Buffer.from(signature!.slice(7), "hex");
-    const expected = createHmac("sha256", env.META_INSTAGRAM_APP_SECRET).update(raw).digest();
+    const expected = createHmac("sha256", appSecret).update(raw).digest();
     if (!timingSafeEqual(supplied, expected)) {
       if (proofOnly) logger.info({ signature: "invalid", bytes: raw.length }, "Instagram webhook signature proof");
       throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
     }
-    const rejectPayload = (status: number, code: string, entries = 0, events = 0): never => {
-      if (proofOnly) logger.info({ signature: "valid", payload: "invalid", bytes: raw.length, entries: Math.min(entries, 400), events: Math.min(events, 201) }, "Instagram webhook signature proof");
+    const rejectPayload = (status: number, code: string, category: ProofRejection, entries = 0, events = 0, shape?: ReturnType<typeof rejectedShape>): never => {
+      if (proofOnly) logger.info({
+        signature: "valid", payload: "invalid", category, bytes: raw.length,
+        entries: Math.min(entries, 400), events: Math.min(events, 201),
+        // Domain separation prevents the logged fingerprint from acting as a raw-payload hash.
+        retryCorrelation: createHmac("sha256", appSecret).update("instagram-proof-retry-v1\0").update(raw).digest("hex").slice(0, 32),
+        ...shape,
+      }, "Instagram webhook signature proof");
       throw new AppError(status, status === 413 ? "Instagram webhook batch is too large." : "Instagram webhook payload is invalid.", code);
     };
     let decoded: unknown;
     try { decoded = JSON.parse(raw.toString("utf8")); }
-    catch { return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK"); }
+    catch { return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_JSON"); }
     const parsed = payload.safeParse(decoded);
-    if (!parsed.success) {
-      if (proofOnly) logRejectedShape(decoded, "ENVELOPE");
-      return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK");
-    }
+    if (!parsed.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_ENVELOPE", 0, 0, proofOnly ? rejectedShape(decoded, "ENVELOPE") : undefined);
     const envelopes = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
     let entries = 0, workload = 0;
     for (const item of envelopes) for (const candidate of item.entry) {
       entries++;
       if (proofOnly) {
         const checked = entry.safeParse(candidate);
-        if (!checked.success) {
-          logRejectedShape(decoded, "ENTRY", candidate);
-          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
-        }
-        if (!checked.data.messaging?.length) {
-          logRejectedShape(decoded, "MESSAGING", candidate);
-          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
-        }
+        if (!checked.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_ENTRY", entries, workload, rejectedShape(decoded, "ENTRY", candidate));
+        if (!checked.data.messaging) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "MISSING_MESSAGING", entries, workload, rejectedShape(decoded, "MESSAGING", candidate));
+        if (!checked.data.messaging.length) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "ZERO_EVENTS", entries, workload, rejectedShape(decoded, "MESSAGING", candidate));
         for (const event of checked.data.messaging) if (!message.safeParse(event).success) {
-          logRejectedShape(decoded, "EVENT", candidate, event);
-          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", entries, workload);
+          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_EVENT", entries, workload, rejectedShape(decoded, "EVENT", candidate, event));
         }
       }
       const messaging = typeof candidate === "object" && candidate !== null ? (candidate as { messaging?: unknown }).messaging : undefined;
       workload += Array.isArray(messaging) ? messaging.length : 1;
-      if (workload > 200) return rejectPayload(413, "INSTAGRAM_WEBHOOK_BATCH_LIMIT", entries, workload);
+      if (workload > 200) return rejectPayload(413, "INSTAGRAM_WEBHOOK_BATCH_LIMIT", "EVENT_LIMIT", entries, workload);
     }
     if (proofOnly) {
-      if (!entries) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK");
+      if (!entries) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "ZERO_ENTRIES");
       logger.info({ signature: "valid", payload: "valid", bytes: raw.length, entries, events: workload }, "Instagram webhook signature proof");
       return { accepted: true, proofOnly: true };
     }
