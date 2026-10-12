@@ -8,56 +8,16 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { resolveMetaAsset } from "./meta-assets.service.js";
 
 const id = z.string().regex(/^\d{1,32}$/);
+const timestamp = z.number().int().min(0).max(9_999_999_999_999).safe();
 const message = z.object({
   sender: z.object({ id }), recipient: z.object({ id }),
-  timestamp: z.number().int().min(0).max(9_999_999_999_999).safe(),
+  timestamp,
   message: z.object({ mid: z.string().min(1).max(256), text: z.string().max(4096).optional(), is_echo: z.boolean().optional(), is_self: z.boolean().optional(), is_deleted: z.boolean().optional(), is_unsupported: z.boolean().optional() }).optional(),
 }).passthrough();
+const timestampOnlyEvent = z.object({ timestamp }).strict();
 const entry = z.object({ id, messaging: z.array(z.unknown()).max(50).optional() }).passthrough();
 const envelope = z.object({ object: z.literal("instagram"), entry: z.array(z.unknown()).max(20) }).passthrough();
 const payload = z.union([envelope, z.array(envelope).min(1).max(20)]);
-
-// Temporary, failure-only proof diagnostic. Never copy values or unknown keys from Meta.
-const shapeObject = (value: unknown): Record<string, unknown> | undefined =>
-  value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
-const shapeType = (value: unknown): "ABSENT" | "NULL" | "STRING" | "NUMBER" | "BOOLEAN" | "ARRAY" | "OBJECT" =>
-  value === undefined ? "ABSENT" : value === null ? "NULL" : Array.isArray(value) ? "ARRAY" :
-    typeof value === "string" ? "STRING" : typeof value === "number" ? "NUMBER" :
-      typeof value === "boolean" ? "BOOLEAN" : "OBJECT";
-const allowedFields = (value: Record<string, unknown> | undefined, names: readonly string[]) =>
-  names.filter(name => value !== undefined && Object.hasOwn(value, name));
-const rejectedShape = (decoded: unknown, stage: "ENVELOPE" | "ENTRY" | "MESSAGING" | "EVENT", candidate?: unknown, event?: unknown) => {
-  const root = shapeObject(decoded);
-  const firstEnvelope = shapeObject(Array.isArray(decoded) ? decoded[0] : decoded);
-  const rawEntries = firstEnvelope?.entry;
-  const currentEntry = shapeObject(candidate ?? (Array.isArray(rawEntries) ? rawEntries[0] : undefined));
-  const messaging = currentEntry?.messaging;
-  const firstEvent = shapeObject(event ?? (Array.isArray(messaging) ? messaging[0] : undefined));
-  const sender = shapeObject(firstEvent?.sender);
-  const recipient = shapeObject(firstEvent?.recipient);
-  const dm = shapeObject(firstEvent?.message);
-  const changes = currentEntry?.changes;
-  return {
-    stage,
-    topLevel: Array.isArray(decoded) ? "ARRAY" : root ? "OBJECT" : "OTHER",
-    topFields: allowedFields(root ?? firstEnvelope, ["object", "entry"]),
-    objectIsInstagram: firstEnvelope?.object === "instagram",
-    entryCount: Array.isArray(rawEntries) ? Math.min(rawEntries.length, 21) : 0,
-    entryFields: allowedFields(currentEntry, ["id", "messaging", "changes"]),
-    messagingType: shapeType(messaging),
-    messagingCount: Array.isArray(messaging) ? Math.min(messaging.length, 51) : 0,
-    changesType: shapeType(changes),
-    changeFields: allowedFields(shapeObject(Array.isArray(changes) ? changes[0] : undefined), ["field", "value"]),
-    eventFields: allowedFields(firstEvent, ["sender", "recipient", "timestamp", "message"]),
-    fieldTypes: {
-      senderId: shapeType(sender?.id), recipientId: shapeType(recipient?.id),
-      timestamp: shapeType(firstEvent?.timestamp), messageMid: shapeType(dm?.mid),
-      messageText: shapeType(dm?.text), messageIsEcho: shapeType(dm?.is_echo),
-      messageIsDeleted: shapeType(dm?.is_deleted),
-    },
-    envelopeVariant: Array.isArray(messaging) ? "MESSAGING" : Array.isArray(changes) ? "CHANGES" : "UNKNOWN",
-  };
-};
 
 type ProofRejection = "INVALID_JSON" | "INVALID_ENVELOPE" | "ZERO_ENTRIES" | "INVALID_ENTRY" |
   "MISSING_MESSAGING" | "INVALID_EVENT" | "ZERO_EVENTS" | "EVENT_LIMIT";
@@ -94,13 +54,13 @@ export class InstagramDmService {
       if (proofOnly) logger.info({ signature: "invalid", bytes: raw.length }, "Instagram webhook signature proof");
       throw new AppError(401, "Webhook authentication failed.", "INVALID_WEBHOOK_SIGNATURE");
     }
-    const rejectPayload = (status: number, code: string, category: ProofRejection, entries = 0, events = 0, shape?: ReturnType<typeof rejectedShape>): never => {
+    const retryCorrelation = () => createHmac("sha256", appSecret).update("instagram-proof-retry-v1\0").update(raw).digest("hex").slice(0, 32);
+    const rejectPayload = (status: number, code: string, category: ProofRejection, entries = 0, events = 0): never => {
       if (proofOnly) logger.info({
         signature: "valid", payload: "invalid", category, bytes: raw.length,
         entries: Math.min(entries, 400), events: Math.min(events, 201),
         // Domain separation prevents the logged fingerprint from acting as a raw-payload hash.
-        retryCorrelation: createHmac("sha256", appSecret).update("instagram-proof-retry-v1\0").update(raw).digest("hex").slice(0, 32),
-        ...shape,
+        retryCorrelation: retryCorrelation(),
       }, "Instagram webhook signature proof");
       throw new AppError(status, status === 413 ? "Instagram webhook batch is too large." : "Instagram webhook payload is invalid.", code);
     };
@@ -108,18 +68,19 @@ export class InstagramDmService {
     try { decoded = JSON.parse(raw.toString("utf8")); }
     catch { return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_JSON"); }
     const parsed = payload.safeParse(decoded);
-    if (!parsed.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_ENVELOPE", 0, 0, proofOnly ? rejectedShape(decoded, "ENVELOPE") : undefined);
+    if (!parsed.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_ENVELOPE");
     const envelopes = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
-    let entries = 0, workload = 0;
+    let entries = 0, workload = 0, unsupported = 0;
     for (const item of envelopes) for (const candidate of item.entry) {
       entries++;
       if (proofOnly) {
         const checked = entry.safeParse(candidate);
-        if (!checked.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_ENTRY", entries, workload, rejectedShape(decoded, "ENTRY", candidate));
-        if (!checked.data.messaging) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "MISSING_MESSAGING", entries, workload, rejectedShape(decoded, "MESSAGING", candidate));
-        if (!checked.data.messaging.length) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "ZERO_EVENTS", entries, workload, rejectedShape(decoded, "MESSAGING", candidate));
+        if (!checked.success) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_ENTRY", entries, workload);
+        if (!checked.data.messaging) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "MISSING_MESSAGING", entries, workload);
+        if (!checked.data.messaging.length) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "ZERO_EVENTS", entries, workload);
         for (const event of checked.data.messaging) if (!message.safeParse(event).success) {
-          return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_EVENT", entries, workload, rejectedShape(decoded, "EVENT", candidate, event));
+          if (timestampOnlyEvent.safeParse(event).success) unsupported++;
+          else return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "INVALID_EVENT", entries, workload);
         }
       }
       const messaging = typeof candidate === "object" && candidate !== null ? (candidate as { messaging?: unknown }).messaging : undefined;
@@ -128,7 +89,7 @@ export class InstagramDmService {
     }
     if (proofOnly) {
       if (!entries) return rejectPayload(400, "INVALID_INSTAGRAM_WEBHOOK", "ZERO_ENTRIES");
-      logger.info({ signature: "valid", payload: "valid", bytes: raw.length, entries, events: workload }, "Instagram webhook signature proof");
+      logger.info({ signature: "valid", payload: "valid", ...(unsupported ? { category: "UNSUPPORTED_EVENT", retryCorrelation: retryCorrelation() } : {}), bytes: raw.length, entries, events: workload }, "Instagram webhook signature proof");
       return { accepted: true, proofOnly: true };
     }
     let processed = 0, duplicate = 0, ignored = 0;

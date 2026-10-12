@@ -1,5 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import express from "express";
+import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -13,6 +15,11 @@ vi.mock("../src/database/prisma.js", () => ({ prisma: {
   metaConnectedAsset: { findMany: state.assets }, integrationConnector: { findFirst: state.connector }, integrationEvent: { findFirst: state.eventFind }, organizationService: { count: state.serviceCount }, organizationPlan: { findUnique: state.plan }, $transaction: state.transaction,
 } }));
 import { InstagramDmService } from "../src/modules/automation-bridge/instagram-dm.service.js";
+import { instagramDmWebhookRouter } from "../src/modules/automation-bridge/instagram-dm.routes.js";
+
+const app = express();
+app.use(express.raw({ type: "application/json", limit: "256kb" }));
+app.use("/instagram", instagramDmWebhookRouter);
 
 const inbound = (mid = "m-1", extra: object = {}) => ({ sender: { id: "987654321" }, recipient: { id: "123456789" }, timestamp: Date.now(), message: { mid, text: "What is the price?", ...extra } });
 const body = (messages = [inbound()]) => ({ object: "instagram", entry: [{ id: "123456789", messaging: messages }] });
@@ -33,23 +40,11 @@ const expectProofIsolated = () => {
     expect(Object.keys(fields)).toEqual(expect.arrayContaining(["signature", "bytes"]));
     expect(Object.keys(fields).every(key => [
       "signature", "payload", "category", "retryCorrelation", "bytes", "entries", "events",
-      "stage", "topLevel", "topFields", "objectIsInstagram", "entryCount", "entryFields",
-      "messagingType", "messagingCount", "changesType", "changeFields", "eventFields", "fieldTypes", "envelopeVariant",
     ].includes(key))).toBe(true);
     if (fields.category !== undefined) {
-      expect(["INVALID_JSON", "INVALID_ENVELOPE", "ZERO_ENTRIES", "INVALID_ENTRY", "MISSING_MESSAGING", "INVALID_EVENT", "ZERO_EVENTS", "EVENT_LIMIT"]).toContain(fields.category);
+      expect(["INVALID_JSON", "INVALID_ENVELOPE", "ZERO_ENTRIES", "INVALID_ENTRY", "MISSING_MESSAGING", "INVALID_EVENT", "ZERO_EVENTS", "EVENT_LIMIT", "UNSUPPORTED_EVENT"]).toContain(fields.category);
       expect(fields.retryCorrelation).toMatch(/^[a-f0-9]{32}$/);
     }
-    if (fields.fieldTypes !== undefined) {
-      expect(Object.keys(fields.fieldTypes as object).sort()).toEqual([
-        "senderId", "recipientId", "timestamp", "messageMid", "messageText", "messageIsEcho", "messageIsDeleted",
-      ].sort());
-      expect(Object.values(fields.fieldTypes as object).every(value => ["ABSENT", "NULL", "STRING", "NUMBER", "BOOLEAN", "ARRAY", "OBJECT"].includes(value as string))).toBe(true);
-    }
-    for (const [key, allowed] of [
-      ["topFields", ["object", "entry"]], ["entryFields", ["id", "messaging", "changes"]],
-      ["changeFields", ["field", "value"]], ["eventFields", ["sender", "recipient", "timestamp", "message"]],
-    ] as const) if (fields[key] !== undefined) expect((fields[key] as string[]).every(name => allowed.includes(name))).toBe(true);
     expect(["valid", "invalid"]).toContain(fields.signature);
     if (fields.payload !== undefined) expect(["valid", "invalid"]).toContain(fields.payload);
     expect(fields.bytes).toBeGreaterThanOrEqual(0);
@@ -83,6 +78,59 @@ beforeEach(() => {
 });
 
 describe("Instagram DM private intake", () => {
+  it("acknowledges a signed timestamp-only event with HTTP 200 without database or provider work", async () => {
+    enableProof();
+    const data = raw(body([{ timestamp: Date.now() }]));
+    const response = await request(app).post("/instagram").set("content-type", "application/json").set("x-hub-signature-256", signed(data)).send(data.toString("utf8")).expect(200);
+    expect(response.body as unknown).toMatchObject({ data: { accepted: true, proofOnly: true } });
+    expect(state.proofLog).toHaveBeenCalledTimes(1);
+    const log = state.proofLog.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(log).toMatchObject({ signature: "valid", payload: "valid", category: "UNSUPPORTED_EVENT", bytes: data.length, entries: 1, events: 1 });
+    expect(log.retryCorrelation).toMatch(/^[a-f0-9]{32}$/);
+    expectProofIsolated();
+  });
+
+  it("acknowledges repeated timestamp-only deliveries without creating records", async () => {
+    enableProof();
+    const data = raw(body([{ timestamp: Date.now() }]));
+    const service = new InstagramDmService();
+    await expect(service.accept(data, signed(data))).resolves.toEqual({ accepted: true, proofOnly: true });
+    await expect(service.accept(data, signed(data))).resolves.toEqual({ accepted: true, proofOnly: true });
+    expect(state.proofLog).toHaveBeenCalledTimes(2);
+    expect((state.proofLog.mock.calls[0]?.[0] as { retryCorrelation: string }).retryCorrelation).toBe((state.proofLog.mock.calls[1]?.[0] as { retryCorrelation: string }).retryCorrelation);
+    expectProofIsolated();
+  });
+
+  it.each([
+    { timestamp: "not-a-number" },
+    { timestamp: -1 },
+    { timestamp: Date.now(), message: {} },
+    { timestamp: Date.now(), unknown: true },
+  ])("does not classify malformed or extra-field events as timestamp-only", async (event) => {
+    enableProof();
+    const data = raw(body([event]));
+    await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
+    expect(state.proofLog.mock.calls[0]?.[0]).toMatchObject({ signature: "valid", payload: "invalid", category: "INVALID_EVENT" });
+    expectProofIsolated();
+  });
+
+  it("rejects a mixed batch with a timestamp-only event and malformed event", async () => {
+    enableProof();
+    const data = raw(body([{ timestamp: Date.now() }, { timestamp: "invalid" }]));
+    await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
+    expect(state.proofLog).toHaveBeenCalledOnce();
+    expect(state.proofLog.mock.calls[0]?.[0]).toMatchObject({ signature: "valid", payload: "invalid", category: "INVALID_EVENT" });
+    expectProofIsolated();
+  });
+
+  it("enforces the 200-event limit for timestamp-only events before acknowledgment", async () => {
+    enableProof();
+    const data = raw({ object: "instagram", entry: Array.from({ length: 5 }, (_, index) => ({ id: "123456789", messaging: Array.from({ length: index === 4 ? 1 : 50 }, () => ({ timestamp: Date.now() })) })) });
+    await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INSTAGRAM_WEBHOOK_BATCH_LIMIT" });
+    expect(state.proofLog.mock.calls[0]?.[0]).toMatchObject({ signature: "valid", payload: "invalid", category: "EVENT_LIMIT", events: 201 });
+    expectProofIsolated();
+  });
+
   it("proves a signed staging delivery without reading assets or writing an inquiry", async () => {
     enableProof();
     const data = raw(body());
@@ -159,7 +207,7 @@ describe("Instagram DM private intake", () => {
     expectProofIsolated();
   });
 
-  it("records only allow-listed structure for a signed but incompatible messaging event", async () => {
+  it("logs only a bounded category for a signed but incompatible messaging event", async () => {
     enableProof();
     const data = raw({ object: "instagram", entry: [{
       id: "123456789", unknownCustomerField: "private-unknown-value",
@@ -168,22 +216,18 @@ describe("Instagram DM private intake", () => {
     await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
     const diagnostic: unknown = state.proofLog.mock.calls[0]?.[0];
     expect(diagnostic).toMatchObject({
-      category: "INVALID_EVENT", stage: "EVENT", topLevel: "OBJECT", topFields: ["object", "entry"], objectIsInstagram: true,
-      entryCount: 1, entryFields: ["id", "messaging"], messagingType: "ARRAY", messagingCount: 1,
-      changesType: "ABSENT", changeFields: [], envelopeVariant: "MESSAGING",
-      fieldTypes: { senderId: "STRING", recipientId: "STRING", timestamp: "STRING", messageMid: "STRING", messageText: "STRING", messageIsEcho: "BOOLEAN", messageIsDeleted: "ABSENT" },
+      signature: "valid", payload: "invalid", category: "INVALID_EVENT", bytes: data.length, entries: 1, events: 0,
     });
     expect(JSON.stringify(state.proofLog.mock.calls)).not.toMatch(/private-unknown-value|private-timestamp|What is the price\?|987654321|123456789|m-1|synthetic-app-secret|sha256=/);
     expectProofIsolated();
   });
 
-  it("distinguishes a changes-shaped signed delivery without accepting or processing it", async () => {
+  it("rejects a changes-shaped signed delivery without accepting or processing it", async () => {
     enableProof();
     const data = raw({ object: "instagram", entry: [{ id: "123456789", changes: [{ field: "messages", value: { text: "private-message" } }] }] });
     await expect(new InstagramDmService().accept(data, signed(data))).rejects.toMatchObject({ code: "INVALID_INSTAGRAM_WEBHOOK" });
     expect(state.proofLog.mock.calls[0]?.[0]).toMatchObject({
-      category: "MISSING_MESSAGING", stage: "MESSAGING", entryFields: ["id", "changes"], messagingType: "ABSENT", changesType: "ARRAY",
-      changeFields: ["field", "value"], envelopeVariant: "CHANGES",
+      signature: "valid", payload: "invalid", category: "MISSING_MESSAGING", bytes: data.length, entries: 1, events: 0,
     });
     expect(JSON.stringify(state.proofLog.mock.calls)).not.toContain("private-message");
     expectProofIsolated();
