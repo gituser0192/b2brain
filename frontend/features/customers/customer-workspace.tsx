@@ -11,6 +11,7 @@ import { ApiError } from "@/services/api-client";
 import { queryKeys } from "@/services/query-keys";
 import { useAuth } from "@/features/auth/auth-context";
 import { CustomerEngagement } from "./customer-engagement";
+import { translate, useLanguage } from "@/features/language/language";
 
 type CustomerType = "PERSON" | "COMPANY";
 type CustomerStatus = "LEAD" | "ACTIVE" | "INACTIVE";
@@ -99,6 +100,8 @@ export function CustomerWorkspace({
   selectedCustomerId?: string | null;
   selectedFollowUpId?: string | null;
 }) {
+  const language = useLanguage();
+  const t = (copy: string) => translate(language, copy);
   const { session, authorizedRequest } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -126,6 +129,7 @@ export function CustomerWorkspace({
     session?.membership.permissions.includes("CRM_ACTIVITY_VIEW") ?? false;
   const canManageFollowUps =
     session?.membership.permissions.includes("CRM_FOLLOWUP_MANAGE") ?? false;
+
   const organizationId = session?.organization.id ?? "signed-out";
 
   const customerQuery = useQuery({
@@ -332,17 +336,17 @@ export function CustomerWorkspace({
     <div className="crm-workspace">
       <div className="crm-heading">
         <div>
-          <p>CRM service</p>
-          <h2>{view === "customers" ? "Customers" : "Follow-up center"}</h2>
-          {view === "customers" && <strong className="crm-visible-count">{total} {archived ? "archived" : "visible"}</strong>}
+          <p>{t("CRM service")}</p>
+          <h2>{t(view === "customers" ? "Customers" : "Follow-up center")}</h2>
+          {view === "customers" && <strong className="crm-visible-count">{total} {t(archived ? "archived" : "visible")}</strong>}
           <span>
-            {view === "customers"
+            {t(view === "customers"
               ? "Keep every customer relationship organized within this workspace."
-              : "See what needs attention and keep every customer promise on track."}
+              : "See what needs attention and keep every customer promise on track.")}
           </span>
         </div>
         {view === "customers" && canCreate && !archived && (
-          <button onClick={openCreate}>+ Add customer</button>
+          <button onClick={openCreate}>+ {t("Add customer")}</button>
         )}
       </div>
       {notice && <div className="dashboard-notice success">{notice}</div>}
@@ -350,44 +354,44 @@ export function CustomerWorkspace({
         <div className="dashboard-notice error">{visibleError}</div>
       )}
       <div className="crm-view-tabs" role="tablist" aria-label="Customer views">
-        <button className={view === "customers" && !status && !archived ? "active" : ""} onClick={() => showCustomers()}>All</button>
-        <button className={view === "customers" && status === "ACTIVE" && !archived ? "active" : ""} onClick={() => showCustomers("ACTIVE")}>Active customers</button>
-        <button className={view === "customers" && status === "LEAD" && !archived ? "active" : ""} onClick={() => showCustomers("LEAD")}>Leads</button>
+        <button className={view === "customers" && !status && !archived ? "active" : ""} onClick={() => showCustomers()}>{t("All")}</button>
+        <button className={view === "customers" && status === "ACTIVE" && !archived ? "active" : ""} onClick={() => showCustomers("ACTIVE")}>{t("Active customers")}</button>
+        <button className={view === "customers" && status === "LEAD" && !archived ? "active" : ""} onClick={() => showCustomers("LEAD")}>{t("Leads")}</button>
         {canViewEngagement && (
           <button
             className={view === "followups" ? "active" : ""}
             onClick={() => { setView("followups"); setPage(1); }}
           >
-            Follow-up due
+            {t("Follow-up due")}
           </button>
         )}
-        <button className={view === "customers" && archived ? "active" : ""} onClick={() => showCustomers("", true)}>Archived</button>
+        <button className={view === "customers" && archived ? "active" : ""} onClick={() => showCustomers("", true)}>{t("Archived")}</button>
       </div>
       {view === "followups" && (
         <>
           <section className="crm-followup-metrics">
             <article>
-              <span>Open</span>
+              <span>{t("Open")}</span>
               <strong>{followUpMetrics.pending}</strong>
             </article>
             <article className="danger">
-              <span>Overdue</span>
+              <span>{t("Overdue")}</span>
               <strong>{followUpMetrics.overdue}</strong>
             </article>
             <article className="attention">
-              <span>Due today</span>
+              <span>{t("Due today")}</span>
               <strong>{followUpMetrics.dueToday}</strong>
             </article>
             <article className="success">
-              <span>Completed</span>
+              <span>{t("Completed")}</span>
               <strong>{followUpMetrics.completed}</strong>
             </article>
           </section>
           <section className="crm-followup-panel">
             <header>
               <div>
-                <strong>Work queue</strong>
-                <span>{followUps.length} follow-ups shown</span>
+                <strong>{t("Work queue")}</strong>
+                <span>{followUps.length} {t("follow-ups shown")}</span>
               </div>
               <label>
                 <input
@@ -395,7 +399,7 @@ export function CustomerWorkspace({
                   checked={myFollowUps}
                   onChange={(event) => setMyFollowUps(event.target.checked)}
                 />{" "}
-                Assigned to me
+                {t("Assigned to me")}
               </label>
             </header>
             {loading ? (
@@ -407,10 +411,9 @@ export function CustomerWorkspace({
                 <div>
                   <span>✓</span>
                 </div>
-                <h3>No follow-ups here</h3>
+                <h3>{t("No follow-ups here")}</h3>
                 <p>
-                  Schedule a follow-up inside a customer profile and it will
-                  appear in this work queue.
+                  {t("Schedule a follow-up inside a customer profile and it will appear in this work queue.")}
                 </p>
               </div>
             ) : (
@@ -430,31 +433,31 @@ export function CustomerWorkspace({
                         <span
                           className={`customer-status ${overdue ? "overdue" : item.status.toLowerCase()}`}
                         >
-                          {overdue ? "OVERDUE" : item.status}
+                          {t(overdue ? "OVERDUE" : item.status)}
                         </span>
                         <strong>{item.title}</strong>
                         <p>
-                          {item.customer.displayName} · Assigned to{" "}
+                          {item.customer.displayName} · {t("Assigned to")}{" "}
                           {item.assignedTo.firstName}{" "}
                           {item.assignedTo.lastName ?? ""}
                         </p>
                       </div>
                       <time>
-                        {new Intl.DateTimeFormat("en", {
+                        {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", {
                           dateStyle: "medium",
                           timeStyle: "short",
                         }).format(new Date(item.dueAt))}
                       </time>
                       <div>
                         {item.customer.phone && (
-                          <a href={`tel:${item.customer.phone}`}>Call</a>
+                          <a href={`tel:${item.customer.phone}`}>{t("Call")}</a>
                         )}
                         {item.customer.email && (
-                          <a href={`mailto:${item.customer.email}`}>Email</a>
+                          <a href={`mailto:${item.customer.email}`}>{t("Email")}</a>
                         )}
                         {canManageFollowUps && item.status === "PENDING" && (
                           <button onClick={() => void completeFollowUp(item)}>
-                            Complete
+                            {t("Complete")}
                           </button>
                         )}
                       </div>
@@ -474,27 +477,27 @@ export function CustomerWorkspace({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onInput={() => setPage(1)}
-              placeholder="Search name, email, phone or company"
+              placeholder={t("Search name, email, phone or company")}
             />
           </div>
           <select
             value={status}
             onChange={(event) => { setStatus(event.target.value); setPage(1); }}
           >
-            <option value="">All statuses</option>
-            <option value="LEAD">Lead</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="">{t("All statuses")}</option>
+            <option value="LEAD">{t("Lead")}</option>
+            <option value="ACTIVE">{t("Active")}</option>
+            <option value="INACTIVE">{t("Inactive")}</option>
           </select>
-          {(query || status) && <button onClick={() => { setQuery(""); setStatus(""); setPage(1); }}>Clear filters</button>}
+          {(query || status) && <button onClick={() => { setQuery(""); setStatus(""); setPage(1); }}>{t("Clear filters")}</button>}
           <span>
-            {total} {archived ? "archived" : "customers"}
+            {total} {t(archived ? "archived" : "customers")}
           </span>
         </section>
         <section className="crm-list-panel">
           {loading ? (
             <div className="roles-loading">
-              <span className="spinner dark" /> Loading customers…
+              <span className="spinner dark" /> {t("Loading customers…")}
             </div>
           ) : customers.length === 0 ? (
             <div className="crm-empty">
@@ -503,30 +506,30 @@ export function CustomerWorkspace({
               </div>
               <h3>
                 {archived
-                  ? "No archived customers"
+                  ? t("No archived customers")
                   : query || status
-                    ? "No customers match your filters"
-                    : "Your CRM is ready"}
+                    ? t("No customers match your filters")
+                    : t("Your CRM is ready")}
               </h3>
               <p>
                 {archived
-                  ? "Archived customer records will appear here."
+                  ? t("Archived customer records will appear here.")
                   : query || status
-                    ? "Try a different search or status."
-                    : "This organization starts with zero customer data. Add the first real customer when you are ready."}
+                    ? t("Try a different search or status.")
+                    : t("This organization starts with zero customer data. Add the first real customer when you are ready.")}
               </p>
               {canCreate && !archived && !query && !status && (
-                <button onClick={openCreate}>Add first customer</button>
+                <button onClick={openCreate}>{t("Add first customer")}</button>
               )}
             </div>
           ) : (
             <div className="customer-table">
               <div className="customer-table-head">
-                <span>Customer</span>
-                <span>Contact</span>
-                <span>Status</span>
-                <span>Updated</span>
-                <span>Actions</span>
+                <span>{t("Customer")}</span>
+                <span>{t("Contact")}</span>
+                <span>{t("Status")}</span>
+                <span>{t("Updated")}</span>
+                <span>{t("Actions")}</span>
               </div>
               {customers.map((customer) => (
                 <article key={customer.id}>
@@ -541,23 +544,23 @@ export function CustomerWorkspace({
                       <strong>{customer.displayName}</strong>
                       <small>
                         {customer.type === "COMPANY"
-                          ? "Company"
-                          : customer.companyName || "Person"}
+                          ? t("Company")
+                          : customer.companyName || t("Person")}
                       </small>
                     </div>
                   </button>
                   <div className="customer-contact">
-                    <span>{customer.email || "No email"}</span>
-                    <small>{customer.phone || "No phone"}</small>
+                    <span>{customer.email || t("No email")}</span>
+                    <small>{customer.phone || t("No phone")}</small>
                   </div>
                   <span
                     data-label="Status"
                     className={`customer-status ${customer.status.toLowerCase()}`}
                   >
-                    {customer.status}
+                    {t(customer.status)}
                   </span>
                   <time data-label="Updated">
-                    {new Intl.DateTimeFormat("en", {
+                    {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", {
                       dateStyle: "medium",
                     }).format(new Date(customer.updatedAt))}
                   </time>
@@ -567,7 +570,7 @@ export function CustomerWorkspace({
                         href={`tel:${customer.phone}`}
                         title={`Call ${customer.displayName}`}
                       >
-                        Call
+                        {t("Call")}
                       </a>
                     )}
                     {customer.email && (
@@ -575,21 +578,21 @@ export function CustomerWorkspace({
                         href={`mailto:${customer.email}`}
                         title={`Email ${customer.displayName}`}
                       >
-                        Email
+                        {t("Email")}
                       </a>
                     )}
                     <button
                       className="row-action"
                       onClick={() => openCustomer(customer)}
                     >
-                      View
+                      {t("View")}
                     </button>
                   </div>
                 </article>
               ))}
             </div>
           )}
-          {pages > 1 && <nav className="crm-pagination" aria-label="Customer pages"><button disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {pages}</span><button disabled={page >= pages} onClick={() => setPage((value) => value + 1)}>Next</button></nav>}
+          {pages > 1 && <nav className="crm-pagination" aria-label="Customer pages"><button disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>{t("Previous")}</button><span>{t("Page")} {page} {t("of")} {pages}</span><button disabled={page >= pages} onClick={() => setPage((value) => value + 1)}>{t("Next")}</button></nav>}
         </section>
       </div>
       {editorOpen && (
@@ -602,15 +605,15 @@ export function CustomerWorkspace({
           <form className="customer-editor" onSubmit={save}>
             <div className="customer-editor-title">
               <div>
-                <p>{editing ? "Customer profile" : "New customer"}</p>
-                <h3>{editing?.displayName ?? "Add a customer"}</h3>
+                <p>{t(editing ? "Customer profile" : "New customer")}</p>
+                <h3>{editing?.displayName ?? t("Add a customer")}</h3>
                 {editing && (
                   <div className="profile-contact-actions">
                     {editing.phone && (
-                      <a href={`tel:${editing.phone}`}>Call customer</a>
+                      <a href={`tel:${editing.phone}`}>{t("Call customer")}</a>
                     )}
                     {editing.email && (
-                      <a href={`mailto:${editing.email}`}>Send email</a>
+                      <a href={`mailto:${editing.email}`}>{t("Send email")}</a>
                     )}
                   </div>
                 )}
@@ -626,20 +629,20 @@ export function CustomerWorkspace({
                 className={form.type === "PERSON" ? "active" : ""}
                 onClick={() => setForm({ ...form, type: "PERSON" })}
               >
-                Person
+                {t("Person")}
               </button>
               <button
                 type="button"
                 className={form.type === "COMPANY" ? "active" : ""}
                 onClick={() => setForm({ ...form, type: "COMPANY" })}
               >
-                Company
+                {t("Company")}
               </button>
             </div>
             {form.type === "PERSON" ? (
               <div className="customer-form-grid">
                 <label>
-                  <span>First name</span>
+                  <span>{t("First name")}</span>
                   <input
                     value={form.firstName}
                     onChange={(event) =>
@@ -649,7 +652,7 @@ export function CustomerWorkspace({
                   />
                 </label>
                 <label>
-                  <span>Last name</span>
+                  <span>{t("Last name")}</span>
                   <input
                     value={form.lastName}
                     onChange={(event) =>
@@ -660,7 +663,7 @@ export function CustomerWorkspace({
               </div>
             ) : (
               <label>
-                <span>Company name</span>
+                <span>{t("Company name")}</span>
                 <input
                   value={form.companyName}
                   onChange={(event) =>
@@ -672,7 +675,7 @@ export function CustomerWorkspace({
             )}
             <div className="customer-form-grid">
               <label>
-                <span>Email</span>
+                <span>{t("Email")}</span>
                 <input
                   type="email"
                   value={form.email}
@@ -682,7 +685,7 @@ export function CustomerWorkspace({
                 />
               </label>
               <label>
-                <span>Phone</span>
+                <span>{t("Phone")}</span>
                 <input
                   value={form.phone}
                   onChange={(event) =>
@@ -691,7 +694,7 @@ export function CustomerWorkspace({
                 />
               </label>
               <label>
-                <span>Website</span>
+                <span>{t("Website")}</span>
                 <input
                   type="url"
                   value={form.website}
@@ -702,7 +705,7 @@ export function CustomerWorkspace({
                 />
               </label>
               <label>
-                <span>Status</span>
+                <span>{t("Status")}</span>
                 <select
                   value={form.status}
                   onChange={(event) =>
@@ -712,16 +715,16 @@ export function CustomerWorkspace({
                     })
                   }
                 >
-                  <option value="LEAD">Lead</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
+                  <option value="LEAD">{t("Lead")}</option>
+                  <option value="ACTIVE">{t("Active")}</option>
+                  <option value="INACTIVE">{t("Inactive")}</option>
                 </select>
               </label>
             </div>
             <fieldset>
-              <legend>Address</legend>
+              <legend>{t("Address")}</legend>
               <label>
-                <span>Address line 1</span>
+                <span>{t("Address line 1")}</span>
                 <input
                   value={form.addressLine1}
                   onChange={(event) =>
@@ -730,7 +733,7 @@ export function CustomerWorkspace({
                 />
               </label>
               <label>
-                <span>Address line 2</span>
+                <span>{t("Address line 2")}</span>
                 <input
                   value={form.addressLine2}
                   onChange={(event) =>
@@ -740,7 +743,7 @@ export function CustomerWorkspace({
               </label>
               <div className="customer-form-grid">
                 <label>
-                  <span>City</span>
+                  <span>{t("City")}</span>
                   <input
                     value={form.city}
                     onChange={(event) =>
@@ -749,7 +752,7 @@ export function CustomerWorkspace({
                   />
                 </label>
                 <label>
-                  <span>State</span>
+                  <span>{t("State")}</span>
                   <input
                     value={form.state}
                     onChange={(event) =>
@@ -758,7 +761,7 @@ export function CustomerWorkspace({
                   />
                 </label>
                 <label>
-                  <span>Postal code</span>
+                  <span>{t("Postal code")}</span>
                   <input
                     value={form.postalCode}
                     onChange={(event) =>
@@ -767,7 +770,7 @@ export function CustomerWorkspace({
                   />
                 </label>
                 <label>
-                  <span>Country</span>
+                  <span>{t("Country")}</span>
                   <input
                     value={form.country}
                     onChange={(event) =>
@@ -778,7 +781,7 @@ export function CustomerWorkspace({
               </div>
             </fieldset>
             <label>
-              <span>Notes</span>
+              <span>{t("Notes")}</span>
               <textarea
                 rows={4}
                 value={form.notes}
@@ -797,7 +800,7 @@ export function CustomerWorkspace({
                   className="delete-customer"
                   onClick={() => void permanentlyDelete(editing)}
                 >
-                  Delete permanently
+                  {t("Delete permanently")}
                 </button>
               )}
               {editing && canArchive && (
@@ -806,7 +809,7 @@ export function CustomerWorkspace({
                   className="archive-customer"
                   onClick={() => void changeArchive(editing)}
                 >
-                  {editing.deletedAt ? "Restore customer" : "Archive customer"}
+                  {t(editing.deletedAt ? "Restore customer" : "Archive customer")}
                 </button>
               )}
               <button
@@ -819,10 +822,10 @@ export function CustomerWorkspace({
                 }
               >
                 {saving
-                  ? "Saving…"
+                  ? t("Saving…")
                   : editing
-                    ? "Save changes"
-                    : "Create customer"}
+                    ? t("Save changes")
+                    : t("Create customer")}
               </button>
             </div>
           </form>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { AppProviders } from "@/components/shared/app-providers";
 import "./styles/foundations/tokens.css";
 import "./styles/foundations/reset.css";
@@ -21,6 +22,7 @@ import "./styles/request-access.css";
 import "./styles/features/workspace-agent.css";
 import "./styles/knowledge-management.css";
 import "./styles/dashboard-mobile.css";
+import "@/features/language/language.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sathos.in"),
@@ -29,6 +31,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="en"><body><AppProviders>{children}</AppProviders></body></html>;
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const language = (await cookies()).get("sathos_lang")?.value === "hi" ? "hi" : "en";
+  return <html lang={language}><body><AppProviders language={language}>{children}</AppProviders></body></html>;
 }

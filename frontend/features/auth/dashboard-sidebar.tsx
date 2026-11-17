@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { AuthSession } from "./auth.types";
 import type { ActiveView } from "./dashboard-workspaces";
 import { routeForView } from "./workspace-routes";
+import { LanguageSwitch, translate, useLanguage } from "@/features/language/language";
 
 export interface NavigationItem { key: ActiveView; label: string; icon: string; permission?: string; service?: string }
 export interface NavigationGroup { label: string; items: NavigationItem[] }
@@ -34,12 +35,14 @@ export function permittedNavigation(enabledServices: string[], session: AuthSess
 }
 interface Props { activeView: ActiveView; enabledServices: string[]; isOpen: boolean; session: AuthSession; onClose: () => void; onNavigate: () => void; onSignOut: () => void; onSuperAdmin: () => void }
 export function DashboardSidebar({ activeView, enabledServices, isOpen, session, onClose, onNavigate, onSignOut, onSuperAdmin }: Props) {
+  const language = useLanguage();
+  const t = (copy: string) => translate(language, copy);
   const initials = `${session.user.firstName[0] ?? ""}${session.user.lastName?.[0] ?? ""}`.toUpperCase();
   return <aside className={`dashboard-sidebar${isOpen ? " mobile-open" : ""}`} id="dashboard-navigation">
-    <div className="dashboard-logo"><Image src="/brand/sathos-logo.png" alt="" width={38} height={38} /><span><strong>SATHOS</strong><small>Workspace</small></span><span className="sidebar-security-dot" title="Organization-isolated workspace" aria-label="Organization-isolated workspace">🔒</span></div>
-    <button type="button" className="mobile-nav-close" onClick={onClose} aria-label="Close service menu">×</button>
-    <nav aria-label="Primary navigation">{permittedNavigation(enabledServices, session).map((group) => <details className="sidebar-group" key={group.label} open><summary>{group.label}</summary><div>{group.items.map((item) => <Link key={item.key} className={activeView === item.key ? "active" : ""} aria-current={activeView === item.key ? "page" : undefined} href={routeForView(item.key)} onClick={onNavigate}><span className="nav-icon">{item.icon}</span>{item.label}</Link>)}</div></details>)}</nav>
-    <div className="sidebar-utilities"><Link href={routeForView("b2help")} onClick={onNavigate}><span className="nav-icon">?</span>Help and Support</Link>{session.user.isPlatformAdmin && <button onClick={onSuperAdmin}><span className="nav-icon">↔</span>Switch to Super Admin</button>}</div>
-    <div className="sidebar-account"><div className="avatar">{initials}</div><div><strong>{session.user.firstName} {session.user.lastName}</strong><small>{session.membership.role.name}</small></div><button onClick={onSignOut} title="Sign out" aria-label="Sign out">↗</button></div>
+    <div className="dashboard-logo"><Image src="/brand/sathos-logo.png" alt="" width={38} height={38} /><span><strong>SATHOS</strong><small>{t("Workspace")}</small></span><span className="sidebar-security-dot" title="Organization-isolated workspace" aria-label="Organization-isolated workspace">🔒</span></div>
+    <button type="button" className="mobile-nav-close" onClick={onClose} aria-label={t("Close service menu")}>×</button>
+    <nav aria-label="Primary navigation">{permittedNavigation(enabledServices, session).map((group) => <details className="sidebar-group" key={group.label} open><summary>{t(group.label)}</summary><div>{group.items.map((item) => <Link key={item.key} className={activeView === item.key ? "active" : ""} aria-current={activeView === item.key ? "page" : undefined} href={routeForView(item.key)} onClick={onNavigate}><span className="nav-icon">{item.icon}</span>{t(item.label)}</Link>)}</div></details>)}</nav>
+    <div className="sidebar-utilities"><LanguageSwitch /><Link href={routeForView("b2help")} onClick={onNavigate}><span className="nav-icon">?</span>{t("Help and Support")}</Link>{session.user.isPlatformAdmin && <button onClick={onSuperAdmin}><span className="nav-icon">↔</span>{t("Switch to Super Admin")}</button>}</div>
+    <div className="sidebar-account"><div className="avatar">{initials}</div><div><strong>{session.user.firstName} {session.user.lastName}</strong><small>{session.membership.role.name}</small></div><button onClick={onSignOut} title={t("Sign out")} aria-label={t("Sign out")}>↗</button></div>
   </aside>;
 }

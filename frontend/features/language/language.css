@@ -1,0 +1,7 @@
+.language-switch { align-items: center; display: inline-flex; gap: .45rem; font-size: .8rem; font-weight: 700; }
+.language-switch select { background: #fff; border: 1px solid #b8c8d9; border-radius: .45rem; color: #10203a; cursor: pointer; font: inherit; max-width: 8rem; padding: .35rem .45rem; }
+.language-switch select:focus-visible { outline: 3px solid #ff9c33; outline-offset: 2px; }
+.sidebar-utilities .language-switch { color: #d5e4f5; padding: .55rem .8rem; }
+.mobile-navigation-sheet .language-switch { display: flex; justify-content: space-between; margin-bottom: .8rem; }
+.language-preview-note { background: #e8f4ff; color: #183858; font-size: .85rem; margin: 0; padding: .6rem clamp(1.2rem, 5vw, 5.5rem); }
+@media (max-width: 600px) { .site-header-actions { gap: .6rem; } .site-header-actions>a[href="/login"] { display: none; } .site-header-actions .language-switch { font-size: .7rem; } .site-header-actions .language-switch select { max-width: 5rem; } }

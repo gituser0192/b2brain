@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
 import { PaymentCollectionManager } from "./payment-collection-manager";
+import { useFinanceText } from "./finance-i18n";
 import { FinanceLedger, type LedgerData } from "./finance-ledger";
 import { InvoiceEntryForm } from "./invoice-entry-form";
 import {
@@ -56,6 +57,7 @@ const blankExpense = {
 };
 
 export function FinanceWorkspace() {
+  const t = useFinanceText();
   const { session, authorizedRequest } = useAuth();
   const [data, setData] = useState<FinanceResponse["data"]>({
     invoices: [],
@@ -233,12 +235,9 @@ export function FinanceWorkspace() {
     <div className="finance-workspace" aria-busy={loading}>
       <header className="finance-heading">
         <div>
-          <p>Money management</p>
-          <h2>Finance</h2>
-          <span>
-            Track invoices, outstanding balances, collections, payments and
-            expenses.
-          </span>
+          <p>{t("Money management")}</p>
+          <h2>{t("Finance")}</h2>
+          <span>{t("Track invoices, outstanding balances, collections, payments and expenses.")}</span>
         </div>
         {canManage && (
           <div>
@@ -248,7 +247,7 @@ export function FinanceWorkspace() {
                 setMode("invoice");
               }}
             >
-              Create invoice
+              {t("Create invoice")}
             </button>
             <button
               onClick={() => {
@@ -257,29 +256,29 @@ export function FinanceWorkspace() {
                 setMode("expense");
               }}
             >
-              Add expense
+              {t("Add expense")}
             </button>
           </div>
         )}
       </header>
-      <nav className="finance-tabs" aria-label="Finance sections">
-        {(["overview", "revenue", "expenses", "invoices", "payments"] as const).map((item) => <button key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}
+      <nav className="finance-tabs" aria-label={t("Finance sections")}>
+        {(["overview", "revenue", "expenses", "invoices", "payments"] as const).map((item) => <button key={item} className={tab === item ? "active" : ""} aria-current={tab === item ? "page" : undefined} onClick={() => setTab(item)}>{t(item[0].toUpperCase() + item.slice(1))}</button>)}
       </nav>
-      {notice && <div className="dashboard-notice success">{notice}</div>}
-      {error && <div className="dashboard-notice error">{error}</div>}
-      {loading ? <section className="finance-state" role="status">Loading verified finance records…</section> : <>
+      {notice && <div className="dashboard-notice success">{t(notice)}</div>}
+      {error && <div className="dashboard-notice error">{t(error)}</div>}
+      {loading ? <section className="finance-state" role="status">{t("Loading verified finance records…")}</section> : <>
       {tab === "overview" && <>
-        <section className="finance-metric-grid" aria-label="Current finance summary">
-          <article><span>Revenue</span><strong>{ledgerMetrics ? money(ledgerMetrics.revenue, currency) : "Unavailable"}</strong><small>Selected ledger period</small></article>
-          <article><span>Expenses</span><strong>{ledgerMetrics ? money(ledgerMetrics.expenses, currency) : money(data.metrics.expenses, currency)}</strong><small>Selected ledger period</small></article>
-          <article className="finance-profit"><span>Profit</span><strong>{ledgerMetrics ? money(ledgerMetrics.profit, currency) : "Unavailable"}</strong><small>Revenue minus expenses</small></article>
-          <article className={data.metrics.overdue > 0 ? "metric-alert" : ""}><span>Outstanding balance</span><strong>{money(data.metrics.outstanding, currency)}</strong><small>{data.metrics.overdue > 0 ? `${money(data.metrics.overdue, currency)} overdue` : "No overdue balance"}</small></article>
+        <section className="finance-metric-grid" aria-label={t("Current finance summary")}>
+          <article><span>{t("Revenue")}</span><strong>{ledgerMetrics ? money(ledgerMetrics.revenue, currency) : t("Unavailable")}</strong><small>{t("Selected ledger period")}</small></article>
+          <article><span>{t("Expenses")}</span><strong>{ledgerMetrics ? money(ledgerMetrics.expenses, currency) : money(data.metrics.expenses, currency)}</strong><small>{t("Selected ledger period")}</small></article>
+          <article className="finance-profit"><span>{t("Profit")}</span><strong>{ledgerMetrics ? money(ledgerMetrics.profit, currency) : t("Unavailable")}</strong><small>{t("Revenue minus expenses")}</small></article>
+          <article className={data.metrics.overdue > 0 ? "metric-alert" : ""}><span>{t("Outstanding balance")}</span><strong>{money(data.metrics.outstanding, currency)}</strong><small>{data.metrics.overdue > 0 ? `${money(data.metrics.overdue, currency)} ${t("overdue")}` : t("No overdue balance")}</small></article>
         </section>
-        <section className="finance-next-action"><div><span>Next financial action</span><strong>{data.metrics.overdue > 0 ? "Follow up on overdue invoices" : data.metrics.outstanding > 0 ? "Review outstanding invoices" : "Keep records up to date"}</strong></div><button onClick={() => setTab(data.metrics.outstanding > 0 ? "invoices" : "expenses")}>Review</button></section>
+        <section className="finance-next-action"><div><span>{t("Next financial action")}</span><strong>{t(data.metrics.overdue > 0 ? "Follow up on overdue invoices" : data.metrics.outstanding > 0 ? "Review outstanding invoices" : "Keep records up to date")}</strong></div><button onClick={() => setTab(data.metrics.outstanding > 0 ? "invoices" : "expenses")}>{t("Review")}</button></section>
         <FinanceLedger onData={captureLedger} />
       </>}
       {tab === "revenue" && <FinanceLedger recordType="REVENUE" />}
-      {tab === "expenses" && <><div className="finance-section-heading"><div><p>EXPENSES</p><h3>Business spending</h3></div>{canManage && <button onClick={() => { setExpense(blankExpense); setEditingExpenseId(null); setMode("expense"); }}>Add expense</button>}</div><FinanceLedger recordType="EXPENSE" /><FinanceRecords
+      {tab === "expenses" && <><div className="finance-section-heading"><div><p>{t("EXPENSES")}</p><h3>{t("Business spending")}</h3></div>{canManage && <button onClick={() => { setExpense(blankExpense); setEditingExpenseId(null); setMode("expense"); }}>{t("Add expense")}</button>}</div><FinanceLedger recordType="EXPENSE" /><FinanceRecords
         view="expenses"
         invoices={data.invoices}
         expenses={data.expenses}
@@ -329,10 +328,10 @@ export function FinanceWorkspace() {
             <header>
               <h3>
                 {mode === "invoice"
-                  ? "Create invoice"
+                  ? t("Create invoice")
                   : mode === "expense"
-                    ? "Record expense"
-                    : `Record payment · ${selected?.invoiceNumber}`}
+                    ? t("Record expense")
+                    : `${t("Record payment")} · ${selected?.invoiceNumber}`}
               </h3>
               <button onClick={() => setMode(null)}>×</button>
             </header>

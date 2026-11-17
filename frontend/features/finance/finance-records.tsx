@@ -1,4 +1,6 @@
 "use client";
+import { useLanguage } from "@/features/language/language";
+import { useFinanceText } from "./finance-i18n";
 
 export interface FinanceInvoice {
   id: string;
@@ -78,14 +80,17 @@ export function FinanceRecords({
   view?: "all" | "invoices" | "expenses";
   currency?: string;
 }) {
+  const language = useLanguage();
+  const t = useFinanceText();
+  const statusLabel = (status: string) => language === "hi" ? t(status) : status.replaceAll("_", " ");
   return (
     <div className="finance-columns">
       {view !== "expenses" && <section>
-        <h3>Customer invoices</h3>
+        <h3>{t("Customer invoices")}</h3>
         {invoices.length === 0 ? (
           <div className="finance-empty">
-            <strong>No invoices yet</strong>
-            <p>Create the first real customer invoice when you are ready.</p>
+            <strong>{t("No invoices yet")}</strong>
+            <p>{t("Create the first real customer invoice when you are ready.")}</p>
           </div>
         ) : (
           invoices.map((invoice) => {
@@ -98,41 +103,41 @@ export function FinanceRecords({
                 <div>
                   <strong>{invoice.invoiceNumber}</strong>
                   <small>
-                    {invoice.customer.displayName} · <span className="finance-status" data-status={invoice.status}>{invoice.status.replaceAll("_", " ")}</span>
+                    {invoice.customer.displayName} · <span className="finance-status" data-status={invoice.status}>{statusLabel(invoice.status)}</span>
                     {invoice.daysOverdue
-                      ? ` · ${invoice.daysOverdue} days overdue`
+                      ? ` · ${invoice.daysOverdue} ${t("days overdue")}`
                       : ""}
                   </small>
                   <small>
-                    {invoice.issueDate && <>Issued {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invoice.issueDate))} · </>}
-                    Due{" "}
-                    {new Intl.DateTimeFormat("en", {
+                    {invoice.issueDate && <>{t("Issued")} {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", { dateStyle: "medium" }).format(new Date(invoice.issueDate))} · </>}
+                    {t("Due")}{" "}
+                    {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", {
                       dateStyle: "medium",
                     }).format(new Date(invoice.dueDate))}
                   </small>
                 </div>
                 <div className="invoice-balance">
-                  <small>Total {formatMoney(Number(invoice.total), currency)}</small>
-                  <strong>{formatMoney(invoice.outstanding, currency)} due</strong>
-                  <small>{formatMoney(invoice.paid, currency)} received</small>
+                  <small>{t("Total")} {formatMoney(Number(invoice.total), currency)}</small>
+                  <strong>{formatMoney(invoice.outstanding, currency)} {t("due")}</strong>
+                  <small>{formatMoney(invoice.paid, currency)} {t("received")}</small>
                 </div>
                 {canManage &&
                   invoice.outstanding > 0 &&
                   !["DRAFT", "CANCELED"].includes(invoice.status) && (
                     <div className="invoice-actions">
                       <button onClick={() => onRecordPayment(invoice)}>
-                        Record payment
+                        {t("Record payment")}
                       </button>
                       {followUp ? (
                         <button onClick={() => onToggleFollowUp(followUp.id)}>
-                          View existing follow-up
+                          {t("View existing follow-up")}
                         </button>
                       ) : (
                         <button
                           disabled={saving}
                           onClick={() => onCreateFollowUp(invoice)}
                         >
-                          Create follow-up
+                          {t("Create follow-up")}
                         </button>
                       )}
                     </div>
@@ -141,14 +146,14 @@ export function FinanceRecords({
                   <div className="invoice-follow-up-detail">
                     <strong>{followUp.title}</strong>
                     <span>
-                      {followUp.status} · Due{" "}
-                      {new Intl.DateTimeFormat("en", {
+                      {statusLabel(followUp.status)} · {t("Due")}{" "}
+                      {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", {
                         dateStyle: "medium",
                         timeStyle: "short",
                       }).format(new Date(followUp.dueAt))}
                     </span>
                     <span>
-                      Assigned to {followUp.assignedTo.firstName}{" "}
+                      {t("Assigned to")} {followUp.assignedTo.firstName}{" "}
                       {followUp.assignedTo.lastName ?? ""}
                     </span>
                     {followUp.description && <p>{followUp.description}</p>}
@@ -160,11 +165,11 @@ export function FinanceRecords({
         )}
       </section>}
       {view !== "invoices" && <section>
-        <h3>Expenses</h3>
+        <h3>{t("Expenses")}</h3>
         {expenses.length === 0 ? (
           <div className="finance-empty">
-            <strong>No expenses yet</strong>
-            <p>Recorded business expenses will appear here.</p>
+            <strong>{t("No expenses yet")}</strong>
+            <p>{t("Recorded business expenses will appear here.")}</p>
           </div>
         ) : (
           expenses.map((expense) => (
@@ -176,9 +181,9 @@ export function FinanceRecords({
               <strong>{formatMoney(Number(expense.amount), currency)}</strong>
               {canManage && (
                 <div className="invoice-actions">
-                  <button onClick={() => onEditExpense(expense)}>Edit</button>
+                  <button onClick={() => onEditExpense(expense)}>{t("Edit")}</button>
                   <button onClick={() => onArchiveExpense(expense.id)}>
-                    Archive
+                    {t("Archive")}
                   </button>
                 </div>
               )}

@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from "react";
 
 import { formatMoney, type FinanceInvoice } from "./finance-records";
+import { useFinanceText } from "./finance-i18n";
 
 export type ExpenseEntry = {
   title: string;
@@ -33,23 +34,24 @@ export function ExpenseEntryForm({
   isEditing: boolean;
   onSave: () => void;
 }) {
+  const t = useFinanceText();
   return (
     <>
       <div className="agent-form-grid">
         <label>
-          <span>Title</span>
+          <span>{t("Title")}</span>
           <input value={value.title} onChange={(event) => setValue({ ...value, title: event.target.value })} />
         </label>
         <label>
-          <span>Category</span>
+          <span>{t("Category")}</span>
           <input value={value.category} onChange={(event) => setValue({ ...value, category: event.target.value })} />
         </label>
         <label>
-          <span>Amount</span>
+          <span>{t("Amount")}</span>
           <input type="number" min="0.01" step="0.01" value={value.amount} onChange={(event) => setValue({ ...value, amount: Number(event.target.value) })} />
         </label>
         <label>
-          <span>Date</span>
+          <span>{t("Date")}</span>
           <input type="date" value={value.expenseDate} onChange={(event) => setValue({ ...value, expenseDate: event.target.value })} />
         </label>
       </div>
@@ -64,7 +66,7 @@ export function ExpenseEntryForm({
           }
           onClick={onSave}
         >
-          {saving ? "Saving..." : isEditing ? "Update expense" : "Record expense"}
+          {t(saving ? "Saving..." : isEditing ? "Update expense" : "Record expense")}
         </button>
       </footer>
     </>
@@ -84,33 +86,34 @@ export function PaymentEntryForm({
   saving: boolean;
   onSave: () => void;
 }) {
+  const t = useFinanceText();
   return (
     <>
       <p className="payment-balance">
-        Outstanding balance: <strong>{formatMoney(invoice?.outstanding ?? 0)}</strong>
+        {t("Outstanding balance")}: <strong>{formatMoney(invoice?.outstanding ?? 0)}</strong>
       </p>
       <div className="agent-form-grid">
         <label>
-          <span>Amount</span>
+          <span>{t("Amount")}</span>
           <input type="number" min="0.01" max={invoice?.outstanding} step="0.01" value={value.amount} onChange={(event) => setValue({ ...value, amount: Number(event.target.value) })} />
         </label>
         <label>
-          <span>Method</span>
+          <span>{t("Method")}</span>
           <select value={value.method} onChange={(event) => setValue({ ...value, method: event.target.value })}>
-            <option value="BANK_TRANSFER">Bank transfer</option>
+            <option value="BANK_TRANSFER">{t("Bank transfer")}</option>
             <option value="UPI">UPI</option>
-            <option value="CASH">Cash</option>
-            <option value="CARD">Card</option>
-            <option value="CHEQUE">Cheque</option>
-            <option value="OTHER">Other</option>
+            <option value="CASH">{t("Cash")}</option>
+            <option value="CARD">{t("Card")}</option>
+            <option value="CHEQUE">{t("Cheque")}</option>
+            <option value="OTHER">{t("Other")}</option>
           </select>
         </label>
         <label>
-          <span>Payment reference</span>
-          <input value={value.reference} onChange={(event) => setValue({ ...value, reference: event.target.value })} placeholder="UTR, receipt or transaction ID" />
+          <span>{t("Payment reference")}</span>
+          <input value={value.reference} onChange={(event) => setValue({ ...value, reference: event.target.value })} placeholder={t("UTR, receipt or transaction ID")} />
         </label>
         <label>
-          <span>Paid date</span>
+          <span>{t("Paid date")}</span>
           <input type="date" value={value.paidAt} onChange={(event) => setValue({ ...value, paidAt: event.target.value })} />
         </label>
       </div>
@@ -125,7 +128,7 @@ export function PaymentEntryForm({
           }
           onClick={onSave}
         >
-          {saving ? "Saving..." : "Record payment"}
+          {t(saving ? "Saving..." : "Record payment")}
         </button>
       </footer>
     </>

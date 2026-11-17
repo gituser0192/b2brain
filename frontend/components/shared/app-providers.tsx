@@ -4,8 +4,9 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/features/auth/auth-context";
+import { LanguageProvider, type Language } from "@/features/language/language";
 
-export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
+export function AppProviders({ children, language }: Readonly<{ children: ReactNode; language: Language }>) {
   const pathname = usePathname();
   const [queryClient] = useState(
     () =>
@@ -23,5 +24,5 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
   );
 
   const publicWebsite = new Set(["/", "/services", "/why-sathos", "/how-it-works", "/security", "/pricing", "/contact", "/privacy", "/terms"]).has(pathname);
-  return <QueryClientProvider client={queryClient}>{publicWebsite ? children : <AuthProvider>{children}</AuthProvider>}</QueryClientProvider>;
+  return <LanguageProvider language={language}><QueryClientProvider client={queryClient}>{publicWebsite ? children : <AuthProvider>{children}</AuthProvider>}</QueryClientProvider></LanguageProvider>;
 }

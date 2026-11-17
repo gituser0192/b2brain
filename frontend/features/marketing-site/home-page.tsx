@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
+import { cookies } from "next/headers";
+import { HindiHomePage } from "./hindi-home-page";
 
 const outcomes = [
   ["Know what needs attention", "See overdue work, customer follow-ups, cash position and operating risks without assembling reports."],
@@ -32,7 +34,8 @@ const steps = [
   ["Improve from verified activity", "As real records accumulate, dashboards and briefs become more useful without inventing missing data."],
 ] as const;
 
-export default function HomePage() {
+export default async function HomePage() {
+  if ((await cookies()).get("sathos_lang")?.value === "hi") return <HindiHomePage />;
   return <>
     <section className="site-hero"><div className="site-hero-copy"><span className="site-kicker">Built for what’s next</span><h1>Run your business from one connected operating system.</h1><p>SATHOS brings people, customers, money, work and business intelligence together—so your team can move from scattered updates to clear action.</p><div className="site-actions"><Link className="site-button" href="/contact">Request early access</Link><Link className="site-button secondary" href="/how-it-works">See how it works</Link></div><ul><li>Organization-isolated data</li><li>Permission-aware access</li><li>Human-confirmed actions</li></ul></div><div className="site-hero-art" aria-label="SATHOS connects people, process, AI and growth"><Image src="/brand/sathos-brand-artwork.png" alt="SATHOS symbol with the words People, Process, AI and Growth" width={1280} height={1280} priority /></div></section>
     <section className="site-proof" aria-label="SATHOS principles"><span>One workspace</span><span>Verified business data</span><span>Controlled automation</span><span>Designed for growing teams</span></section>

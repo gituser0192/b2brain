@@ -5,8 +5,11 @@ import type { AuthSession } from "./auth.types";
 import type { ActiveView } from "./dashboard-workspaces";
 import { permittedNavigation } from "./dashboard-sidebar";
 import { routeForView } from "./workspace-routes";
+import { LanguageSwitch, translate, useLanguage } from "@/features/language/language";
 
 export function MobileNavigation({ activeView, enabledServices, session }: { activeView: ActiveView; enabledServices: string[]; session: AuthSession }) {
+  const language = useLanguage();
+  const t = (copy: string) => translate(language, copy);
   const [sheet, setSheet] = useState<"more" | "add" | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const items = permittedNavigation(enabledServices, session).flatMap((group) => group.items);
@@ -25,12 +28,12 @@ export function MobileNavigation({ activeView, enabledServices, session }: { act
   const open = (value: "more" | "add", event: MouseEvent<HTMLButtonElement>) => { trigger.current = event.currentTarget; setSheet(value); };
   return <>
     <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-      <Link className={activeView === "overview" ? "active" : ""} aria-current={activeView === "overview" ? "page" : undefined} href="/dashboard"><span>⌂</span>Home</Link>
-      {find("crm") ? <Link className={activeView === "crm" ? "active" : ""} aria-current={activeView === "crm" ? "page" : undefined} href="/crm"><span>C</span>Customers</Link> : <button onClick={(event) => open("more", event)}><span>⋯</span>Work</button>}
-      <button className="mobile-quick-add" onClick={(event) => open("add", event)} aria-haspopup="dialog"><span>＋</span>Quick Add</button>
-      {fourth ? <Link className={activeView === fourth.key ? "active" : ""} aria-current={activeView === fourth.key ? "page" : undefined} href={routeForView(fourth.key)}><span>{fourth.icon}</span>{fourth.label}</Link> : <Link href="/settings"><span>⚙</span>Settings</Link>}
-      <button onClick={(event) => open("more", event)} aria-haspopup="dialog"><span>☰</span>More</button>
+      <Link className={activeView === "overview" ? "active" : ""} aria-current={activeView === "overview" ? "page" : undefined} href="/dashboard"><span>⌂</span>{t("Home")}</Link>
+      {find("crm") ? <Link className={activeView === "crm" ? "active" : ""} aria-current={activeView === "crm" ? "page" : undefined} href="/crm"><span>C</span>{t("Customers")}</Link> : <button onClick={(event) => open("more", event)}><span>⋯</span>{t("Work")}</button>}
+      <button className="mobile-quick-add" onClick={(event) => open("add", event)} aria-haspopup="dialog"><span>＋</span>{t("Quick Add")}</button>
+      {fourth ? <Link className={activeView === fourth.key ? "active" : ""} aria-current={activeView === fourth.key ? "page" : undefined} href={routeForView(fourth.key)}><span>{fourth.icon}</span>{t(fourth.label)}</Link> : <Link href="/settings"><span>⚙</span>{t("Settings")}</Link>}
+      <button onClick={(event) => open("more", event)} aria-haspopup="dialog"><span>☰</span>{t("More")}</button>
     </nav>
-    {sheet && <div className="mobile-navigation-backdrop" onClick={() => setSheet(null)}><section className="mobile-navigation-sheet" role="dialog" aria-modal="true" aria-label={sheet === "add" ? "Quick Add" : "More destinations"} onClick={(event) => event.stopPropagation()}><header><strong>{sheet === "add" ? "Quick Add" : "More"}</strong><button autoFocus onClick={() => { setSheet(null); trigger.current?.focus(); }} aria-label="Close navigation sheet">×</button></header><div>{sheet === "add" ? quick.map((item) => <Link key={item.label} href={item.href} onClick={() => setSheet(null)}>{item.label}</Link>) : more.map((item) => <Link key={item.key} href={routeForView(item.key)} onClick={() => setSheet(null)}>{item.label}</Link>)}</div></section></div>}
+    {sheet && <div className="mobile-navigation-backdrop" onClick={() => setSheet(null)}><section className="mobile-navigation-sheet" role="dialog" aria-modal="true" aria-label={t(sheet === "add" ? "Quick Add" : "More destinations")} onClick={(event) => event.stopPropagation()}><header><strong>{t(sheet === "add" ? "Quick Add" : "More")}</strong><button autoFocus onClick={() => { setSheet(null); trigger.current?.focus(); }} aria-label={t("Close navigation sheet")}>×</button></header>{sheet === "more" && <LanguageSwitch />}<div>{sheet === "add" ? quick.map((item) => <Link key={item.label} href={item.href} onClick={() => setSheet(null)}>{t(item.label)}</Link>) : more.map((item) => <Link key={item.key} href={routeForView(item.key)} onClick={() => setSheet(null)}>{t(item.label)}</Link>)}</div></section></div>}
   </>;
 }

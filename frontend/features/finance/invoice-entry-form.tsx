@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import { useFinanceText } from "./finance-i18n";
 
 export type InvoiceEntry = {
   customerId: string;
@@ -28,17 +29,18 @@ export function InvoiceEntryForm({
   saving: boolean;
   onSave: () => void;
 }) {
+  const t = useFinanceText();
   return (
     <>
       <label>
-        <span>Customer</span>
+        <span>{t("Customer")}</span>
         <select
           value={value.customerId}
           onChange={(event) =>
             setValue({ ...value, customerId: event.target.value })
           }
         >
-          <option value="">Select customer</option>
+          <option value="">{t("Select customer")}</option>
           {customers.map((customer) => (
             <option key={customer.id} value={customer.id}>
               {customer.displayName}
@@ -48,27 +50,27 @@ export function InvoiceEntryForm({
       </label>
       <div className="agent-form-grid">
         <label>
-          <span>Invoice number</span>
+          <span>{t("Invoice number")}</span>
           <input value={value.invoiceNumber} onChange={(event) => setValue({ ...value, invoiceNumber: event.target.value })} />
         </label>
         <label>
-          <span>Issue date</span>
+          <span>{t("Issue date")}</span>
           <input type="date" value={value.issueDate} onChange={(event) => setValue({ ...value, issueDate: event.target.value })} />
         </label>
         <label>
-          <span>Due date</span>
+          <span>{t("Due date")}</span>
           <input type="date" value={value.dueDate} onChange={(event) => setValue({ ...value, dueDate: event.target.value })} />
         </label>
         <label>
-          <span>Item</span>
+          <span>{t("Item")}</span>
           <input value={value.description} onChange={(event) => setValue({ ...value, description: event.target.value })} />
         </label>
         <label>
-          <span>Quantity</span>
+          <span>{t("Quantity")}</span>
           <input type="number" min="0.001" step="0.001" value={value.quantity} onChange={(event) => setValue({ ...value, quantity: Number(event.target.value) })} />
         </label>
         <label>
-          <span>Unit price</span>
+          <span>{t("Unit price")}</span>
           <input type="number" min="0" step="0.01" value={value.unitPrice} onChange={(event) => setValue({ ...value, unitPrice: Number(event.target.value) })} />
         </label>
       </div>
@@ -84,7 +86,7 @@ export function InvoiceEntryForm({
           }
           onClick={onSave}
         >
-          {saving ? "Saving..." : "Create invoice"}
+          {t(saving ? "Saving..." : "Create invoice")}
         </button>
       </footer>
     </>

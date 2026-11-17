@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { ApiError } from "@/services/api-client";
+import { useFinanceText } from "./finance-i18n";
 import {
   PaymentCollectionRecords,
   type CollectionInvoice,
@@ -56,6 +57,7 @@ export function PaymentCollectionManager({
   invoices: CollectionInvoice[];
   onFinanceChanged: () => Promise<void>;
 }) {
+  const t = useFinanceText();
   const { session, authorizedRequest } = useAuth(),
     [data, setData] = useState<P["data"]>({
       accounts: [],
@@ -127,7 +129,7 @@ export function PaymentCollectionManager({
         (i) => i.outstanding > 0 && !["DRAFT", "CANCELED"].includes(i.status),
       ),
       choice = prompt(
-        `Choose invoice:\n${list.map((i, n) => `${n + 1}. ${i.invoiceNumber} · ${i.customer.displayName} · ${money(i.outstanding, i.currency)}`).join("\n")}`,
+        `${t("Choose invoice:")}\n${list.map((i, n) => `${n + 1}. ${i.invoiceNumber} · ${i.customer.displayName} · ${money(i.outstanding, i.currency)}`).join("\n")}`,
       ),
       invoice =
         list[Number(choice) - 1] ??
@@ -141,11 +143,11 @@ export function PaymentCollectionManager({
             method: "POST",
             body: JSON.stringify({ invoiceId: invoice.id }),
           }),
-        `Matched to ${invoice.invoiceNumber}; receipt created.`,
+        `${t("Matched to")} ${invoice.invoiceNumber}; ${t("receipt created.")}`,
       );
   }
   async function ignoreIncoming(tx: Tx) {
-    const reason = prompt("Why should this transaction be ignored?", "Duplicate of a payment already recorded manually");
+    const reason = prompt(t("Why should this transaction be ignored?"), t("Duplicate of a payment already recorded manually"));
     if (reason) await run(() => authorizedRequest(`/payment-collection/incoming/${tx.id}/ignore`, { method: "POST", body: JSON.stringify({ reason }) }), "Incoming transaction marked as ignored; no invoice balance changed.");
   }
   async function captureIncoming() {
@@ -173,9 +175,9 @@ export function PaymentCollectionManager({
   ) {
     const available = Number(p.amount) - Number(p.refundedAmount),
       amount = Number(
-        prompt(`Refund amount (max ${available})`, String(available)),
+        prompt(`${t("Refund amount (max")} ${available})`, String(available)),
       ),
-      reason = amount ? prompt("Refund reason") : null;
+      reason = amount ? prompt(t("Refund reason")) : null;
     if (amount && reason)
       await run(
         () =>
@@ -187,7 +189,7 @@ export function PaymentCollectionManager({
       );
   }
   async function complete(r: Refund) {
-    const reference = prompt("Refund transaction reference");
+    const reference = prompt(t("Refund transaction reference"));
     if (reference)
       await run(
         () =>
@@ -202,11 +204,9 @@ export function PaymentCollectionManager({
     <section className="payment-collection">
       <header>
         <div>
-          <p>Cash collection control</p>
-          <h2>Payment collection & reconciliation</h2>
-          <span>
-            Capture money, match invoices, issue receipts, and control refunds.
-          </span>
+          <p>{t("Cash collection control")}</p>
+          <h2>{t("Payment collection & reconciliation")}</h2>
+          <span>{t("Capture money, match invoices, issue receipts, and control refunds.")}</span>
         </div>
         {canManage && (
           <div>
@@ -216,7 +216,7 @@ export function PaymentCollectionManager({
                 setMode("account");
               }}
             >
-              + Account
+              + {t("Account")}
             </button>
             <button
               onClick={() => {
@@ -228,13 +228,13 @@ export function PaymentCollectionManager({
                 setMode("incoming");
               }}
             >
-              + Incoming payment
+              + {t("Incoming payment")}
             </button>
           </div>
         )}
       </header>
-      {notice && <div className="dashboard-notice success">{notice}</div>}
-      {error && <div className="dashboard-notice error">{error}</div>}
+      {notice && <div className="dashboard-notice success">{t(notice)}</div>}
+      {error && <div className="dashboard-notice error">{t(error)}</div>}
       <PaymentCollectionRecords
         metrics={data.metrics}
         transactions={data.transactions}

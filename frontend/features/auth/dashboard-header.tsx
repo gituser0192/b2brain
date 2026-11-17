@@ -7,6 +7,7 @@ import { NotificationCenter } from "@/features/notifications/notification-center
 import type { AuthSession } from "./auth.types";
 import type { ActiveView } from "./dashboard-workspaces";
 import { routeForView } from "./workspace-routes";
+import { translate, useLanguage } from "@/features/language/language";
 
 interface DashboardHeaderProps {
   activeView: ActiveView;
@@ -40,6 +41,8 @@ function quickActions(enabled: string[], permissions: string[]) {
 }
 
 export function DashboardHeader({ activeView, enabledServices, isMobileNavigationOpen, session, onOpenMobileNavigation, onOpenOperations, onOpenSuperAdmin }: DashboardHeaderProps) {
+  const language = useLanguage();
+  const t = (copy: string) => translate(language, copy);
   const pathname = usePathname();
   const [quickOpen, setQuickOpen] = useState(false);
   const quickArea = useRef<HTMLDivElement>(null);
@@ -60,21 +63,21 @@ export function DashboardHeader({ activeView, enabledServices, isMobileNavigatio
 
   return <header className="dashboard-header">
     <div className="dashboard-heading">
-      <button type="button" className="mobile-menu-button" onClick={onOpenMobileNavigation} aria-label="Open service menu" aria-expanded={isMobileNavigationOpen} aria-controls="dashboard-navigation"><span /><span /><span /></button>
+      <button type="button" className="mobile-menu-button" onClick={onOpenMobileNavigation} aria-label={t("Open service menu")} aria-expanded={isMobileNavigationOpen} aria-controls="dashboard-navigation"><span /><span /><span /></button>
       <div className="workspace-page-heading">
-        {detail && <nav aria-label="Breadcrumb"><Link href={detail.href}>{detail.parent}</Link><span aria-hidden="true">/</span><span>Details</span></nav>}
-        <h1>{title}</h1>
+        {detail && <nav aria-label="Breadcrumb"><Link href={detail.href}>{t(detail.parent)}</Link><span aria-hidden="true">/</span><span>{t("Details")}</span></nav>}
+        <h1>{t(title)}</h1>
       </div>
     </div>
     <div className="header-actions">
-      {canOpenOperations && <button className="desktop-header-action" onClick={onOpenOperations}>Operations</button>}
-      {session.user.isPlatformAdmin && <button className="desktop-header-action" onClick={onOpenSuperAdmin}>Super Admin</button>}
+      {canOpenOperations && <button className="desktop-header-action" onClick={onOpenOperations}>{t("Operations")}</button>}
+      {session.user.isPlatformAdmin && <button className="desktop-header-action" onClick={onOpenSuperAdmin}>{t("Super Admin")}</button>}
       <div className="workspace-quick-add" ref={quickArea}>
-        <button ref={quickTrigger} type="button" className="workspace-quick-add-trigger" aria-haspopup="menu" aria-expanded={quickOpen} onClick={() => setQuickOpen((value) => !value)}>＋ Quick Add</button>
-        {quickOpen && <div className="workspace-quick-add-menu" role="menu" aria-label="Quick Add actions">{actions.length ? actions.map((action) => <Link key={action.label} href={action.href} role="menuitem" onClick={() => setQuickOpen(false)}>{action.label}</Link>) : <p>No actions available</p>}</div>}
+        <button ref={quickTrigger} type="button" className="workspace-quick-add-trigger" aria-haspopup="menu" aria-expanded={quickOpen} onClick={() => setQuickOpen((value) => !value)}>＋ {t("Quick Add")}</button>
+        {quickOpen && <div className="workspace-quick-add-menu" role="menu" aria-label="Quick Add actions">{actions.length ? actions.map((action) => <Link key={action.label} href={action.href} role="menuitem" onClick={() => setQuickOpen(false)}>{t(action.label)}</Link>) : <p>{t("No actions available")}</p>}</div>}
       </div>
       <NotificationCenter />
-      <span className="status-pill" title={`${session.organization.name} — active workspace`}><i /> Active</span>
+      <span className="status-pill" title={`${session.organization.name} — active workspace`}><i /> {t("Active")}</span>
     </div>
   </header>;
 }
