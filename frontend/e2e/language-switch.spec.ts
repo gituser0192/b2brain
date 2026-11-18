@@ -5,6 +5,8 @@ test("English–Hindi choice persists across public pages while legal copy stays
   await expect(page.getByRole("heading", { name: "Run your business from one connected operating system." })).toBeVisible();
   await page.getByRole("combobox", { name: "Language" }).selectOption("hi");
   await expect(page.getByRole("heading", { name: "अपने व्यवसाय को एक जुड़े हुए कार्यस्थल से चलाएँ।" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "कस्टमर", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "फाइनेंस", exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "hi");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.goto("/privacy");
