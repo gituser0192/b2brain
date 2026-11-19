@@ -51,14 +51,15 @@ export class InvoiceAutomationService {
     const context = approval?.context as { invoiceId?: string; customerId?: string } | null;
     if (!approval || !context?.invoiceId || !context.customerId) throw new AppError(404, "Approved invoice delivery was not found.", "INVOICE_APPROVAL_NOT_FOUND");
     const invoice = await prisma.invoice.findFirst({ where: { id: context.invoiceId, organizationId, customerId: context.customerId, deletedAt: null, status: "ISSUED" }, include: { customer: { select: { displayName: true, email: true } } } });
-    if (!invoice?.customer.email) throw new AppError(409, "Customer email is required for invoice delivery.", "CUSTOMER_EMAIL_REQUIRED");
-    const body = `Hello ${invoice.customer.displayName},\n\nInvoice ${invoice.invoiceNumber} for ${invoice.currency} ${Number(invoice.total).toFixed(2)} is due on ${invoice.dueDate.toISOString().slice(0, 10)}.\n\n${invoice.notes ?? "Please include the invoice number with your payment."}`;
-    const result = await this.email.send({ to: invoice.customer.email, subject: `Invoice ${invoice.invoiceNumber}`, text: body, html: `<p>${body.replaceAll("\n", "<br>")}</p>` });
+    const invoiceCustomer = invoice?.customer, invoiceCustomerId = invoice?.customerId;
+    if (!invoice || !invoiceCustomerId || !invoiceCustomer?.email) throw new AppError(409, "Customer email is required for invoice delivery.", "CUSTOMER_EMAIL_REQUIRED");
+    const body = `Hello ${invoiceCustomer.displayName},\n\nInvoice ${invoice.invoiceNumber} for ${invoice.currency} ${Number(invoice.total).toFixed(2)} is due on ${invoice.dueDate.toISOString().slice(0, 10)}.\n\n${invoice.notes ?? "Please include the invoice number with your payment."}`;
+    const result = await this.email.send({ to: invoiceCustomer.email, subject: `Invoice ${invoice.invoiceNumber}`, text: body, html: `<p>${body.replaceAll("\n", "<br>")}</p>` });
     await prisma.$transaction(async tx => {
-      await tx.customerActivity.create({ data: { organizationId, customerId: invoice.customerId, type: "NOTE", summary: result.delivered ? `Invoice ${invoice.invoiceNumber} emailed.` : `Invoice ${invoice.invoiceNumber} email delivery failed.`, details: result.delivered ? `Delivered to ${invoice.customer.email}.` : result.error, createdById: actorUserId, updatedById: actorUserId } });
-      await tx.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "FINANCE", actionCode: result.delivered ? "INVOICE_EMAIL_SENT" : "INVOICE_EMAIL_FAILED", sourceType: "INVOICE", sourceId: invoice.id, summary: result.delivered ? `Approved invoice ${invoice.invoiceNumber} emailed.` : `Email delivery failed for invoice ${invoice.invoiceNumber}.`, metadata: { approvalId, recipient: invoice.customer.email, providerMessageId: result.messageId, externalDeliveryPerformed: result.delivered } } });
+      await tx.customerActivity.create({ data: { organizationId, customerId: invoiceCustomerId, type: "NOTE", summary: result.delivered ? `Invoice ${invoice.invoiceNumber} emailed.` : `Invoice ${invoice.invoiceNumber} email delivery failed.`, details: result.delivered ? `Delivered to ${invoiceCustomer.email}.` : result.error, createdById: actorUserId, updatedById: actorUserId } });
+      await tx.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "FINANCE", actionCode: result.delivered ? "INVOICE_EMAIL_SENT" : "INVOICE_EMAIL_FAILED", sourceType: "INVOICE", sourceId: invoice.id, summary: result.delivered ? `Approved invoice ${invoice.invoiceNumber} emailed.` : `Email delivery failed for invoice ${invoice.invoiceNumber}.`, metadata: { approvalId, recipient: invoiceCustomer.email, providerMessageId: result.messageId, externalDeliveryPerformed: result.delivered } } });
     });
     const followUp = await this.finance.createCollectionFollowUp(organizationId, actorUserId, invoice.id);
-    return { status: result.delivered ? "SENT" : "FAILED", recipient: invoice.customer.email, messageId: result.messageId, followUpId: followUp.id, error: result.error };
+    return { status: result.delivered ? "SENT" : "FAILED", recipient: invoiceCustomer.email, messageId: result.messageId, followUpId: followUp.id, error: result.error };
   }
 }

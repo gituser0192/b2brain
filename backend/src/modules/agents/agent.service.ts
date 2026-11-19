@@ -71,6 +71,7 @@ export class AgentService {
     if (agent.dailyRunLimit > 0 && await prisma.agentRun.count({ where: { organizationId, agentId: id, createdAt: { gte: start } } }) >= agent.dailyRunLimit) throw new AppError(429, "The agent daily run limit has been reached.", "AGENT_DAILY_LIMIT_REACHED");
     const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, organizationId, deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } }, include: { customer: { select: { displayName: true } }, payments: { where: { deletedAt: null }, select: { amount: true, refundedAmount: true } } } });
     if (!invoice) throw new AppError(404, "Collectible invoice was not found.", "INVOICE_NOT_FOUND");
+    if (!invoice.customerId || !invoice.customer) throw new AppError(409, "Collection reminders require an invoice linked to a CRM customer.", "INVOICE_CUSTOMER_REQUIRED");
     const paid = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0), refunded = invoice.payments.reduce((sum, payment) => sum + Number(payment.refundedAmount), 0);
     const analysis = evaluateCollection({ total: Number(invoice.total), paid, refunded, dueDate: invoice.dueDate, customerName: invoice.customer.displayName, invoiceNumber: invoice.invoiceNumber, currency: invoice.currency });
     const canDraft = actions.includes("COLLECTION_DRAFT") || actions.includes("MESSAGE_DRAFT");
@@ -90,11 +91,12 @@ export class AgentService {
 
     const now = new Date();
     const invoices = await prisma.invoice.findMany({
-      where: { organizationId, deletedAt: null, ...(invoiceId ? { id: invoiceId } : {}), status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] }, dueDate: { lt: now } },
+      where: { organizationId, customerId: { not: null }, deletedAt: null, ...(invoiceId ? { id: invoiceId } : {}), status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] }, dueDate: { lt: now } },
       include: { customer: { select: { id: true, displayName: true } }, payments: { where: { deletedAt: null }, select: { amount: true, refundedAmount: true } } },
       take: invoiceId ? 1 : 250,
     });
-    const ranked = invoices.map((invoice) => {
+    const linkedInvoices = invoices.filter((invoice): invoice is typeof invoice & { customerId: string; customer: NonNullable<typeof invoice.customer> } => Boolean(invoice.customerId && invoice.customer));
+    const ranked = linkedInvoices.map((invoice) => {
       const paid = invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
       const refunded = invoice.payments.reduce((sum, payment) => sum + Number(payment.refundedAmount), 0);
       const analysis = evaluateCollection({ total: Number(invoice.total), paid, refunded, dueDate: invoice.dueDate, customerName: invoice.customer.displayName, invoiceNumber: invoice.invoiceNumber, currency: invoice.currency }, now);

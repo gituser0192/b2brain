@@ -13,7 +13,9 @@ export interface FinanceInvoice {
   paid: number;
   outstanding: number;
   daysOverdue: number;
-  customer: { id: string; displayName: string };
+  customerId: string | null;
+  customerName: string | null;
+  customer: { id: string; displayName: string } | null;
   payments: {
     id: string;
     receiptNumber: string;
@@ -103,7 +105,7 @@ export function FinanceRecords({
                 <div>
                   <strong>{invoice.invoiceNumber}</strong>
                   <small>
-                    {invoice.customer.displayName} · <span className="finance-status" data-status={invoice.status}>{statusLabel(invoice.status)}</span>
+                    {invoice.customer?.displayName ?? invoice.customerName ?? t("Unlinked counterparty")} · <span className="finance-status" data-status={invoice.status}>{statusLabel(invoice.status)}</span>
                     {invoice.daysOverdue
                       ? ` · ${invoice.daysOverdue} ${t("days overdue")}`
                       : ""}
@@ -123,7 +125,7 @@ export function FinanceRecords({
                 </div>
                 {canManage &&
                   invoice.outstanding > 0 &&
-                  !["DRAFT", "CANCELED"].includes(invoice.status) && (
+                  invoice.customerId && !["DRAFT", "CANCELED"].includes(invoice.status) && (
                     <div className="invoice-actions">
                       <button onClick={() => onRecordPayment(invoice)}>
                         {t("Record payment")}

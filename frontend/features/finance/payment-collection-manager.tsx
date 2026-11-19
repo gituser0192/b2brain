@@ -129,7 +129,7 @@ export function PaymentCollectionManager({
         (i) => i.outstanding > 0 && !["DRAFT", "CANCELED"].includes(i.status),
       ),
       choice = prompt(
-        `${t("Choose invoice:")}\n${list.map((i, n) => `${n + 1}. ${i.invoiceNumber} · ${i.customer.displayName} · ${money(i.outstanding, i.currency)}`).join("\n")}`,
+        `${t("Choose invoice:")}\n${list.map((i, n) => `${n + 1}. ${i.invoiceNumber} · ${i.customer?.displayName ?? i.customerName ?? t("Unlinked counterparty")} · ${money(i.outstanding, i.currency)}`).join("\n")}`,
       ),
       invoice =
         list[Number(choice) - 1] ??

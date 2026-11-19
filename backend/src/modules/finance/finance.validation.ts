@@ -6,11 +6,11 @@ const currency = z.string().trim().length(3).transform((value) => value.toUpperC
 const paymentMethod = z.enum(["CASH", "BANK_TRANSFER", "CARD", "UPI", "CHEQUE", "OTHER"]);
 
 export const invoiceSchema = z.object({
-  customerId: z.string().uuid(), projectId: z.string().uuid().nullable(), invoiceNumber: z.string().trim().min(1).max(40),
+  customerId: z.string().uuid().nullable().optional(), customerName: z.string().trim().min(2).max(160).optional(), projectId: z.string().uuid().nullable(), invoiceNumber: z.string().trim().min(1).max(40),
   status: z.enum(["DRAFT", "ISSUED", "CANCELED"]), issueDate: dateTime, dueDate: dateTime, currency,
   discount: z.number().min(0), tax: z.number().min(0), notes: optionalText(4_000),
   items: z.array(z.object({ description: z.string().trim().min(1).max(300), quantity: z.number().positive(), unitPrice: z.number().min(0) }).strict()).min(1).max(100),
-}).strict().refine((value) => value.dueDate >= value.issueDate, { path: ["dueDate"], message: "Due date must follow issue date." });
+}).strict().refine((value) => Boolean(value.customerId || value.customerName), { path: ["customerName"], message: "Choose a CRM customer or enter a customer name." }).refine((value) => !(value.customerId && value.customerName), { path: ["customerName"], message: "Use either a CRM customer or a Finance-only name, not both." }).refine((value) => Boolean(value.customerId) || value.status === "DRAFT", { path: ["status"], message: "An invoice without a CRM customer must remain a draft." }).refine((value) => value.dueDate >= value.issueDate, { path: ["dueDate"], message: "Due date must follow issue date." });
 
 export const paymentSchema = z.object({ amount: z.number().positive(), method: paymentMethod, reference: optionalText(120), paidAt: dateTime }).strict();
 export const expenseSchema = z.object({

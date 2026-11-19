@@ -37,6 +37,7 @@ interface CustomerResponse {
 }
 const blankInvoice = {
   customerId: "",
+  customerName: "",
   invoiceNumber: "",
   issueDate: "",
   dueDate: "",
@@ -170,10 +171,11 @@ export function FinanceWorkspace() {
         authorizedRequest("/finance/invoices", {
           method: "POST",
           body: JSON.stringify({
-            customerId: invoice.customerId,
+            customerId: invoice.customerId || null,
+            ...(invoice.customerId ? {} : { customerName: invoice.customerName.trim() }),
             projectId: null,
             invoiceNumber: invoice.invoiceNumber,
-            status: "ISSUED",
+            status: invoice.customerId ? "ISSUED" : "DRAFT",
             issueDate: new Date(`${invoice.issueDate}T00:00:00`).toISOString(),
             dueDate: new Date(`${invoice.dueDate}T00:00:00`).toISOString(),
             currency,

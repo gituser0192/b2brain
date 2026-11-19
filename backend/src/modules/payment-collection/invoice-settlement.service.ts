@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-interface SettlementInput { organizationId: string; actorUserId: string; invoiceId: string; customerId: string; invoiceNumber: string; currency: string; remaining: number; paymentId: string; }
+interface SettlementInput { organizationId: string; actorUserId: string; invoiceId: string; customerId: string | null; invoiceNumber: string; currency: string; remaining: number; paymentId: string; }
 
 export async function synchronizeInvoiceSettlement(tx: Prisma.TransactionClient, input: SettlementInput) {
   const now = new Date(), fullyPaid = input.remaining <= 0.001;
@@ -17,7 +17,7 @@ export async function synchronizeInvoiceSettlement(tx: Prisma.TransactionClient,
       await tx.approvalRequest.update({ where: { id: approval.id }, data: { context: { ...context, collectionState: "SETTLED", paymentId: input.paymentId, paymentStatusChanged: true, settlementAt: now.toISOString() } } });
     }
   }
-  await tx.customerActivity.create({ data: { organizationId: input.organizationId, customerId: input.customerId, type: "NOTE", summary: fullyPaid ? `Invoice ${input.invoiceNumber} paid in full.` : `Partial payment recorded for ${input.invoiceNumber}.`, details: fullyPaid ? "Linked collection follow-ups and pending reminders were closed automatically." : `${input.currency} ${input.remaining.toFixed(2)} remains outstanding.`, createdById: input.actorUserId, updatedById: input.actorUserId } });
+  if (input.customerId) await tx.customerActivity.create({ data: { organizationId: input.organizationId, customerId: input.customerId, type: "NOTE", summary: fullyPaid ? `Invoice ${input.invoiceNumber} paid in full.` : `Partial payment recorded for ${input.invoiceNumber}.`, details: fullyPaid ? "Linked collection follow-ups and pending reminders were closed automatically." : `${input.currency} ${input.remaining.toFixed(2)} remains outstanding.`, createdById: input.actorUserId, updatedById: input.actorUserId } });
   const owner = await tx.organizationMembership.findFirst({ where: { organizationId: input.organizationId, status: "ACTIVE", role: { code: "ORGANIZATION_OWNER" } }, select: { userId: true } });
   if (owner) await tx.notification.create({ data: { organizationId: input.organizationId, recipientId: owner.userId, type: "SYSTEM", title: fullyPaid ? "Invoice paid" : "Partial payment received", message: fullyPaid ? `${input.invoiceNumber} is fully paid. Collection activity has been closed.` : `${input.invoiceNumber} now has ${input.currency} ${input.remaining.toFixed(2)} outstanding.`, sourceType: "INVOICE", sourceId: input.invoiceId, actionPath: "/dashboard?view=finance", createdById: input.actorUserId, updatedById: input.actorUserId } });
   await tx.auditEvent.create({ data: { organizationId: input.organizationId, actorType: "SYSTEM", actorUserId: input.actorUserId, serviceCode: "FINANCE", actionCode: fullyPaid ? "COLLECTION_CLOSED_AFTER_PAYMENT" : "COLLECTION_BALANCE_UPDATED", sourceType: "INVOICE", sourceId: input.invoiceId, summary: fullyPaid ? `Collection workflow closed automatically for paid invoice ${input.invoiceNumber}.` : `Collection balance updated after partial payment on ${input.invoiceNumber}.`, metadata: { paymentId: input.paymentId, remaining: input.remaining, followUpCount: followUps.length, pendingReminderCount: pending.length } } });

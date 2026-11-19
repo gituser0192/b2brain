@@ -10,7 +10,8 @@ async function start() {
   logger.info(safeDatabaseIdentity(), "Database target");
   await prisma.$connect();
   await prisma.$queryRaw`SELECT 1`;
-  const server = app.listen(env.PORT, () =>
+  const bindHost = env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+  const server = app.listen(env.PORT, bindHost, () =>
     logger.info({ port: env.PORT }, "Backend listening"),
   );
   const stopScheduler = startAgentScheduler();

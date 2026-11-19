@@ -10,7 +10,7 @@ const common = { version: z.literal(1), id: z.string().uuid(), organizationId: z
 const payloadSchema = z.discriminatedUnion("action", [
   z.object({ ...common, action: z.literal("CUSTOMER_CREATE"), arguments: customerArguments }).strict(),
   z.object({ ...common, action: z.literal("HUMAN_ESCALATION"), arguments: escalationArguments }).strict(),
-  z.object({ ...common, action: z.literal("TOOL_ACTION"), conversationId: z.string().uuid(), toolName: z.enum(["crm.customer_create", "crm.follow_up_create", "projects.task_create", "leads.assign"]), arguments: toolArguments }).strict(),
+  z.object({ ...common, action: z.literal("TOOL_ACTION"), conversationId: z.string().uuid(), toolName: z.enum(["crm.customer_create", "crm.follow_up_create", "projects.task_create", "leads.assign", "finance.invoice_create", "finance.expense_create"]), arguments: toolArguments }).strict(),
 ]);
 
 export type WorkspaceAgentConfirmation = z.infer<typeof payloadSchema>;

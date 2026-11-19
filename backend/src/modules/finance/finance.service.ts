@@ -12,14 +12,11 @@ import { synchronizeInvoiceSettlement } from "../payment-collection/invoice-sett
 export class FinanceService {
   private async context(
     organizationId: string,
-    customerId: string,
+    customerId: string | null,
     projectId: string | null,
   ) {
-    if (
-      !(await prisma.customer.findFirst({
-        where: { id: customerId, organizationId, deletedAt: null },
-      }))
-    )
+    const customer = customerId ? await prisma.customer.findFirst({ where: { id: customerId, organizationId, deletedAt: null }, select: { displayName: true } }) : null;
+    if (customerId && !customer)
       throw new AppError(404, "Customer not found.", "CUSTOMER_NOT_FOUND");
     if (
       projectId &&
@@ -28,6 +25,7 @@ export class FinanceService {
       }))
     )
       throw new AppError(404, "Project not found.", "PROJECT_NOT_FOUND");
+    return customer;
   }
 
   async list(organizationId: string) {
@@ -125,7 +123,7 @@ export class FinanceService {
     actorUserId: string,
     input: InvoiceInput,
   ) {
-    await this.context(organizationId, input.customerId, input.projectId);
+    const linkedCustomer = await this.context(organizationId, input.customerId ?? null, input.projectId);
     const subtotal = input.items.reduce(
       (sum, item) => sum + item.quantity * item.unitPrice,
       0,
@@ -135,7 +133,8 @@ export class FinanceService {
       return await prisma.invoice.create({
         data: {
           organizationId,
-          customerId: input.customerId,
+          customerId: input.customerId ?? null,
+          customerName: input.customerName?.trim() || linkedCustomer?.displayName || null,
           projectId: input.projectId,
           invoiceNumber: input.invoiceNumber.toUpperCase(),
           status: input.status,
@@ -293,6 +292,10 @@ export class FinanceService {
         "Collectible invoice not found.",
         "INVOICE_NOT_FOUND",
       );
+    if (!invoice.customerId || !invoice.customer)
+      throw new AppError(409, "Collection follow-ups require an invoice linked to a CRM customer.", "INVOICE_CUSTOMER_REQUIRED");
+    const customerId = invoice.customerId;
+    const customerName = invoice.customer.displayName;
     const outstanding = Math.max(
       0,
       Number(invoice.total) -
@@ -311,7 +314,7 @@ export class FinanceService {
     const existing = await prisma.customerFollowUp.findFirst({
         where: {
           organizationId,
-          customerId: invoice.customerId,
+          customerId,
           OR: [{ invoiceId: invoice.id }, { invoiceId: null, title: { in: [title, `Collect ${invoice.invoiceNumber}`] } }],
           status: "PENDING",
           deletedAt: null,
@@ -327,10 +330,10 @@ export class FinanceService {
       const followUp = await transaction.customerFollowUp.create({
         data: {
           organizationId,
-          customerId: invoice.customerId,
+          customerId,
           invoiceId: invoice.id,
           title,
-          description: `${invoice.customer.displayName} has ${invoice.currency} ${outstanding.toFixed(2)} outstanding. Invoice due date: ${invoice.dueDate.toISOString().slice(0, 10)}.`,
+          description: `${customerName} has ${invoice.currency} ${outstanding.toFixed(2)} outstanding. Invoice due date: ${invoice.dueDate.toISOString().slice(0, 10)}.`,
           dueAt,
           assignedToId: actorUserId,
           createdById: actorUserId,
@@ -343,7 +346,7 @@ export class FinanceService {
           recipientId: actorUserId,
           type: "FOLLOW_UP_DUE",
           title,
-          message: `Collection follow-up created for ${invoice.customer.displayName}.`,
+          message: `Collection follow-up created for ${customerName}.`,
           sourceType: "CUSTOMER_FOLLOW_UP",
           sourceId: followUp.id,
           actionPath: "/dashboard",
@@ -406,14 +409,14 @@ export class FinanceService {
     const [payments, expenses] = await Promise.all([
       query.type === "EXPENSE" || query.category ? [] : prisma.payment.findMany({
         where: { organizationId, deletedAt: null, ...(date ? { paidAt: date } : {}), ...(query.method ? { method: query.method } : {}) },
-        include: { invoice: { select: { invoiceNumber: true, customer: { select: { displayName: true } } } } }, orderBy: { paidAt: "desc" },
+        include: { invoice: { select: { invoiceNumber: true, customerName: true, customer: { select: { displayName: true } } } } }, orderBy: { paidAt: "desc" },
       }),
       query.type === "REVENUE" || query.method ? [] : prisma.expense.findMany({
         where: { organizationId, deletedAt: null, status: "RECORDED", ...(date ? { expenseDate: date } : {}), ...(query.category ? { category: { equals: query.category, mode: "insensitive" } } : {}) }, orderBy: { expenseDate: "desc" },
       }),
     ]);
     const records = [
-      ...payments.map((payment) => ({ id: payment.id, type: "REVENUE" as const, date: payment.paidAt, description: `${payment.invoice.invoiceNumber} · ${payment.invoice.customer.displayName}`, category: "Customer payment", method: payment.method, amount: Number(payment.amount) - Number(payment.refundedAmount), currency: payment.currency })),
+      ...payments.map((payment) => ({ id: payment.id, type: "REVENUE" as const, date: payment.paidAt, description: `${payment.invoice.invoiceNumber} · ${payment.invoice.customer?.displayName ?? payment.invoice.customerName ?? "Unlinked counterparty"}`, category: "Customer payment", method: payment.method, amount: Number(payment.amount) - Number(payment.refundedAmount), currency: payment.currency })),
       ...expenses.map((expense) => ({ id: expense.id, type: "EXPENSE" as const, date: expense.expenseDate, description: expense.title, category: expense.category, method: null, amount: Number(expense.amount), currency: expense.currency })),
     ].sort((left, right) => right.date.getTime() - left.date.getTime());
     const revenue = payments.reduce((sum, payment) => sum + Number(payment.amount) - Number(payment.refundedAmount), 0);

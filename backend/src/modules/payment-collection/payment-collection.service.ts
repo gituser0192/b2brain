@@ -150,8 +150,8 @@ export class PaymentCollectionService {
           updatedById: actorUserId,
         },
       });
-      const invoices = await prisma.invoice.findMany({ where: { organizationId, deletedAt: null, currency: input.currency, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } }, include: { customer: { select: { email: true } }, payments: { where: { deletedAt: null }, select: { amount: true, refundedAmount: true } } }, take: 250 });
-      const match = findExactPaymentMatch({ externalReference: input.externalReference, payerContact: input.payerContact, amount: input.amount }, invoices.map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoiceNumber, total: Number(invoice.total), customerEmail: invoice.customer.email, payments: invoice.payments.map((payment) => ({ amount: Number(payment.amount), refundedAmount: Number(payment.refundedAmount) })) })));
+      const invoices = await prisma.invoice.findMany({ where: { organizationId, customerId: { not: null }, deletedAt: null, currency: input.currency, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } }, include: { customer: { select: { email: true } }, payments: { where: { deletedAt: null }, select: { amount: true, refundedAmount: true } } }, take: 250 });
+      const match = findExactPaymentMatch({ externalReference: input.externalReference, payerContact: input.payerContact, amount: input.amount }, invoices.map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoiceNumber, total: Number(invoice.total), customerEmail: invoice.customer?.email ?? null, payments: invoice.payments.map((payment) => ({ amount: Number(payment.amount), refundedAmount: Number(payment.refundedAmount) })) })));
       if (match.matched) {
         const payment = await this.reconcile(organizationId, actorUserId, transaction.id, { invoiceId: match.invoiceId });
         return { transaction: { ...transaction, status: "MATCHED" as const }, autoMatched: true, invoiceId: match.invoiceId, payment };

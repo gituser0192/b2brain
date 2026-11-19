@@ -1,15 +1,43 @@
+import { randomBytes } from "node:crypto";
 import { normalizeWorkspaceRequest, resolveRelativeDate } from "./workspace-agent.language.js";
 
 export type WorkspaceAgentIntent = "PUBLIC_INFORMATION" | "BUSINESS_READ" | "DAILY_BRIEF" | "GOAL_CREATE" | "GOAL_LIST" | "NEW_CUSTOMERS" | "OVERDUE_WORK" | "CUSTOMER_CREATE" | "CUSTOMER_COUNT" | "BUSINESS_HEALTH" | "FINANCE_SUMMARY" | "FORECAST" | "AI_ANALYSIS" | "PRODUCT_HELP" | "SETUP_GUIDANCE" | "HUMAN_ESCALATION" | "CONVERSATIONAL_FALLBACK";
 export type ProcessingPath = "DETERMINISTIC_TOOL" | "PRODUCT_HELP" | "WRITE_ACTION" | "HUMAN_ESCALATION" | "DETERMINISTIC_FALLBACK" | "AI_ANALYSIS";
 export type RouteConfidence = "HIGH" | "MEDIUM" | "LOW";
-export type WorkspaceRoute = { intent: WorkspaceAgentIntent; path: ProcessingPath; aiRequired: boolean; confidence: RouteConfidence; normalizedRequest: string; ambiguity: "NONE" | "CLARIFICATION_REQUIRED"; candidateCapability?: string; missingRequiredFields?: string[]; parsedArguments?: Record<string, string>; clarification?: { question: string; choices: { label: string; request: string }[] }; resolvedDate?: { expression: string; date: string }; provenance: "ORGANIZATION_DATA" | "CALCULATION" | "GENERAL_KNOWLEDGE" | "INFERENCE"; publicToolName?: "public.calculate" | "public.weather" | "public.reference_search" | "public.currency_convert" | "public.web_search"; toolName?: string; toolInput?: { query?: string; limit?: number; id?: string; period?: "THIS_MONTH" }; toolNames?: string[]; writeToolName?: "crm.follow_up_create" | "projects.task_create" | "leads.assign"; writeInput?: Record<string, string | number> };
+export type WorkspaceRoute = { intent: WorkspaceAgentIntent; path: ProcessingPath; aiRequired: boolean; confidence: RouteConfidence; normalizedRequest: string; ambiguity: "NONE" | "CLARIFICATION_REQUIRED"; candidateCapability?: string; missingRequiredFields?: string[]; parsedArguments?: Record<string, string>; clarification?: { question: string; choices: { label: string; request: string }[] }; resolvedDate?: { expression: string; date: string }; provenance: "ORGANIZATION_DATA" | "CALCULATION" | "GENERAL_KNOWLEDGE" | "INFERENCE"; publicToolName?: "public.calculate" | "public.weather" | "public.reference_search" | "public.currency_convert" | "public.web_search"; toolName?: string; toolInput?: { query?: string; limit?: number; id?: string; period?: "THIS_MONTH" }; toolNames?: string[]; writeToolName?: "crm.follow_up_create" | "projects.task_create" | "leads.assign" | "finance.invoice_create" | "finance.expense_create"; writeInput?: Record<string, string | number | null> };
 
 const result = (normalizedRequest: string, intent: WorkspaceAgentIntent, path: ProcessingPath, extra: Partial<WorkspaceRoute> = {}): WorkspaceRoute => ({ intent, path, aiRequired: intent === "AI_ANALYSIS", confidence: "HIGH", ambiguity: "NONE", normalizedRequest, provenance: path === "PRODUCT_HELP" ? "GENERAL_KNOWLEDGE" : "ORGANIZATION_DATA", ...extra });
+const parseDateOnly = (value: string | undefined) => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? date : null;
+};
 
 export function routeWorkspaceRequest(message: string): WorkspaceRoute {
   const normalized = normalizeWorkspaceRequest(message), value = normalized.normalized, date = resolveRelativeDate(normalized.normalized);
   if (!normalized.safe) return result(value, "CONVERSATIONAL_FALLBACK", "DETERMINISTIC_FALLBACK", { confidence: "LOW", provenance: "GENERAL_KNOWLEDGE" });
+  const hindi = /[\u0900-\u097f]/u.test(message) || /\b(?:banao|jodo|kharch|vyay|grahak)\b/i.test(message);
+  const labeled = Object.fromEntries(message.split("|").slice(1).map((part) => { const split = part.split(":"); return [split.shift()?.trim().toLowerCase() ?? "", split.join(":").trim()]; }));
+  const pick = (...keys: string[]) => keys.map((key) => labeled[key]).find((item) => item);
+  const isInvoiceRequest = /(?:create|add|make)\s+(?:an?\s+)?invoice|invoice\s+(?:banao|banaye|बनाओ|बनाएँ)|इनवॉइस\s*(?:बनाओ|बनाएँ)/i.test(message);
+  const isExpenseRequest = /(?:add|record|create)\s+(?:an?\s+)?expense|expense\s+(?:banao|jodo)|kharch\s+(?:jodo|banao)|खर्च\s*(?:जोड़ो|दर्ज|बनाओ)/i.test(message);
+  if (isInvoiceRequest) {
+    const customerName = pick("customer", "name", "ग्राहक", "नाम");
+    const description = pick("item", "description", "वस्तु", "आइटम");
+    const quantity = Number(pick("qty", "quantity", "मात्रा") ?? 1), unitPrice = Number(pick("price", "unit price", "कीमत", "दर"));
+    const dueDate = pick("due", "due date", "देय", "देय तिथि"), due = parseDateOnly(dueDate);
+    if (!customerName || customerName.length > 160 || !description || description.length > 300 || !Number.isFinite(unitPrice) || !due || due.getTime() <= Date.now() || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000 || unitPrice < 0 || unitPrice > 1_000_000_000) return result(value, "CONVERSATIONAL_FALLBACK", "DETERMINISTIC_FALLBACK", { confidence: "MEDIUM", ambiguity: "CLARIFICATION_REQUIRED", clarification: { question: hindi ? "इनवॉइस का सुरक्षित ड्राफ़्ट बनाने के लिए यह प्रारूप भेजें: इनवॉइस बनाओ | ग्राहक: नाम | वस्तु: विवरण | मात्रा: 1 | कीमत: 1000 | देय: YYYY-MM-DD | मुद्रा: INR" : "To prepare a draft invoice, use: create invoice | customer: name | item: description | qty: 1 | price: 1000 | due: YYYY-MM-DD | currency: INR", choices: [] } });
+    const issueDate = new Date();
+    return result(value, "BUSINESS_READ", "WRITE_ACTION", { writeToolName: "finance.invoice_create", writeInput: { customerName, description, quantity, unitPrice, dueDate: due.toISOString(), issueDate: issueDate.toISOString(), invoiceNumber: `INV-${issueDate.toISOString().slice(0, 10).replaceAll("-", "")}-${randomBytes(3).toString("hex").toUpperCase()}`, currency: pick("currency", "मुद्रा") ?? "INR", replyLanguage: hindi ? "hi" : "en" } });
+  }
+  if (isExpenseRequest) {
+    const title = pick("title", "expense", "शीर्षक", "खर्च");
+    const category = pick("category", "श्रेणी"), amount = Number(pick("amount", "राशि", "कीमत")), expenseDate = pick("date", "तारीख", "दिनांक");
+    const vendor = pick("vendor", "व्यापारी", "दुकानदार");
+    const date = parseDateOnly(expenseDate);
+    if (!title || title.length > 180 || !category || category.length > 100 || (vendor && vendor.length > 160) || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000 || !date) return result(value, "CONVERSATIONAL_FALLBACK", "DETERMINISTIC_FALLBACK", { confidence: "MEDIUM", ambiguity: "CLARIFICATION_REQUIRED", clarification: { question: hindi ? "खर्च दर्ज करने के लिए यह प्रारूप भेजें: खर्च जोड़ो | शीर्षक: विवरण | श्रेणी: कार्यालय | राशि: 500 | तारीख: YYYY-MM-DD | विक्रेता: नाम (वैकल्पिक) | मुद्रा: INR" : "To prepare an expense, use: add expense | title: description | category: office | amount: 500 | date: YYYY-MM-DD | vendor: name (optional) | currency: INR", choices: [] } });
+    return result(value, "BUSINESS_READ", "WRITE_ACTION", { writeToolName: "finance.expense_create", writeInput: { title, category, amount, expenseDate: date.toISOString(), ...(vendor ? { vendor } : {}), currency: pick("currency", "मुद्रा") ?? "INR", replyLanguage: hindi ? "hi" : "en" } });
+  }
   if (/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(value)) return result(value, "CONVERSATIONAL_FALLBACK", "DETERMINISTIC_FALLBACK", { confidence: "MEDIUM", ambiguity: "CLARIFICATION_REQUIRED", clarification: { question: "Which date did you mean? Please use a month name, for example 5 September 2026.", choices: [] } });
   if (/(weather|temperature|barish|mausam|मौसम|बारिश)/i.test(value)) return result(value, "PUBLIC_INFORMATION", "DETERMINISTIC_TOOL", { publicToolName: "public.weather", provenance: "GENERAL_KNOWLEDGE" });
   if (/\b\d+(?:\.\d+)?\s*(?:usd|dollar|eur|gbp)\b.*\b(?:inr|rupees?|eur|usd|gbp)\b|convert\s+\d/i.test(value)) return result(value, "PUBLIC_INFORMATION", "DETERMINISTIC_TOOL", { publicToolName: "public.currency_convert", provenance: "GENERAL_KNOWLEDGE" });

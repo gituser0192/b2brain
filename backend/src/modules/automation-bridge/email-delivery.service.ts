@@ -92,7 +92,8 @@ export class EmailDeliveryService {
     const agentRunId = context.agentRunId;
     const invoice = await prisma.invoice.findFirst({ where: { id: context.invoiceId, organizationId, customerId: context.customerId, deletedAt: null }, include: { customer: { select: { displayName: true, email: true } } } });
     if (!invoice) throw new AppError(404, "The organization invoice was not found.", "INVOICE_NOT_FOUND");
-    if (!invoice.customer.email) throw new AppError(409, "Add an email address to this CRM customer before delivery.", "CUSTOMER_EMAIL_REQUIRED");
+    const invoiceCustomer = invoice.customer, invoiceCustomerId = invoice.customerId;
+    if (!invoiceCustomerId || !invoiceCustomer?.email) throw new AppError(409, "Email delivery requires an invoice linked to a CRM customer.", "CUSTOMER_EMAIL_REQUIRED");
     const existing = await prisma.automationMessageDraft.findFirst({ where: { organizationId, sourceType: "COLLECTION_APPROVAL", sourceId: approval.id } });
     if (existing?.status === "SENT") throw new AppError(409, "This approved reminder has already been sent.", "DELIVERY_ALREADY_SENT");
     if (existing?.status === "SENDING") throw new AppError(409, "This reminder is already being delivered.", "DELIVERY_IN_PROGRESS");
@@ -102,24 +103,24 @@ export class EmailDeliveryService {
     if (!body) throw new AppError(409, "The approved reminder has no message body.", "DELIVERY_BODY_MISSING");
     let draft;
     try {
-      draft = existing ? await prisma.automationMessageDraft.update({ where: { id: existing.id }, data: { connectorId: connector.id, recipient: invoice.customer.email, subject, body, status: "SENDING", failureMessage: null, nextRetryAt: null, attemptCount: { increment: 1 }, updatedById: actorUserId } }) : await prisma.automationMessageDraft.create({ data: { organizationId, connectorId: connector.id, recipient: invoice.customer.email, subject, body, sourceType: "COLLECTION_APPROVAL", sourceId: approval.id, status: "SENDING", attemptCount: 1, approvedById: approval.decidedById, approvedAt: approval.decidedAt, createdById: actorUserId, updatedById: actorUserId } });
+      draft = existing ? await prisma.automationMessageDraft.update({ where: { id: existing.id }, data: { connectorId: connector.id, recipient: invoiceCustomer.email, subject, body, status: "SENDING", failureMessage: null, nextRetryAt: null, attemptCount: { increment: 1 }, updatedById: actorUserId } }) : await prisma.automationMessageDraft.create({ data: { organizationId, connectorId: connector.id, recipient: invoiceCustomer.email, subject, body, sourceType: "COLLECTION_APPROVAL", sourceId: approval.id, status: "SENDING", attemptCount: 1, approvedById: approval.decidedById, approvedAt: approval.decidedAt, createdById: actorUserId, updatedById: actorUserId } });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new AppError(409, "This approved reminder already has a delivery attempt.", "DUPLICATE_DELIVERY");
       throw error;
     }
-    const result = await this.email.send({ to: invoice.customer.email, subject, text: body, html: `<p>${htmlEscape(body).replaceAll("\n", "<br>")}</p>` });
+    const result = await this.email.send({ to: invoiceCustomer.email, subject, text: body, html: `<p>${htmlEscape(body).replaceAll("\n", "<br>")}</p>` });
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.automationMessageDraft.update({ where: { id: draft.id }, data: { status: result.delivered ? "SENT" : "FAILED", providerStatus: result.delivered ? "ACCEPTED_PENDING_BOUNCE" : "FAILED", externalMessageId: result.messageId, failureMessage: result.error, nextRetryAt: result.delivered || draft.attemptCount >= policy.maxAttempts ? null : new Date(now.getTime() + Math.min(60, 5 * 2 ** (draft.attemptCount - 1)) * 60_000), sentAt: result.delivered ? now : null, updatedById: actorUserId } });
       await tx.integrationConnector.update({ where: { id: connector.id }, data: result.delivered ? { lastSuccessfulAt: now, lastErrorMessage: null, updatedById: actorUserId } : { lastErrorAt: now, lastErrorMessage: result.error, updatedById: actorUserId } });
       const updatedContext = { ...context, deliveryState: result.delivered ? "SENT" : "FAILED", externalDeliveryPerformed: result.delivered, deliveredAt: result.delivered ? now.toISOString() : null, deliveryId: draft.id, providerMessageId: result.messageId, paymentStatusChanged: false };
       await tx.approvalRequest.update({ where: { id: approval.id }, data: { context: updatedContext } });
-      await tx.agentRun.updateMany({ where: { id: agentRunId, organizationId }, data: { summary: result.delivered ? `${invoice.invoiceNumber}: approved collection reminder emailed to ${invoice.customer.displayName}. No payment record was changed.` : `${invoice.invoiceNumber}: email delivery failed. ${result.error ?? "Provider error."}` } });
-      await tx.customerActivity.create({ data: { organizationId, customerId: invoice.customerId, type: "NOTE", summary: result.delivered ? `Collection reminder emailed for ${invoice.invoiceNumber}.` : `Email delivery failed for ${invoice.invoiceNumber}.`, details: result.delivered ? `Delivered to ${invoice.customer.email}. Provider reference: ${result.messageId ?? "not supplied"}.` : result.error, createdById: actorUserId, updatedById: actorUserId } });
-      await tx.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "AUTOMATION", actionCode: result.delivered ? "COLLECTION_EMAIL_SENT" : "COLLECTION_EMAIL_FAILED", sourceType: "INVOICE", sourceId: invoice.id, summary: result.delivered ? `Approved collection reminder sent for ${invoice.invoiceNumber}.` : `Collection email delivery failed for ${invoice.invoiceNumber}.`, metadata: { approvalId: approval.id, connectorId: connector.id, deliveryId: draft.id, recipient: invoice.customer.email, providerMessageId: result.messageId, externalDeliveryPerformed: result.delivered, paymentStatusChanged: false } } });
+      await tx.agentRun.updateMany({ where: { id: agentRunId, organizationId }, data: { summary: result.delivered ? `${invoice.invoiceNumber}: approved collection reminder emailed to ${invoiceCustomer.displayName}. No payment record was changed.` : `${invoice.invoiceNumber}: email delivery failed. ${result.error ?? "Provider error."}` } });
+      await tx.customerActivity.create({ data: { organizationId, customerId: invoiceCustomerId, type: "NOTE", summary: result.delivered ? `Collection reminder emailed for ${invoice.invoiceNumber}.` : `Email delivery failed for ${invoice.invoiceNumber}.`, details: result.delivered ? `Delivered to ${invoiceCustomer.email}. Provider reference: ${result.messageId ?? "not supplied"}.` : result.error, createdById: actorUserId, updatedById: actorUserId } });
+      await tx.auditEvent.create({ data: { organizationId, actorType: "USER", actorUserId, serviceCode: "AUTOMATION", actionCode: result.delivered ? "COLLECTION_EMAIL_SENT" : "COLLECTION_EMAIL_FAILED", sourceType: "INVOICE", sourceId: invoice.id, summary: result.delivered ? `Approved collection reminder sent for ${invoice.invoiceNumber}.` : `Collection email delivery failed for ${invoice.invoiceNumber}.`, metadata: { approvalId: approval.id, connectorId: connector.id, deliveryId: draft.id, recipient: invoiceCustomer.email, providerMessageId: result.messageId, externalDeliveryPerformed: result.delivered, paymentStatusChanged: false } } });
     });
     if (!result.delivered) throw new AppError(502, result.error ?? "Email provider rejected the message.", "EMAIL_DELIVERY_FAILED");
-    return { deliveryId: draft.id, status: "SENT", recipient: invoice.customer.email, messageId: result.messageId, externalDeliveryPerformed: true, paymentStatusChanged: false };
+    return { deliveryId: draft.id, status: "SENT", recipient: invoiceCustomer.email, messageId: result.messageId, externalDeliveryPerformed: true, paymentStatusChanged: false };
   }
 
   async dispatchAfterApproval(organizationId: string, actorUserId: string, approvalId: string) {

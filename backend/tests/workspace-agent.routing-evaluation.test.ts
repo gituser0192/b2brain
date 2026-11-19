@@ -175,4 +175,17 @@ describe("workspace agent routing evaluation", () => {
     }
     expect(correct / cases.length).toBe(1);
   });
+
+  it("routes complete labeled invoice and expense requests through explicit confirmation paths", () => {
+    const invoice = routeWorkspaceRequest("create invoice | customer: Walk-in customer | item: Repair | qty: 1 | price: 250 | due: 2026-12-18 | currency: INR");
+    expect(invoice).toMatchObject({ writeToolName: "finance.invoice_create", writeInput: { customerName: "Walk-in customer", description: "Repair", quantity: 1, unitPrice: 250, replyLanguage: "en" } });
+    expect(invoice.writeInput?.invoiceNumber).toMatch(/^INV-/);
+    const expense = routeWorkspaceRequest("add expense | title: Office supplies | category: Office | amount: 500 | date: 2026-11-18 | vendor: Local shop | currency: INR");
+    expect(expense).toMatchObject({ writeToolName: "finance.expense_create", writeInput: { title: "Office supplies", category: "Office", amount: 500, vendor: "Local shop", replyLanguage: "en" } });
+  });
+
+  it("asks in Hindi for missing finance details and supports Hindi-labeled requests", () => {
+    expect(routeWorkspaceRequest("इनवॉइस बनाओ").clarification?.question).toContain("इनवॉइस");
+    expect(routeWorkspaceRequest("इनवॉइस बनाओ | ग्राहक: रीना | वस्तु: मरम्मत | मात्रा: 1 | कीमत: 250 | देय: 2026-12-18 | मुद्रा: INR")).toMatchObject({ writeToolName: "finance.invoice_create", writeInput: { customerName: "रीना", replyLanguage: "hi" } });
+  });
 });

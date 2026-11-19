@@ -31,6 +31,7 @@ const hindi: Record<string, string> = {
   "UTR, receipt or transaction ID": "UTR, रसीद या ट्रांज़ैक्शन ID", "Paid date": "पेमेंट की तारीख",
   "Bank transfer": "बैंक ट्रांसफ़र", "Cash": "कैश", "Card": "कार्ड", "Cheque": "चेक", "Other": "अन्य",
   "Select customer": "कस्टमर चुनें", "Customer": "कस्टमर", "Invoice number": "इनवॉइस नंबर",
+  "Customer name (Finance only)": "कस्टमर का नाम (सिर्फ़ फाइनेंस)", "This name stays on the invoice and does not create a CRM customer.": "यह नाम सिर्फ़ इनवॉइस में रहेगा; इससे CRM कस्टमर नहीं बनेगा।", "Unlinked counterparty": "अलग से दर्ज नाम",
   "Issue date": "जारी करने की तारीख", "Due date": "देय तारीख", "Item": "आइटम", "Quantity": "मात्रा", "Unit price": "प्रति यूनिट कीमत",
   "Cash collection control": "कैश कलेक्शन नियंत्रण", "Payment collection & reconciliation": "पेमेंट कलेक्शन और मिलान",
   "Capture money, match invoices, issue receipts, and control refunds.": "पेमेंट दर्ज करें, इनवॉइस से मिलान करें, रसीद जारी करें और रिफंड नियंत्रित करें।",

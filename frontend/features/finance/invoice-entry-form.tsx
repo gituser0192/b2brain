@@ -5,6 +5,7 @@ import { useFinanceText } from "./finance-i18n";
 
 export type InvoiceEntry = {
   customerId: string;
+  customerName: string;
   invoiceNumber: string;
   issueDate: string;
   dueDate: string;
@@ -48,6 +49,11 @@ export function InvoiceEntryForm({
           ))}
         </select>
       </label>
+      {!value.customerId && <label>
+        <span>{t("Customer name (Finance only)")}</span>
+        <input maxLength={160} value={value.customerName} onChange={(event) => setValue({ ...value, customerName: event.target.value })} />
+        <small>{t("This name stays on the invoice and does not create a CRM customer.")}</small>
+      </label>}
       <div className="agent-form-grid">
         <label>
           <span>{t("Invoice number")}</span>
@@ -78,7 +84,7 @@ export function InvoiceEntryForm({
         <button
           disabled={
             saving ||
-            !value.customerId ||
+            (!value.customerId && value.customerName.trim().length < 2) ||
             !value.invoiceNumber ||
             !value.issueDate ||
             !value.dueDate ||

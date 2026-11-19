@@ -6,24 +6,29 @@ import { CustomerService } from "../customers/customer.service.js";
 import { EngagementService } from "../customer-engagement/engagement.service.js";
 import { LeadAssignmentService } from "../inquiries/lead-assignment.service.js";
 import { ProjectService } from "../projects/project.service.js";
+import { FinanceService } from "../finance/finance.service.js";
 import type { RegisteredServiceKey } from "../services/service-maturity.js";
 import type { WorkspaceAgentContext } from "./workspace-agent.capabilities.js";
 
-export type AgentWriteToolName = "crm.customer_create" | "crm.follow_up_create" | "projects.task_create" | "leads.assign";
+export type AgentWriteToolName = "crm.customer_create" | "crm.follow_up_create" | "projects.task_create" | "leads.assign" | "finance.invoice_create" | "finance.expense_create";
 export type AgentWritePreview = { toolName: AgentWriteToolName; service: RegisteredServiceKey; targetLabel: string; changes: Record<string, string>; consequence: string; externalEffect: false; href: string; targetVersion?: string };
 type Tool = { name: AgentWriteToolName; service: RegisteredServiceKey; permission: string; mode: "WRITE"; risk: "LOW" | "SENSITIVE"; confirmation: "REQUIRED"; externalEffect: false; inputSchema: ZodType };
-type WriteInput = { displayName?: string; phone?: string; customerId?: string; projectId?: string; inquiryId?: string; employeeId?: string; assignedMembershipId?: string; title?: string; description?: string; dueAt?: string; targetVersion?: string; priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT"; responseTimeMinutes?: number; reason?: string };
+type WriteInput = { displayName?: string; phone?: string; customerId?: string; customerName?: string; invoiceNumber?: string; issueDate?: string; dueDate?: string; currency?: string; quantity?: number; unitPrice?: number; projectId?: string | null; inquiryId?: string; employeeId?: string; assignedMembershipId?: string; title?: string; category?: string; vendor?: string; amount?: number; expenseDate?: string; description?: string; dueAt?: string; targetVersion?: string; priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT"; responseTimeMinutes?: number; reason?: string; replyLanguage?: "en" | "hi" };
 
 const customer = z.object({ displayName: z.string().trim().min(2).max(80), phone: z.string().regex(/^\d{7,17}$/) }).strict();
 const followUp = z.object({ customerId: z.string().uuid(), title: z.string().trim().min(1).max(200), description: z.string().trim().max(4000).optional(), dueAt: z.string().datetime(), targetVersion: z.string().datetime().optional() }).strict();
 const task = z.object({ projectId: z.string().uuid(), title: z.string().trim().min(2).max(200), description: z.string().trim().max(4000).optional(), priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"), dueAt: z.string().datetime().optional(), assignedMembershipId: z.string().uuid().optional(), targetVersion: z.string().datetime().optional() }).strict();
 const assignment = z.object({ inquiryId: z.string().uuid(), employeeId: z.string().uuid(), responseTimeMinutes: z.number().int().min(5).max(10080).default(1440), reason: z.string().trim().min(2).max(500), targetVersion: z.string().datetime().optional() }).strict();
+const invoice = z.object({ customerName: z.string().trim().min(2).max(160), invoiceNumber: z.string().trim().min(1).max(40), issueDate: z.string().datetime(), dueDate: z.string().datetime(), currency: z.string().length(3), description: z.string().trim().min(1).max(300), quantity: z.number().positive().max(1_000_000), unitPrice: z.number().min(0).max(1_000_000_000), replyLanguage: z.enum(["en", "hi"]).optional() }).strict();
+const expense = z.object({ title: z.string().trim().min(2).max(180), category: z.string().trim().min(2).max(100), vendor: z.string().trim().max(160).optional(), amount: z.number().positive().max(1_000_000_000), currency: z.string().length(3), expenseDate: z.string().datetime(), replyLanguage: z.enum(["en", "hi"]).optional() }).strict();
 const define = (name: AgentWriteToolName, service: RegisteredServiceKey, permission: string, inputSchema: ZodType, risk: Tool["risk"] = "LOW"): Tool => ({ name, service, permission, inputSchema, mode: "WRITE", risk, confirmation: "REQUIRED", externalEffect: false });
 export const workspaceAgentWriteTools = {
   "crm.customer_create": define("crm.customer_create", "CRM", "CRM_CREATE", customer),
   "crm.follow_up_create": define("crm.follow_up_create", "CRM", "CRM_FOLLOWUP_MANAGE", followUp),
   "projects.task_create": define("projects.task_create", "PROJECTS", "TASK_MANAGE", task),
   "leads.assign": define("leads.assign", "LEADS", "INQUIRY_MANAGE", assignment, "SENSITIVE"),
+  "finance.invoice_create": define("finance.invoice_create", "FINANCE", "FINANCE_MANAGE", invoice, "SENSITIVE"),
+  "finance.expense_create": define("finance.expense_create", "FINANCE", "FINANCE_MANAGE", expense, "SENSITIVE"),
 } satisfies Record<AgentWriteToolName, Tool>;
 
 const access = async (context: WorkspaceAgentContext, tool: Tool) => {
@@ -37,6 +42,13 @@ export async function previewWorkspaceAgentWriteTool(context: WorkspaceAgentCont
   const tool = workspaceAgentWriteTools[name]; await access(context, tool);
   const input = tool.inputSchema.parse(raw) as WriteInput;
   if (name === "crm.customer_create") return { arguments: input, preview: { toolName: name, service: tool.service, targetLabel: String(input.displayName), changes: { status: "Lead", phoneEnding: String(input.phone).slice(-4) }, consequence: "This will add one CRM customer. No message will be sent.", externalEffect: false, href: "/crm" } };
+  if (name === "finance.invoice_create") {
+    const subtotal = Number(input.quantity) * Number(input.unitPrice);
+    const hindi = input.replyLanguage === "hi";
+    const dueDate = new Date(String(input.dueDate)).toISOString().slice(0, 10), issueDate = new Date(String(input.issueDate)).toISOString().slice(0, 10);
+    return { arguments: input, preview: { toolName: name, service: tool.service, targetLabel: String(input.customerName), changes: hindi ? { "इनवॉइस नंबर": String(input.invoiceNumber), "स्थिति": "सिर्फ़ ड्राफ़्ट", "आइटम": `${String(input.description)} · ${input.quantity} × ${String(input.currency).toUpperCase()} ${Number(input.unitPrice).toFixed(2)}`, "कुल": `${String(input.currency).toUpperCase()} ${subtotal.toFixed(2)}`, "जारी तारीख": issueDate, "देय तारीख": dueDate } : { invoiceNumber: String(input.invoiceNumber), status: "Draft only", item: `${String(input.description)} · ${input.quantity} × ${String(input.currency).toUpperCase()} ${Number(input.unitPrice).toFixed(2)}`, total: `${String(input.currency).toUpperCase()} ${subtotal.toFixed(2)}`, issueDate, dueDate }, consequence: hindi ? "इससे सिर्फ़ एक ड्राफ़्ट इनवॉइस बनेगा। CRM कस्टमर नहीं बनेगा, इनवॉइस जारी या ईमेल नहीं होगा और पेमेंट नहीं लिया जाएगा।" : "This creates one draft invoice using a Finance-only counterparty name. It will not create a CRM customer, issue or email the invoice, or collect payment.", externalEffect: false, href: "/finance?tab=invoices" } };
+  }
+  if (name === "finance.expense_create") { const hindi = input.replyLanguage === "hi", date = new Date(String(input.expenseDate)).toISOString().slice(0, 10); return { arguments: input, preview: { toolName: name, service: tool.service, targetLabel: String(input.title), changes: hindi ? { "कैटेगरी": String(input.category), "रकम": `${String(input.currency).toUpperCase()} ${Number(input.amount).toFixed(2)}`, "विक्रेता": input.vendor ? String(input.vendor) : "नहीं दिया", "तारीख": date, "स्थिति": "दर्ज होगा" } : { category: String(input.category), amount: `${String(input.currency).toUpperCase()} ${Number(input.amount).toFixed(2)}`, vendor: input.vendor ? String(input.vendor) : "Not specified", date, status: "Recorded" }, consequence: hindi ? "यह एक आंतरिक खर्च दर्ज करेगा। कोई पेमेंट या बाहरी संदेश नहीं भेजा जाएगा और CRM कस्टमर नहीं बनेगा।" : "This records one internal expense with an optional free-text vendor. No payment will be made and no CRM customer will be created.", externalEffect: false, href: "/finance?tab=expenses" } }; }
   if ("dueAt" in input && input.dueAt && new Date(String(input.dueAt)) <= new Date()) throw new AppError(400, "Choose a future date and time.", "AGENT_ACTION_DATE_PAST");
   if (name === "crm.follow_up_create") {
     if (new Date(String(input.dueAt)) <= new Date()) throw new AppError(409, "The follow-up time is no longer in the future. Review the action again.", "AGENT_ACTION_STALE");
@@ -70,6 +82,14 @@ export async function executeWorkspaceAgentWriteTool(context: WorkspaceAgentCont
     if (existing) return { alreadyCompleted: true, id: existing.id, label: existing.displayName, href: `/crm/customers/${existing.id}` };
     const created = await new CustomerService().create(context.organizationId, context.userId, { type: "PERSON", firstName: String(input.displayName), lastName: null, companyName: null, email: null, phone: String(input.phone), website: null, addressLine1: null, addressLine2: null, city: null, state: null, postalCode: null, country: null, status: "LEAD", notes: null });
     return { alreadyCompleted: false, id: created.id, label: created.displayName, href: `/crm/customers/${created.id}` };
+  }
+  if (name === "finance.invoice_create") {
+    const record = await new FinanceService().createInvoice(context.organizationId, context.userId, { customerName: String(input.customerName), projectId: null, invoiceNumber: String(input.invoiceNumber), status: "DRAFT", issueDate: new Date(String(input.issueDate)), dueDate: new Date(String(input.dueDate)), currency: String(input.currency), discount: 0, tax: 0, notes: null, items: [{ description: String(input.description), quantity: Number(input.quantity), unitPrice: Number(input.unitPrice) }] });
+    return { alreadyCompleted: false, id: record.id, label: record.invoiceNumber, href: "/finance?tab=invoices" };
+  }
+  if (name === "finance.expense_create") {
+    const record = await new FinanceService().expense(context.organizationId, context.userId, { projectId: null, title: String(input.title), category: String(input.category), vendor: input.vendor ? String(input.vendor) : null, amount: Number(input.amount), currency: String(input.currency), expenseDate: new Date(String(input.expenseDate)), status: "RECORDED", notes: null });
+    return { alreadyCompleted: false, id: record.id, label: record.title, href: "/finance?tab=expenses" };
   }
   if (name === "crm.follow_up_create") {
     const target = await prisma.customer.findFirst({ where: { id: String(input.customerId), organizationId: context.organizationId, deletedAt: null }, select: { updatedAt: true } });

@@ -41,7 +41,8 @@ export type CollectionInvoice = {
   status: string;
   outstanding: number;
   currency: string;
-  customer: { displayName: string };
+  customer: { displayName: string } | null;
+  customerName?: string | null;
   payments: {
     id: string;
     receiptNumber: string;
@@ -126,7 +127,7 @@ export function PaymentCollectionRecords({
         <header><h3>{t("Receipts & refunds")}</h3><span>{t("Refunds require approval by a different authorized user.")}</span></header>
         {invoices.flatMap((invoice) => invoice.payments.map((payment) => ({ invoice, payment }))).map(({ invoice, payment }) => (
           <article key={`${invoice.id}:${payment.id || payment.receiptNumber}`}>
-            <div><strong>{payment.receiptNumber}</strong><small>{invoice.invoiceNumber} · {invoice.customer.displayName}</small></div>
+            <div><strong>{payment.receiptNumber}</strong><small>{invoice.invoiceNumber} · {invoice.customer?.displayName ?? invoice.customerName ?? "Unlinked counterparty"}</small></div>
             <span>{money(Number(payment.amount), invoice.currency)}</span>
             <span>{Number(payment.refundedAmount) ? `${money(Number(payment.refundedAmount), invoice.currency)} ${t("refunded")}` : t("No refunds")}</span>
             {canManage && Number(payment.amount) > Number(payment.refundedAmount) && <button onClick={() => onRequestRefund(payment)}>{t("Request refund")}</button>}

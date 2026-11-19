@@ -66,6 +66,7 @@ export class ActionCentreService {
         ? prisma.invoice.findMany({
             where: {
               organizationId,
+              customerId: { not: null },
               deletedAt: null,
               status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] },
               dueDate: { lt: now },
@@ -171,7 +172,7 @@ export class ActionCentreService {
         sourceType: "INVOICE",
         sourceId: item.id,
         title: `Collect overdue ${item.invoiceNumber}`,
-        explanation: `${item.customer.displayName} has ${item.currency} ${outstanding.toFixed(2)} outstanding after the invoice due date.`,
+        explanation: `${item.customer?.displayName ?? "Customer"} has ${item.currency} ${outstanding.toFixed(2)} outstanding after the invoice due date.`,
         recommendedAction:
           "Create a collection follow-up for tomorrow and notify the approving owner.",
         impactSummary: `${item.currency} ${outstanding.toFixed(2)} cash at risk.`,
@@ -493,6 +494,8 @@ export class ActionCentreService {
               "The invoice is no longer available.",
               "RECOMMENDATION_SOURCE_CHANGED",
             );
+          if (!invoice.customerId || !invoice.customer)
+            throw new AppError(409, "Collection follow-ups require an invoice linked to a CRM customer.", "RECOMMENDATION_SOURCE_CHANGED");
           const outstanding =
             Number(invoice.total) -
             invoice.payments.reduce(

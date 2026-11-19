@@ -628,7 +628,8 @@ export class WorkspaceAgentService {
     if (!confirmed && route.writeToolName) {
       const prepared = await previewWorkspaceAgentWriteTool(context, route.writeToolName, route.writeInput);
       const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, action: "TOOL_ACTION", toolName: route.writeToolName, arguments: prepared.arguments as Record<string, string | number | boolean | null> });
-      return { duplicate: false, answer: `Review this action before confirming. ${prepared.preview.consequence}`, needsConfirmation: true, confirmation: { action: "TOOL_ACTION", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: prepared.preview } };
+      const hindi = prepared.arguments.replyLanguage === "hi";
+      return { duplicate: false, answer: hindi ? `कृपया सहेजने से पहले इस कार्य की जाँच करें। ${prepared.preview.consequence}` : `Review this action before confirming. ${prepared.preview.consequence}`, needsConfirmation: true, confirmation: { action: "TOOL_ACTION", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: prepared.preview } };
     }
     const connector = await this.connector(context);
     const externalEventId = confirmed ? `confirmation:${confirmed.id}` : input.externalMessageId;
@@ -693,7 +694,8 @@ export class WorkspaceAgentService {
     let reasoning: WorkspaceReasoningResult | null = null;
     if (confirmed?.action === "TOOL_ACTION") {
       const result = await executeWorkspaceAgentWriteTool(context, confirmed.toolName as AgentWriteToolName, confirmed.arguments);
-      output = { answer: result.alreadyCompleted ? "This action was already completed; nothing was duplicated." : "The confirmed internal action was completed. No external action occurred.", actionResult: { ...result, toolName: confirmed.toolName, status: result.alreadyCompleted ? "ALREADY_COMPLETED" : "COMPLETED", externalEffect: false } };
+      const hindi = (confirmed.arguments as Record<string, unknown>).replyLanguage === "hi";
+      output = { answer: result.alreadyCompleted ? (hindi ? "यह कार्य पहले ही पूरा हो चुका है; कोई डुप्लीकेट रिकॉर्ड नहीं बनाया गया।" : "This action was already completed; nothing was duplicated.") : (hindi ? "पुष्टि किया गया रिकॉर्ड सहेज दिया गया है। कोई बाहरी संदेश या पेमेंट नहीं भेजा गया।" : "The confirmed internal action was completed. No external action occurred."), actionResult: { ...result, toolName: confirmed.toolName, status: result.alreadyCompleted ? "ALREADY_COMPLETED" : "COMPLETED", externalEffect: false } };
     } else if (route.intent === "BUSINESS_READ") output = await this.readTools(context, route, input.conversationId);
     else if (route.resolvedDate && !["today", "this month"].includes(route.resolvedDate.expression) && ["NEW_CUSTOMERS", "OVERDUE_WORK", "FINANCE_SUMMARY"].includes(route.intent))
       output = { answer: `I resolved ${route.resolvedDate.expression} as ${route.resolvedDate.date}, but this capability does not yet support that reporting period. No data was changed.`, resolvedDate: route.resolvedDate.date, provenance: "INFERENCE" };

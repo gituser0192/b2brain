@@ -28,4 +28,10 @@ describe("workspace Agent confirmation token", () => {
     expect(() => verifyWorkspaceAgentConfirmation(accessToken, context)).toThrow(/invalid/i);
     expect(() => verifyAccessToken(issued.token)).toThrow();
   });
+
+  it("binds finance write confirmations to the same user, organization and conversation", () => {
+    const issued = createWorkspaceAgentConfirmation({ ...context, conversationId: "00000000-0000-4000-8000-000000000004", action: "TOOL_ACTION", toolName: "finance.expense_create", arguments: { title: "Office supplies", category: "Office", amount: 500, currency: "INR", expenseDate: "2026-11-18T00:00:00.000Z" } });
+    expect(verifyWorkspaceAgentConfirmation(issued.token, context, "00000000-0000-4000-8000-000000000004")).toMatchObject({ toolName: "finance.expense_create", arguments: { title: "Office supplies", amount: 500 } });
+    expect(() => verifyWorkspaceAgentConfirmation(issued.token, context, "00000000-0000-4000-8000-000000000005")).toThrow(/another conversation/i);
+  });
 });
