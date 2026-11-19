@@ -1,6 +1,7 @@
 import type { AgentItem, AgentSection, AgentToolResult } from "./workspace-agent-types";
+import { useLanguage } from "@/features/language/language";
 
-const defaultPrompts = ["Check my business health", "Summarize revenue, expenses and profit", "Count all CRM customers", "What should I improve?", "How do I add a customer in CRM?"];
+const defaultPrompts = { en: ["Check my business health", "Summarize revenue, expenses and profit", "Count all CRM customers", "What should I improve?", "How do I add a customer in CRM?", "How do I add a custom Agent?"], hi: ["मेरे बिज़नेस की स्थिति जाँचें", "आय, खर्च और लाभ का सारांश दें", "CRM कस्टमर की संख्या बताएँ", "मुझे क्या सुधारना चाहिए?", "CRM में कस्टमर कैसे जोड़ें?", "कस्टम Agent कैसे जोड़ें?"] };
 const cash = (value: number, currency = "INR") => new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const availabilityText: Record<AgentToolResult["availability"], string> = { VERIFIED: "Verified organization data", NO_DATA: "No records found", UNAVAILABLE: "Service unavailable", FORBIDDEN: "Access not permitted", FAILED: "Could not be checked" };
 
@@ -35,12 +36,13 @@ function AgentAnswer({ item, compact, loading, onSend, onNavigate, onSection, on
   </div>;
 }
 
-export function WorkspaceAgentConversation({ items, loading, compact, prompts = defaultPrompts, onSend, onNavigate, onSection, onConfirm, onClarify }: {
+export function WorkspaceAgentConversation({ items, loading, compact, prompts, onSend, onNavigate, onSection, onConfirm, onClarify }: {
   items: AgentItem[]; loading: boolean; compact: boolean; onSend: (message: string) => void;
   prompts?: string[];
   onNavigate?: (view: string) => void; onSection: (section: AgentSection) => void; onConfirm: (token: string, decision: "CONFIRM" | "CANCEL") => void; onClarify: (token: string, choice: number, label: string) => void;
 }) {
-  return <div className="workspace-agent-thread" aria-live="polite">{!items.length && !loading ? <div className="workspace-agent-welcome"><div>✦</div><h3>{compact ? "Start a new conversation" : "How can I help your business?"}</h3><p>{compact ? "Ask about your business health, finances, customers or priorities." : "I can analyse permitted data, explain SATHOS and perform explicit low-risk actions."}</p><div>{prompts.map((prompt) => <button key={prompt} onClick={() => onSend(prompt)}>{prompt}</button>)}</div></div> : items.map((item) => <article key={item.id} className="workspace-agent-exchange"><div className="workspace-user-message"><strong>You</strong><p>{item.message}</p></div><AgentAnswer item={item} compact={compact} loading={loading} onSend={onSend} onNavigate={onNavigate} onSection={onSection} onConfirm={onConfirm} onClarify={onClarify} /></article>)}{loading && <div className="workspace-agent-thinking" role="status"><span className="spinner dark" />Checking permitted organization data…</div>}</div>;
+  const language = useLanguage(), visiblePrompts = prompts ?? defaultPrompts[language];
+  return <div className="workspace-agent-thread" aria-live="polite">{!items.length && !loading ? <div className="workspace-agent-welcome"><div>✦</div><h3>{compact ? "Start a new conversation" : "How can I help your business?"}</h3><p>{compact ? "Ask about your business health, finances, customers or priorities." : "I can analyse permitted data, explain SATHOS and perform explicit low-risk actions."}</p><div>{visiblePrompts.map((prompt) => <button key={prompt} onClick={() => onSend(prompt)}>{prompt}</button>)}</div></div> : items.map((item) => <article key={item.id} className="workspace-agent-exchange"><div className="workspace-user-message"><strong>You</strong><p>{item.message}</p></div><AgentAnswer item={item} compact={compact} loading={loading} onSend={onSend} onNavigate={onNavigate} onSection={onSection} onConfirm={onConfirm} onClarify={onClarify} /></article>)}{loading && <div className="workspace-agent-thinking" role="status"><span className="spinner dark" />Checking permitted organization data…</div>}</div>;
 }
 
 export function WorkspaceAgentComposer({ message, loading, compact, onMessage, onSend }: {

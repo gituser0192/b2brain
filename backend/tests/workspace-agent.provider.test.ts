@@ -46,4 +46,20 @@ describe("workspace hosted reasoning provider", () => {
     expect(result).toMatchObject({ source: "DETERMINISTIC_FALLBACK", providerFailed: true });
     expect(result.answer).toContain("verified data");
   });
+
+  it("directs all hosted reasoning text to the selected Hindi language", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ output: [{ content: [{ type: "output_text", text: JSON.stringify({
+        answer: "मुनाफ़ा कम हुआ है।", evidenceReferences: ["finance.profit"], conclusions: ["मुनाफ़ा नकारात्मक है।"],
+        recommendations: [], assumptions: [], missingData: [], confidence: "HIGH", proposedToolActions: [],
+        requiresConfirmation: false, requiresHumanEscalation: false,
+      }) }] }], usage: { input_tokens: 5, output_tokens: 5, total_tokens: 10 } }),
+    });
+    const provider = new OpenAIWorkspaceReasoningProvider({ apiKey: "secret", model: "test", baseUrl: "https://example.invalid/v1", timeoutMs: 1000, maxRetries: 0, maxOutputTokens: 500, maxInputChars: 4000, failureThreshold: 3, resetMs: 1000, fetchImpl });
+    await provider.analyze({ ...input, language: "hi" });
+    const call = fetchImpl.mock.calls[0] as unknown as [string, { body: string }];
+    const request = JSON.parse(call[1].body) as { instructions: string };
+    expect(request.instructions).toContain("Hindi (हिन्दी)");
+  });
 });

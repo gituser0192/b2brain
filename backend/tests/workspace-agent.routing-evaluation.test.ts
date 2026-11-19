@@ -188,4 +188,19 @@ describe("workspace agent routing evaluation", () => {
     expect(routeWorkspaceRequest("इनवॉइस बनाओ").clarification?.question).toContain("इनवॉइस");
     expect(routeWorkspaceRequest("इनवॉइस बनाओ | ग्राहक: रीना | वस्तु: मरम्मत | मात्रा: 1 | कीमत: 250 | देय: 2026-12-18 | मुद्रा: INR")).toMatchObject({ writeToolName: "finance.invoice_create", writeInput: { customerName: "रीना", replyLanguage: "hi" } });
   });
+  it("routes partial, full, and exact received-payment commands through confirmation", () => {
+    expect(routeWorkspaceRequest("we received half payment for invoice 004")).toMatchObject({ writeToolName: "finance.payment_record", writeInput: { invoiceNumber: "004", amountMode: "HALF" } });
+    expect(routeWorkspaceRequest("mark invoice INV-20261120-ABC fully paid")).toMatchObject({ writeToolName: "finance.payment_record", writeInput: { invoiceNumber: "INV-20261120-ABC", amountMode: "FULL" } });
+    expect(routeWorkspaceRequest("record payment | invoice: 004 | amount: 1250 | method: UPI | date: 2026-11-20")).toMatchObject({ writeToolName: "finance.payment_record", writeInput: { invoiceNumber: "004", amount: 1250, method: "UPI" } });
+    expect(routeWorkspaceRequest("इनवॉइस 004 पर आधा पेमेंट मिला", "hi")).toMatchObject({ writeToolName: "finance.payment_record", writeInput: { invoiceNumber: "004", amountMode: "HALF", replyLanguage: "hi" } });
+  });
+  it("asks for an exact invoice and amount rather than guessing", () => {
+    expect(routeWorkspaceRequest("record half payment for Neha").ambiguity).toBe("CLARIFICATION_REQUIRED");
+    expect(routeWorkspaceRequest("record payment | invoice: 004").ambiguity).toBe("CLARIFICATION_REQUIRED");
+    expect(routeWorkspaceRequest("show payment pending this month").intent).toBe("FINANCE_SUMMARY");
+  });
+  it("routes invoice issuance separately from payment and keeps it confirmation-gated", () => {
+    expect(routeWorkspaceRequest("issue invoice 004")).toMatchObject({ writeToolName: "finance.invoice_issue", writeInput: { invoiceNumber: "004" } });
+    expect(routeWorkspaceRequest("How do I record a payment?").intent).toBe("PRODUCT_HELP");
+  });
 });

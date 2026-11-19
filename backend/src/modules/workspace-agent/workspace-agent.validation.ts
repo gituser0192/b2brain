@@ -5,6 +5,7 @@ export const workspaceAgentMessageSchema = z
     conversationId: z.string().uuid(),
     externalMessageId: z.string().trim().min(3).max(240),
     message: z.string().trim().min(1).max(4096),
+    language: z.enum(["en", "hi"]).optional(),
     confirmation: z.object({ token: z.string().min(32).max(12_000), decision: z.enum(["CONFIRM", "CANCEL"]) }).strict().optional(),
     clarification: z.object({ token: z.string().min(32).max(12_000), choice: z.number().int().min(0).max(2) }).strict().optional(),
   }).strict()

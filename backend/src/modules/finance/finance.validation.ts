@@ -12,7 +12,9 @@ export const invoiceSchema = z.object({
   items: z.array(z.object({ description: z.string().trim().min(1).max(300), quantity: z.number().positive(), unitPrice: z.number().min(0) }).strict()).min(1).max(100),
 }).strict().refine((value) => Boolean(value.customerId || value.customerName), { path: ["customerName"], message: "Choose a CRM customer or enter a customer name." }).refine((value) => !(value.customerId && value.customerName), { path: ["customerName"], message: "Use either a CRM customer or a Finance-only name, not both." }).refine((value) => Boolean(value.customerId) || value.status === "DRAFT", { path: ["status"], message: "An invoice without a CRM customer must remain a draft." }).refine((value) => value.dueDate >= value.issueDate, { path: ["dueDate"], message: "Due date must follow issue date." });
 
-export const paymentSchema = z.object({ amount: z.number().positive(), method: paymentMethod, reference: optionalText(120), paidAt: dateTime }).strict();
+export const paymentSchema = z.object({ amount: z.number().positive().refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Payment amount supports at most two decimal places."), method: paymentMethod, reference: optionalText(120), paidAt: dateTime }).strict();
+export const invoiceIssueSchema = z.object({ expectedUpdatedAt: z.string().datetime().transform((value) => new Date(value)).optional() }).strict();
+export type InvoiceIssueInput = z.infer<typeof invoiceIssueSchema>;
 export const expenseSchema = z.object({
   projectId: z.string().uuid().nullable(), title: z.string().trim().min(2).max(180), category: z.string().trim().min(2).max(100),
   vendor: optionalText(160), amount: z.number().positive(), currency, expenseDate: dateTime,

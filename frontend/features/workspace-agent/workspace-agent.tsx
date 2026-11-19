@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/services/api-client";
 import { useAuth } from "@/features/auth/auth-context";
+import { useLanguage } from "@/features/language/language";
 import { WorkspaceAgentHeader } from "./workspace-agent-header";
 import { BusinessBriefView } from "./business-brief-view";
 import { BusinessGoalsView } from "./business-goals-view";
@@ -29,7 +30,7 @@ export function WorkspaceAgent({
   suggestions?: string[];
   onNavigate?: (view: string) => void;
 }) {
-  const { session, authorizedRequest } = useAuth(),
+  const { session, authorizedRequest } = useAuth(), language = useLanguage(),
     storageKey = `b2brain-agent-conversation:${session?.organization.id ?? "none"}:${session?.membership.id ?? "none"}`,
     draftKey = `b2brain-agent-draft:${session?.organization.id ?? "none"}:${session?.user.id ?? "none"}`;
   const [conversationId] = useState(() => {
@@ -144,6 +145,7 @@ export function WorkspaceAgent({
             conversationId,
             externalMessageId: crypto.randomUUID(),
             message: text.trim(),
+            language,
             ...(confirmation ? { confirmation } : {}),
             ...(clarification ? { clarification } : {}),
           }),

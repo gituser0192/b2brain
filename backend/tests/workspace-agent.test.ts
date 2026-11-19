@@ -80,6 +80,7 @@ describe("Ask SATHOS workspace agent", () => {
     db.eventUpdate.mockResolvedValue({ id: "event-1" });
     db.eventUpdateMany.mockResolvedValue({ count: 1 });
     db.eventFindMany.mockResolvedValue([]);
+    db.customerFindFirst.mockResolvedValue(null);
     db.auditCreate.mockResolvedValue({});
     db.transaction.mockImplementation((run: (tx: unknown) => unknown) =>
       run({
@@ -117,6 +118,31 @@ describe("Ask SATHOS workspace agent", () => {
     expect(result).toMatchObject({
       answer: "Your organization has 4 CRM customers.",
     });
+  });
+  it("answers custom-Agent setup questions with a useful Hindi example when Hindi is selected", async () => {
+    const result = await new WorkspaceAgentService().message(context, { ...input("How do I add a custom Agent?", "agent-help-hi"), language: "hi" });
+    expect(result).toMatchObject({ answer: expect.stringContaining("कस्टम एजेंट बनाने के लिए") });
+    expect((result as { answer: string }).answer).toContain("Invoice Helper");
+    expect((result as { answer: string }).answer).toContain("मानव स्वीकृति");
+  });
+  it("answers custom-Agent setup questions with a copyable English example", async () => {
+    const result = await new WorkspaceAgentService().message(context, { ...input("How do I add a custom Agent?", "agent-help-en"), language: "en" });
+    expect(result).toMatchObject({ answer: expect.stringContaining("Automation → Agent definitions") });
+    expect((result as { answer: string }).answer).toContain("Invoice Helper");
+    expect((result as { answer: string }).answer).toContain("human approval");
+  });
+  it("answers a business count in the selected Hindi language even when the prompt is English", async () => {
+    db.customerCount.mockResolvedValue(3);
+    const result = await new WorkspaceAgentService().message(context, { ...input("Count all CRM customers", "agent-count-hi"), language: "hi" });
+    expect(result).toMatchObject({ answer: "आपके संगठन में 3 CRM कस्टमर हैं।" });
+  });
+  it("keeps CRM action previews in the selected Hindi language", async () => {
+    const result = await new WorkspaceAgentService().message(context, { ...input("Add Rahul with phone number 9876543210 to CRM", "agent-crm-preview-hi"), language: "hi" });
+    expect(result).toMatchObject({ answer: "CRM में लीड के रूप में जोड़ने से पहले Rahul की जानकारी जाँचें।", needsConfirmation: true });
+  });
+  it("honors a direct Hindi language choice when the user replies to the Agent's language question", async () => {
+    const result = await new WorkspaceAgentService().message(context, { ...input("Hindi", "agent-language-choice"), language: "en" });
+    expect((result as { answer: string }).answer).toContain("मैं बिज़नेस हेल्थ जाँच सकता हूँ");
   });
   it("keeps simple factual requests on the zero-token path", async () => {
     const provider = { enabled: true, name: "test", analyze: vi.fn() };
@@ -219,6 +245,14 @@ describe("Ask SATHOS workspace agent", () => {
     await expect(service.message(context, { ...input("Confirm action", "message-4"), confirmation: { token, decision: "CONFIRM" as const } })).rejects.toMatchObject({ code: "CONFIRMATION_REPLAYED" });
     expect(db.txCustomerCreate).toHaveBeenCalledTimes(1);
   });
+  it("checks the organization CRM before offering customer creation and avoids a duplicate", async () => {
+    db.customerFindFirst.mockResolvedValue({ id: "customer-existing", displayName: "Rahul Sharma", phone: "9876543210" });
+    const result = await new WorkspaceAgentService().message(context, input("Add Rahul with phone number 9876543210 to CRM", "existing-customer-preview"));
+    expect(result).toMatchObject({ duplicate: true, customerMatch: { displayName: "Rahul Sharma", exactPhoneMatch: true }, records: [{ id: "customer-existing", label: "Rahul Sharma" }] });
+    expect(result).not.toHaveProperty("confirmation");
+    expect(db.txCustomerCreate).not.toHaveBeenCalled();
+    expect(db.customerFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { organizationId: context.organizationId, phone: "9876543210", deletedAt: null } }));
+  });
   it("Python fact collection rechecks current service access and authenticated tenant", async () => {
     const saved = { ...env };
     try {
@@ -281,6 +315,8 @@ describe("Ask SATHOS workspace agent", () => {
     expect(db.eventCreate).not.toHaveBeenCalled();
   });
   it("rejects frontend identity and organization fields", () => {
+    expect(workspaceAgentMessageSchema.safeParse({ ...input("Hello"), language: "hi" }).success).toBe(true);
+    expect(workspaceAgentMessageSchema.safeParse({ ...input("Hello"), language: "fr" }).success).toBe(false);
     expect(
       workspaceAgentMessageSchema.safeParse({
         ...input("Hello"),

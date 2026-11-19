@@ -9,6 +9,7 @@ export interface FinanceInvoice {
   total: string;
   currency: string;
   issueDate?: string;
+  updatedAt?: string;
   dueDate: string;
   paid: number;
   outstanding: number;
@@ -62,6 +63,7 @@ export function FinanceRecords({
   saving,
   expandedFollowUpId,
   onRecordPayment,
+  onIssueInvoice,
   onCreateFollowUp,
   onToggleFollowUp,
   onEditExpense,
@@ -75,6 +77,7 @@ export function FinanceRecords({
   saving: boolean;
   expandedFollowUpId: string | null;
   onRecordPayment: (invoice: FinanceInvoice) => void;
+  onIssueInvoice: (invoice: FinanceInvoice) => void;
   onCreateFollowUp: (invoice: FinanceInvoice) => void;
   onToggleFollowUp: (followUpId: string) => void;
   onEditExpense: (expense: FinanceExpense) => void;
@@ -112,7 +115,7 @@ export function FinanceRecords({
                   </small>
                   <small>
                     {invoice.issueDate && <>{t("Issued")} {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", { dateStyle: "medium" }).format(new Date(invoice.issueDate))} · </>}
-                    {t("Due")}{" "}
+                    {invoice.status === "DRAFT" ? t("Planned due") : t("Due")}{" "}
                     {new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", {
                       dateStyle: "medium",
                     }).format(new Date(invoice.dueDate))}
@@ -120,30 +123,24 @@ export function FinanceRecords({
                 </div>
                 <div className="invoice-balance">
                   <small>{t("Total")} {formatMoney(Number(invoice.total), currency)}</small>
-                  <strong>{formatMoney(invoice.outstanding, currency)} {t("due")}</strong>
+                  <strong>{invoice.status === "DRAFT" ? t("Not issued") : `${formatMoney(invoice.outstanding, currency)} ${t("due")}`}</strong>
                   <small>{formatMoney(invoice.paid, currency)} {t("received")}</small>
                 </div>
-                {canManage &&
-                  invoice.outstanding > 0 &&
-                  invoice.customerId && !["DRAFT", "CANCELED"].includes(invoice.status) && (
-                    <div className="invoice-actions">
-                      <button onClick={() => onRecordPayment(invoice)}>
-                        {t("Record payment")}
-                      </button>
-                      {followUp ? (
-                        <button onClick={() => onToggleFollowUp(followUp.id)}>
-                          {t("View existing follow-up")}
-                        </button>
-                      ) : (
-                        <button
-                          disabled={saving}
-                          onClick={() => onCreateFollowUp(invoice)}
-                        >
-                          {t("Create follow-up")}
-                        </button>
-                      )}
-                    </div>
-                  )}
+                {canManage && invoice.status === "DRAFT" && (
+                  <div className="invoice-actions">
+                    <button disabled={saving} onClick={() => onIssueInvoice(invoice)}>{t("Issue invoice")}</button>
+                  </div>
+                )}
+                {canManage && invoice.outstanding > 0 && !["DRAFT", "CANCELED"].includes(invoice.status) && (
+                  <div className="invoice-actions">
+                    <button disabled={saving} onClick={() => onRecordPayment(invoice)}>{t("Record payment")}</button>
+                    {invoice.customerId && (followUp ? (
+                      <button onClick={() => onToggleFollowUp(followUp.id)}>{t("View existing follow-up")}</button>
+                    ) : (
+                      <button disabled={saving} onClick={() => onCreateFollowUp(invoice)}>{t("Create follow-up")}</button>
+                    ))}
+                  </div>
+                )}
                 {followUp && expandedFollowUpId === followUp.id && (
                   <div className="invoice-follow-up-detail">
                     <strong>{followUp.title}</strong>

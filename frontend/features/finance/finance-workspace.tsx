@@ -145,6 +145,12 @@ export function FinanceWorkspace() {
       setSaving(false);
     }
   }
+  function issueInvoice(item: Invoice) {
+    void action(() => authorizedRequest(`/finance/invoices/${item.id}/issue`, {
+      method: "POST",
+      body: JSON.stringify(item.updatedAt ? { expectedUpdatedAt: item.updatedAt } : {}),
+    }).then(() => undefined), "Invoice issued.");
+  }
   function openPayment(item: Invoice) {
     setSelected(item);
     setPayment({
@@ -288,6 +294,7 @@ export function FinanceWorkspace() {
         saving={saving}
         expandedFollowUpId={expandedFollowUpId}
         onRecordPayment={openPayment}
+        onIssueInvoice={issueInvoice}
         onCreateFollowUp={(item) => void ensureCollectionFollowUp(item)}
         onToggleFollowUp={(followUpId) =>
           setExpandedFollowUpId(
@@ -319,7 +326,7 @@ export function FinanceWorkspace() {
       /></>}
       {tab === "invoices" && <FinanceRecords
         view="invoices" invoices={data.invoices} expenses={data.expenses} canManage={canManage} saving={saving} expandedFollowUpId={expandedFollowUpId}
-        onRecordPayment={openPayment} onCreateFollowUp={(item) => void ensureCollectionFollowUp(item)} onToggleFollowUp={(id) => setExpandedFollowUpId(expandedFollowUpId === id ? null : id)}
+        onRecordPayment={openPayment} onIssueInvoice={issueInvoice} onCreateFollowUp={(item) => void ensureCollectionFollowUp(item)} onToggleFollowUp={(id) => setExpandedFollowUpId(expandedFollowUpId === id ? null : id)}
         onEditExpense={() => undefined} onArchiveExpense={() => undefined} currency={currency}
       />}
       {tab === "payments" && <PaymentCollectionManager invoices={data.invoices} onFinanceChanged={load} initialAction={new URLSearchParams(typeof window === "undefined" ? "" : window.location.search).get("action") === "incoming" ? "incoming" : undefined} />}

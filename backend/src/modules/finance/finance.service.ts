@@ -87,7 +87,7 @@ export class FinanceService {
       };
     });
     const active = enrichedInvoices.filter(
-      (invoice) => invoice.status !== "CANCELED",
+      (invoice) => invoice.status !== "CANCELED" && invoice.status !== "DRAFT",
     );
     const invoiced = active.reduce(
       (sum, invoice) => sum + Number(invoice.total),
@@ -179,6 +179,7 @@ export class FinanceService {
     actorUserId: string,
     id: string,
     input: PaymentInput,
+    expectedUpdatedAt?: Date,
   ) {
     try {
       return await prisma.$transaction(
@@ -198,6 +199,8 @@ export class FinanceService {
               "Issued invoice not found.",
               "INVOICE_NOT_FOUND",
             );
+          if (expectedUpdatedAt && invoice.updatedAt.getTime() !== expectedUpdatedAt.getTime())
+            throw new AppError(409, "The invoice changed after preview. Review the payment again.", "AGENT_ACTION_STALE");
           if (
             input.reference &&
             (await transaction.payment.findFirst({
@@ -267,6 +270,24 @@ export class FinanceService {
         );
       throw error;
     }
+  }
+
+  async issueInvoice(organizationId: string, actorUserId: string, id: string, expectedUpdatedAt?: Date) {
+    return prisma.$transaction(async (transaction) => {
+      const invoice = await transaction.invoice.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true, status: true, updatedAt: true, dueDate: true },
+      });
+      if (!invoice) throw new AppError(404, "Invoice not found.", "INVOICE_NOT_FOUND");
+      if (invoice.status !== "DRAFT") throw new AppError(409, "Only a draft invoice can be issued.", "INVOICE_NOT_DRAFT");
+      if (expectedUpdatedAt && invoice.updatedAt.getTime() !== expectedUpdatedAt.getTime())
+        throw new AppError(409, "The invoice changed after preview. Review it again.", "AGENT_ACTION_STALE");
+      return transaction.invoice.update({
+        where: { id, organizationId },
+        data: { status: invoice.dueDate < new Date() ? "OVERDUE" : "ISSUED", updatedById: actorUserId },
+        select: { id: true, invoiceNumber: true, status: true, total: true, currency: true, dueDate: true, updatedAt: true },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async createCollectionFollowUp(

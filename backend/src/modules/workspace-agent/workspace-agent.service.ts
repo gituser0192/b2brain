@@ -109,6 +109,7 @@ export class WorkspaceAgentService {
     connectorId: string,
     conversationId: string,
     request: string,
+    language: "en" | "hi" = "en",
   ): Promise<WorkspaceReasoningResult> {
     const pythonSelected = env.WORKSPACE_AGENT_REASONING_BACKEND === "python" && env.PYTHON_AGENT_ENABLED;
     if (pythonSelected) {
@@ -201,12 +202,13 @@ export class WorkspaceAgentService {
     if (!limits.allowed) {
       const fallbackResult = await new (await import("./workspace-agent.provider.js"))
         .DeterministicWorkspaceReasoningFallback()
-        .analyze({ tenantKey: context.organizationId, request, conversationSummary, facts });
+        .analyze({ tenantKey: context.organizationId, request, language, conversationSummary, facts });
       return { ...fallbackResult, evidenceFacts: facts.filter((fact) => fallbackResult.evidenceReferences.includes(fact.id)) };
     }
     const result = await this.reasoningProvider.analyze({
       tenantKey: context.organizationId,
       request,
+      language,
       conversationSummary,
       facts,
     });
@@ -272,7 +274,7 @@ export class WorkspaceAgentService {
     return message;
   }
 
-  private async readTools(context: Context, route: WorkspaceRoute, conversationId: string) {
+  private async readTools(context: Context, route: WorkspaceRoute, conversationId: string, language: "en" | "hi" = "en") {
     const names = (route.toolNames ?? (route.toolName ? [route.toolName] : [])).slice(0, 3);
     const results = await Promise.all(names.map((name) => executeWorkspaceAgentReadTool(context, name, { limit: 5, ...(route.toolInput ?? {}) })));
     const available = results.filter((item) => item.availability === "VERIFIED" || item.availability === "NO_DATA"), failed = results.filter((item) => item.availability === "FAILED"), records = available.flatMap((item) => item.records);
@@ -280,7 +282,9 @@ export class WorkspaceAgentService {
     const clarification = search && records.length > 1 ? createWorkspaceAgentClarification({ organizationId: context.organizationId, userId: context.userId, conversationId, choices: records.slice(0, 3).map((item) => ({ label: `${item.label}${item.status ? ` · ${item.status}` : ""}`, request: `Open ${item.type.toLowerCase()} ${item.id}` })) }) : null;
     const labels = results.map((item) => `${item.service}: ${item.availability === "VERIFIED" ? item.resultCount : item.availability.toLowerCase().replaceAll("_", " ")}`).join("; ");
     return {
-      answer: clarification ? `I found ${records.length} possible matches. Choose the correct record.` : records.length ? `Based on your permitted organization records: ${labels}.` : available.length ? `I checked your permitted organization records: ${labels}.` : `The requested business records could not be verified: ${labels}.`,
+      answer: language === "hi"
+        ? clarification ? `${records.length} संभावित रिकॉर्ड मिले। कृपया सही रिकॉर्ड चुनें।` : records.length ? `आपके अनुमति-प्राप्त संगठन रिकॉर्ड के आधार पर: ${labels}।` : available.length ? `आपके अनुमति-प्राप्त संगठन रिकॉर्ड जाँचे गए: ${labels}।` : `अनुरोधित व्यावसायिक रिकॉर्ड सत्यापित नहीं हो सके: ${labels}।`
+        : clarification ? `I found ${records.length} possible matches. Choose the correct record.` : records.length ? `Based on your permitted organization records: ${labels}.` : available.length ? `I checked your permitted organization records: ${labels}.` : `The requested business records could not be verified: ${labels}.`,
       toolResults: results,
       ...(clarification ? { clarification: { ...clarification, choices: records.slice(0, 3).map((item) => ({ label: `${item.label}${item.status ? ` · ${item.status}` : ""}`, request: `Open ${item.type.toLowerCase()} ${item.id}` })) } } : {}),
       warnings: [...(failed.length ? [`${failed.length} source${failed.length === 1 ? "" : "s"} failed; successful sources remain shown.`] : []), ...(results.some((item) => item.truncated) ? ["Some results were truncated to the safe display limit."] : [])],
@@ -514,7 +518,7 @@ export class WorkspaceAgentService {
     };
   }
 
-  private customerPreview(context: Context, message: string) {
+  private async customerPreview(context: Context, message: string, language: "en" | "hi" = "en") {
     const match = message.match(
       /add\s+([a-z][a-z .'-]{1,80}?)\s+(?:with\s+)?(?:phone(?:\s+number)?\s*)?(\+?\d[\d -]{6,16})\s*(?:to\s+crm)?/i,
     );
@@ -522,19 +526,26 @@ export class WorkspaceAgentService {
       return {
         needsConfirmation: true,
         answer:
-          "Please provide the customer name and phone number, for example: “Add Rahul with phone number 9876543210 to CRM.”",
+          language === "hi" ? "कस्टमर का नाम और फ़ोन नंबर दें, उदाहरण: “राहुल को फ़ोन नंबर 9876543210 के साथ CRM में जोड़ें।”" : "Please provide the customer name and phone number, for example: “Add Rahul with phone number 9876543210 to CRM.”",
       } as const;
     const displayName = match[1]!.trim();
     const phone = normalizePhone(match[2]!);
-    const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "CUSTOMER_CREATE", arguments: { displayName, phone } });
+    const existing = await prisma.customer.findFirst({ where: { organizationId: context.organizationId, phone, deletedAt: null }, select: { id: true, displayName: true, phone: true } });
+    if (existing) return {
+      answer: language === "hi" ? `${existing.displayName} इस फ़ोन नंबर के साथ CRM में पहले से मौजूद हैं। कोई डुप्लीकेट नहीं बनाया जाएगा।` : `${existing.displayName} already exists in this organization's CRM with that phone number. I will not create a duplicate.`,
+      records: [{ type: "CUSTOMER", id: existing.id, label: existing.displayName }],
+      customerMatch: { displayName: existing.displayName, phoneEnding: String(existing.phone).slice(-4), exactPhoneMatch: true },
+      duplicate: true,
+    } as const;
+    const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "CUSTOMER_CREATE", arguments: { displayName, phone, replyLanguage: language } });
     return {
-      answer: `Review ${displayName} before adding this person to CRM as a lead.`,
+      answer: language === "hi" ? `CRM में लीड के रूप में जोड़ने से पहले ${displayName} की जानकारी जाँचें।` : `Review ${displayName} before adding this person to CRM as a lead.`,
       needsConfirmation: true,
       confirmation: { action: "CUSTOMER_CREATE", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: { name: displayName, phone, type: "PERSON", status: "LEAD" } },
     } as const;
   }
 
-  private async createCustomer(context: Context, displayName: string, phone: string) {
+  private async createCustomer(context: Context, displayName: string, phone: string, language: "en" | "hi" = "en") {
     await requireWorkspaceAgentCapability(context, "CUSTOMER_CREATE");
     const existing = await prisma.customer.findFirst({
       where: { organizationId: context.organizationId, phone, deletedAt: null },
@@ -542,7 +553,7 @@ export class WorkspaceAgentService {
     });
     if (existing)
       return {
-        answer: `${existing.displayName} already exists in CRM with this phone number.`,
+        answer: language === "hi" ? `${existing.displayName} इस फ़ोन नंबर के साथ CRM में पहले से मौजूद हैं।` : `${existing.displayName} already exists in CRM with this phone number.`,
         records: [
           { type: "CUSTOMER", id: existing.id, label: existing.displayName },
         ],
@@ -581,20 +592,20 @@ export class WorkspaceAgentService {
       return created;
     });
     return {
-      answer: `${customer.displayName} was added to CRM as a lead.`,
+      answer: language === "hi" ? `${customer.displayName} को CRM में लीड के रूप में जोड़ दिया गया है।` : `${customer.displayName} was added to CRM as a lead.`,
       records: [
         { type: "CUSTOMER", id: customer.id, label: customer.displayName },
       ],
     };
   }
 
-  private escalationPreview(context: Context, message: string) {
+  private escalationPreview(context: Context, message: string, language: "en" | "hi" = "en") {
     const lower = message.toLowerCase();
     const category = lower.includes("refund") || lower.includes("payment") ? "FINANCE" : "TECHNICAL_SUPPORT";
     const priority = lower.includes("security") ? "URGENT" : "HIGH";
-    const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "HUMAN_ESCALATION", arguments: { category, description: message, priority } });
+    const confirmation = createWorkspaceAgentConfirmation({ organizationId: context.organizationId, userId: context.userId, action: "HUMAN_ESCALATION", arguments: { category, description: message, priority, replyLanguage: language } });
     return {
-      answer: "This request may need the SATHOS human team. Review the escalation before creating it; no external action has occurred.",
+      answer: language === "hi" ? "इस अनुरोध के लिए SATHOS टीम की सहायता ज़रूरी हो सकती है। एस्केलेशन की समीक्षा करें; अभी कोई बाहरी कार्रवाई नहीं हुई।" : "This request may need the SATHOS human team. Review the escalation before creating it; no external action has occurred.",
       needsConfirmation: true,
       confirmation: { action: "HUMAN_ESCALATION", token: confirmation.token, expiresAt: confirmation.expiresAt, preview: { category, priority } },
     } as const;
@@ -606,24 +617,28 @@ export class WorkspaceAgentService {
     reservedEvent?: { id: string },
   ) {
     const startedAt = Date.now();
+    const explicitLanguageChoice = input.message.trim().match(/^(?:hindi|हिन्दी|english|अंग्रेज़ी)[.! ]*$/iu)?.[0];
+    const language = explicitLanguageChoice
+      ? (/^(?:hindi|हिन्दी)/iu.test(explicitLanguageChoice) ? "hi" : "en")
+      : input.language ?? (/[\u0900-\u097f]/u.test(input.message) || /\b(?:banao|jodo|kharch|vyay|grahak)\b/i.test(input.message) ? "hi" : "en");
     if (input.confirmation?.decision === "CANCEL") {
       verifyWorkspaceAgentConfirmation(input.confirmation.token, context, input.conversationId);
-      return { duplicate: false, answer: "The proposed action was cancelled. Nothing was changed.", cancelled: true };
+      return { duplicate: false, answer: language === "hi" ? "प्रस्तावित कार्रवाई रद्द कर दी गई। कोई बदलाव नहीं किया गया।" : "The proposed action was cancelled. Nothing was changed.", cancelled: true };
     }
     const confirmed = input.confirmation ? verifyWorkspaceAgentConfirmation(input.confirmation.token, context, input.conversationId) : null;
     const clarifiedRequest = input.clarification ? verifyWorkspaceAgentClarification(input.clarification.token, context, input.conversationId, input.clarification.choice) : null;
     const contextualRequest = confirmed ? input.message : await this.contextualRequest(context, input.conversationId, clarifiedRequest ?? input.message);
-    const route: WorkspaceRoute = confirmed ? { intent: confirmed.action === "TOOL_ACTION" ? "BUSINESS_READ" : confirmed.action, path: "WRITE_ACTION", aiRequired: false, confidence: "HIGH", ambiguity: "NONE", normalizedRequest: input.message, provenance: "ORGANIZATION_DATA" } : routeWorkspaceRequest(contextualRequest);
+    const route: WorkspaceRoute = confirmed ? { intent: confirmed.action === "TOOL_ACTION" ? "BUSINESS_READ" : confirmed.action, path: "WRITE_ACTION", aiRequired: false, confidence: "HIGH", ambiguity: "NONE", normalizedRequest: input.message, provenance: "ORGANIZATION_DATA" } : routeWorkspaceRequest(contextualRequest, language);
     if (!confirmed && route.ambiguity === "CLARIFICATION_REQUIRED") {
       const clarification = createWorkspaceAgentClarification({ organizationId: context.organizationId, userId: context.userId, conversationId: input.conversationId, choices: route.clarification?.choices ?? [] });
-      return { duplicate: false, answer: route.clarification?.question ?? "I need clarification before checking.", clarification: { ...clarification, choices: route.clarification?.choices ?? [], resolvedDate: route.resolvedDate?.date }, provenance: "INFERENCE" as const };
+      return { duplicate: false, answer: route.clarification?.question ?? (language === "hi" ? "जाँच करने से पहले कृपया अधिक जानकारी दें।" : "I need clarification before checking."), clarification: { ...clarification, choices: route.clarification?.choices ?? [], resolvedDate: route.resolvedDate?.date }, provenance: "INFERENCE" as const };
     }
     if (route.intent === "CUSTOMER_COUNT" || route.intent === "CUSTOMER_CREATE") await requireWorkspaceAgentCapability(context, route.intent);
     if (route.intent === "FINANCE_SUMMARY" || route.intent === "FORECAST") await requireWorkspaceAgentCapability(context, "FINANCE");
     if (route.intent === "HUMAN_ESCALATION") await requireWorkspaceAgentCapability(context, "SUPPORT_ESCALATION");
-    if (!confirmed && route.intent === "CUSTOMER_CREATE") return { duplicate: false, ...this.customerPreview(context, input.message) };
-    if (!confirmed && route.intent === "HUMAN_ESCALATION") return { duplicate: false, ...this.escalationPreview(context, input.message) };
-    if (!confirmed && route.intent === "SETUP_GUIDANCE") { const setupAssessment = await assessWorkspaceSetup(context, contextualRequest); return { duplicate: false, answer: setupAssessment.answer, setupAssessment }; }
+    if (!confirmed && route.intent === "CUSTOMER_CREATE") return this.customerPreview(context, input.message, language);
+    if (!confirmed && route.intent === "HUMAN_ESCALATION") return { duplicate: false, ...this.escalationPreview(context, input.message, language) };
+    if (!confirmed && route.intent === "SETUP_GUIDANCE") { const setupAssessment = await assessWorkspaceSetup(context, contextualRequest, language); return { duplicate: false, answer: setupAssessment.answer, setupAssessment }; }
     if (!confirmed && route.intent === "PUBLIC_INFORMATION" && route.publicToolName) { const publicResult = await executePublicTool(context, route.publicToolName, contextualRequest); return { duplicate: false, answer: publicResult.answer, publicResult }; }
     if (!confirmed && route.writeToolName) {
       const prepared = await previewWorkspaceAgentWriteTool(context, route.writeToolName, route.writeInput);
@@ -669,6 +684,7 @@ export class WorkspaceAgentService {
           payload: {
             conversationId: input.conversationId,
             message: input.message,
+            language,
             userId: context.userId,
           },
           payloadHash: createHash("sha256").update(input.message).digest("hex"),
@@ -695,26 +711,28 @@ export class WorkspaceAgentService {
     if (confirmed?.action === "TOOL_ACTION") {
       const result = await executeWorkspaceAgentWriteTool(context, confirmed.toolName as AgentWriteToolName, confirmed.arguments);
       const hindi = (confirmed.arguments as Record<string, unknown>).replyLanguage === "hi";
-      output = { answer: result.alreadyCompleted ? (hindi ? "यह कार्य पहले ही पूरा हो चुका है; कोई डुप्लीकेट रिकॉर्ड नहीं बनाया गया।" : "This action was already completed; nothing was duplicated.") : (hindi ? "पुष्टि किया गया रिकॉर्ड सहेज दिया गया है। कोई बाहरी संदेश या पेमेंट नहीं भेजा गया।" : "The confirmed internal action was completed. No external action occurred."), actionResult: { ...result, toolName: confirmed.toolName, status: result.alreadyCompleted ? "ALREADY_COMPLETED" : "COMPLETED", externalEffect: false } };
-    } else if (route.intent === "BUSINESS_READ") output = await this.readTools(context, route, input.conversationId);
+      const paymentAnswer = confirmed.toolName === "finance.payment_record" ? (hindi ? `प्राप्त पेमेंट दर्ज हुआ। इस इनवॉइस पर अब ${result.remaining === 0 ? "कोई बकाया नहीं" : `${String(confirmed.arguments.currency ?? "INR")} ${Number(result.remaining).toFixed(2)} बकाया`} है। यह सिर्फ़ रिकॉर्ड है; कोई पेमेंट भेजा या कलेक्ट नहीं किया गया।` : `Received payment recorded. The remaining invoice balance is ${result.remaining === 0 ? "zero" : `${String(confirmed.arguments.currency ?? "INR")} ${Number(result.remaining).toFixed(2)}`}. This only records funds already received; it does not send or collect a payment.`) : null;
+      const issueAnswer = confirmed.toolName === "finance.invoice_issue" ? (hindi ? "इनवॉइस फाइनेंस में जारी किया गया। कोई ईमेल नहीं भेजा गया।" : "Invoice issued in Finance. No email was sent.") : null;
+      output = { answer: result.alreadyCompleted ? (hindi ? "यह कार्य पहले ही पूरा हो चुका है; कोई डुप्लीकेट रिकॉर्ड नहीं बनाया गया।" : "This action was already completed; nothing was duplicated.") : paymentAnswer ?? issueAnswer ?? (hindi ? "पुष्टि किया गया रिकॉर्ड सहेज दिया गया है। कोई बाहरी संदेश या पेमेंट नहीं भेजा गया।" : "The confirmed internal action was completed. No external action occurred."), actionResult: { ...result, toolName: confirmed.toolName, status: result.alreadyCompleted ? "ALREADY_COMPLETED" : "COMPLETED", externalEffect: false } };
+    } else if (route.intent === "BUSINESS_READ") output = await this.readTools(context, route, input.conversationId, language);
     else if (route.resolvedDate && !["today", "this month"].includes(route.resolvedDate.expression) && ["NEW_CUSTOMERS", "OVERDUE_WORK", "FINANCE_SUMMARY"].includes(route.intent))
-      output = { answer: `I resolved ${route.resolvedDate.expression} as ${route.resolvedDate.date}, but this capability does not yet support that reporting period. No data was changed.`, resolvedDate: route.resolvedDate.date, provenance: "INFERENCE" };
+      output = { answer: language === "hi" ? `${route.resolvedDate.expression} का अर्थ ${route.resolvedDate.date} समझा गया, लेकिन यह सुविधा अभी इस रिपोर्टिंग अवधि को समर्थित नहीं करती। कोई डेटा नहीं बदला गया।` : `I resolved ${route.resolvedDate.expression} as ${route.resolvedDate.date}, but this capability does not yet support that reporting period. No data was changed.`, resolvedDate: route.resolvedDate.date, provenance: "INFERENCE" };
     else if (route.intent === "CUSTOMER_CREATE" && confirmed?.action === "CUSTOMER_CREATE")
-      output = await this.createCustomer(context, confirmed.arguments.displayName, confirmed.arguments.phone);
+      output = await this.createCustomer(context, confirmed.arguments.displayName, confirmed.arguments.phone, confirmed.arguments.replyLanguage ?? language);
     else if (route.intent === "CUSTOMER_COUNT") {
       const count = await prisma.customer.count({
         where: { organizationId: context.organizationId, deletedAt: null },
       });
       output = {
-        answer: `Your organization has ${count} CRM customer${count === 1 ? "" : "s"}.`,
+        answer: language === "hi" ? `आपके संगठन में ${count} CRM कस्टमर हैं।` : `Your organization has ${count} CRM customer${count === 1 ? "" : "s"}.`,
         metrics: [{ label: "CRM customers", value: count }],
       };
     } else if (route.intent === "DAILY_BRIEF") {
       const brief = await this.proactive.brief(context);
       output = {
-        answer: brief.meaningful
-          ? `Today's brief found ${brief.alerts.length} explainable alert${brief.alerts.length === 1 ? "" : "s"} and ${brief.recommendations.length} priority action${brief.recommendations.length === 1 ? "" : "s"}.`
-          : "Today's brief found no meaningful changes requiring attention.",
+        answer: language === "hi"
+          ? brief.meaningful ? `आज की ब्रीफ़ में ${brief.alerts.length} ध्यान देने योग्य संकेत और ${brief.recommendations.length} प्राथमिक कार्रवाइयाँ मिलीं।` : "आज की ब्रीफ़ में ध्यान देने योग्य कोई महत्वपूर्ण बदलाव नहीं मिला।"
+          : brief.meaningful ? `Today's brief found ${brief.alerts.length} explainable alert${brief.alerts.length === 1 ? "" : "s"} and ${brief.recommendations.length} priority action${brief.recommendations.length === 1 ? "" : "s"}.` : "Today's brief found no meaningful changes requiring attention.",
         metrics: [
           { label: "Business health", value: brief.health.score, availability: brief.health.availability ?? (brief.health.score === null ? "UNAVAILABLE" : "VERIFIED") },
           { label: "New customers", value: brief.activity.newCustomers, availability: brief.availability?.newCustomers ?? (brief.activity.newCustomers === null ? "UNAVAILABLE" : "VERIFIED") },
@@ -731,13 +749,16 @@ export class WorkspaceAgentService {
     } else if (route.intent === "GOAL_CREATE") {
       output = {
         answer:
-          "Open Goals to choose a measurable goal type, target and date range. I will calculate progress and risk from your permitted organization data.",
+          language === "hi" ? "Goals खोलकर लक्ष्य का प्रकार, टार्गेट और तारीखें चुनें। मैं आपके अनुमति-प्राप्त संगठन डेटा से प्रगति और जोखिम की गणना करूँगा।" : "Open Goals to choose a measurable goal type, target and date range. I will calculate progress and risk from your permitted organization data.",
         managementSection: "goals",
       };
     } else if (route.intent === "GOAL_LIST") {
       const goals = await this.proactive.goals(context);
       output = {
-        answer: goals.length
+        answer: language === "hi" ? goals.length
+          ? `आपके ${goals.length} व्यावसायिक लक्ष्य हैं। इनमें से ${goals.filter((goal) => goal.risk === "HIGH").length} अभी अधिक जोखिम में हैं।`
+          : "अभी कोई मापने योग्य व्यावसायिक लक्ष्य नहीं बनाया गया है."
+          : goals.length
           ? `You have ${goals.length} business goal${goals.length === 1 ? "" : "s"}. ${goals.filter((goal) => goal.risk === "HIGH").length} ${goals.filter((goal) => goal.risk === "HIGH").length === 1 ? "is" : "are"} currently at high risk.`
           : "No measurable business goals have been created yet.",
         metrics: [
@@ -752,7 +773,9 @@ export class WorkspaceAgentService {
     } else if (route.intent === "NEW_CUSTOMERS") {
       const brief = await this.proactive.brief(context);
       output = {
-        answer: brief.activity.newCustomers === null && brief.activity.newLeads === null
+        answer: language === "hi"
+          ? brief.activity.newCustomers === null && brief.activity.newLeads === null ? "आवश्यक सेवा या अनुमति उपलब्ध न होने के कारण कस्टमर और लीड गतिविधि उपलब्ध नहीं है।" : `${brief.period} में आपके संगठन ने ${brief.activity.newCustomers ?? "अज्ञात संख्या में"} नए कस्टमर और ${brief.activity.newLeads ?? "अज्ञात संख्या में"} नई लीड जोड़ीं।`
+          : brief.activity.newCustomers === null && brief.activity.newLeads === null
           ? "Customer and lead activity is unavailable because the required service or permission is not available."
           : `During ${brief.period}, your organization added ${brief.activity.newCustomers === null ? "an unavailable number of" : brief.activity.newCustomers} new customer${brief.activity.newCustomers === 1 ? "" : "s"}, including ${brief.activity.newLeads === null ? "an unavailable number of" : brief.activity.newLeads} new lead${brief.activity.newLeads === 1 ? "" : "s"}.`,
         metrics: [
@@ -766,13 +789,14 @@ export class WorkspaceAgentService {
         managementSection: "brief",
       };
     } else if (route.intent === "OVERDUE_WORK") {
-      output = { ...(await this.readTools(context, { ...route, toolNames: /follow/i.test(route.normalizedRequest) ? ["crm.follow_ups_due", "projects.overdue_tasks"] : /project.*delay/i.test(route.normalizedRequest) ? ["projects.at_risk"] : ["projects.overdue_tasks"] }, input.conversationId)), managementSection: "brief" };
+      output = { ...(await this.readTools(context, { ...route, toolNames: /follow/i.test(route.normalizedRequest) ? ["crm.follow_ups_due", "projects.overdue_tasks"] : /project.*delay/i.test(route.normalizedRequest) ? ["projects.at_risk"] : ["projects.overdue_tasks"] }, input.conversationId, language)), managementSection: "brief" };
     } else if (route.intent === "AI_ANALYSIS") {
       reasoning = await this.reason(
         context,
         connector.id,
         input.conversationId,
         input.message,
+        language,
       );
       const brief = await this.proactive.brief(context);
       const evidence = [
@@ -808,16 +832,15 @@ export class WorkspaceAgentService {
     } else if (route.intent === "BUSINESS_HEALTH") {
       const health = await this.health(context);
       output = {
-        answer:
-          health.overall === null
-            ? "There is not enough permitted business data to calculate a useful health score yet."
-            : `Your explainable business health score is ${health.overall}/100.`,
+        answer: language === "hi"
+          ? health.overall === null ? "उपयोगी बिज़नेस हेल्थ स्कोर निकालने के लिए अनुमति-प्राप्त डेटा अभी पर्याप्त नहीं है।" : `आपका सत्यापित बिज़नेस हेल्थ स्कोर ${health.overall}/100 है।`
+          : health.overall === null ? "There is not enough permitted business data to calculate a useful health score yet." : `Your explainable business health score is ${health.overall}/100.`,
         health,
       };
     } else if (route.intent === "FINANCE_SUMMARY") {
       const value = await this.finance(context);
       output = {
-        answer: `This month: ${money(value.current.revenue, value.currency)} revenue, ${money(value.current.expenses, value.currency)} expenses and ${money(value.current.profit, value.currency)} profit.`,
+        answer: language === "hi" ? `इस महीने: आय ${money(value.current.revenue, value.currency)}, खर्च ${money(value.current.expenses, value.currency)} और लाभ ${money(value.current.profit, value.currency)}।` : `This month: ${money(value.current.revenue, value.currency)} revenue, ${money(value.current.expenses, value.currency)} expenses and ${money(value.current.profit, value.currency)} profit.`,
         finance: value,
         warnings:
           value.monthsWithData < 2
@@ -846,7 +869,7 @@ export class WorkspaceAgentService {
         const expenses =
           recent.reduce((sum, item) => sum + item.expenses, 0) / recent.length;
         output = {
-          answer: `Based on the last ${recent.length} months, next-month revenue may be around ${money(revenue, value.currency)} with a cautious range of ${money(revenue * 0.8, value.currency)}–${money(revenue * 1.2, value.currency)}. This is not guaranteed.`,
+          answer: language === "hi" ? `पिछले ${recent.length} महीनों के आधार पर, अगले महीने की आय लगभग ${money(revenue, value.currency)} हो सकती है; सावधानीपूर्ण सीमा ${money(revenue * 0.8, value.currency)}–${money(revenue * 1.2, value.currency)} है। यह गारंटी नहीं है।` : `Based on the last ${recent.length} months, next-month revenue may be around ${money(revenue, value.currency)} with a cautious range of ${money(revenue * 0.8, value.currency)}–${money(revenue * 1.2, value.currency)}. This is not guaranteed.`,
           forecast: {
             method: "Three-month simple average",
             dateRange: `${recent[0]!.month} to ${recent.at(-1)!.month}`,
@@ -860,12 +883,23 @@ export class WorkspaceAgentService {
           },
         };
       }
-    } else if (route.intent === "PRODUCT_HELP")
-      output = {
-        answer:
-          "Open CRM from the left menu, choose “Add customer”, enter the real customer details and save. You can also tell me: “Add Rahul with phone number 9876543210 to CRM.”",
-        records: [{ type: "NAVIGATION", id: "crm", label: "Open CRM" }],
+    } else if (route.intent === "PRODUCT_HELP") {
+      const agentGuide = /agent|एजेंट/i.test(input.message);
+      const financeGuide = /finance|invoice|payment|पेमेंट|इनवॉइस|भुगतान/i.test(input.message);
+      output = financeGuide ? {
+        answer: language === "hi"
+          ? "फाइनेंस में पहले इनवॉइस ड्राफ़्ट बनता है। उसे जारी करने के लिए कहें “इनवॉइस 004 जारी करें” और पुष्टि करें। पहले से मिले पेमेंट के लिए कहें “इनवॉइस 004 पर आधा पेमेंट मिला” या “record payment | invoice: 004 | amount: 1250 | method: UPI”. मैं रकम और बची हुई राशि दिखाकर पुष्टि माँगूँगा। ड्राफ़्ट जारी किए बिना पेमेंट दर्ज नहीं होगा। यह सिर्फ़ रिकॉर्डिंग है—कोई पैसा भेजा या कलेक्ट नहीं होगा।"
+          : "Finance flow: create an invoice draft, then say “issue invoice 004” and confirm before it becomes payable. To record funds already received, say “we received half payment for invoice 004” or “record payment | invoice: 004 | amount: 1250 | method: UPI”. I’ll show the amount and remaining balance and ask you to confirm. Drafts must be issued first. Recording is bookkeeping only; no money is sent or collected.",
+        records: [{ type: "NAVIGATION", id: "finance", label: language === "hi" ? "फाइनेंस खोलें" : "Open Finance" }],
+      } : agentGuide ? {
+        answer: language === "hi"
+          ? "कस्टम एजेंट बनाने के लिए Automation → Agent definitions खोलें और “Create agent” चुनें। नाम और उद्देश्य दें, फिर साफ़ निर्देश लिखें—एजेंट क्या करे, किन रिकॉर्ड/सेवाओं का उपयोग करे और कब रुककर अनुमति माँगे। उदाहरण: नाम “Invoice Helper”; उद्देश्य “इनवॉइस ड्राफ़्ट तैयार करना”; निर्देश “ग्राहक और इनवॉइस विवरण जाँचें, ड्राफ़्ट तैयार करें और सेव करने से पहले मानव स्वीकृति माँगें”; Service “Finance”; Human approval चालू रखें। फिर Save करें और Test agent चलाएँ। बाईं ओर Language में हिन्दी या English चुनें; मैं चुनी हुई भाषा में जवाब दूँगा।"
+          : "To add a custom Agent, open Automation → Agent definitions and choose “Create agent.” Give it a name and purpose, then write clear instructions describing what it may do, which service/data it may use, and when it must stop for approval. Example: Name “Invoice Helper”; purpose “Prepare invoice drafts”; instructions “Check the supplied customer and invoice details, prepare a draft, and require human approval before saving”; service “Finance”; keep human approval enabled. Save it, then use “Test agent.” Choose हिन्दी or English from the Language selector; I’ll answer in the selected language. Would you like the steps in English or Hindi?",
+      } : {
+        answer: language === "hi" ? "CRM खोलें, “Add customer” चुनें, ग्राहक की सही जानकारी भरें और Save करें। आप मुझसे भी स्पष्ट रूप से कह सकते हैं: “राहुल को CRM में ग्राहक के रूप में जोड़ें।”" : "Open CRM from the left menu, choose “Add customer”, enter the real customer details and save. You can also tell me: “Add Rahul with phone number 9876543210 to CRM.”",
+        records: [{ type: "NAVIGATION", id: "crm", label: language === "hi" ? "CRM खोलें" : "Open CRM" }],
       };
+    }
     else if (route.intent === "HUMAN_ESCALATION" && confirmed?.action === "HUMAN_ESCALATION") {
       const request = await new ServiceRequestService().create(
         context.organizationId,
@@ -879,7 +913,7 @@ export class WorkspaceAgentService {
       );
       output = {
         answer:
-          "This request requires the SATHOS human team. I created a tracked escalation without performing the sensitive action.",
+          (confirmed.arguments.replyLanguage ?? language) === "hi" ? "यह अनुरोध SATHOS टीम तक भेज दिया गया है। संवेदनशील कार्रवाई किए बिना ट्रैक किया गया एस्केलेशन बनाया गया है।" : "This request requires the SATHOS human team. I created a tracked escalation without performing the sensitive action.",
         escalation: {
           id: request.id,
           requestNumber: request.requestNumber,
@@ -888,9 +922,9 @@ export class WorkspaceAgentService {
       };
     } else
       output = {
-        answer:
+        answer: language === "hi" ? "मैं बिज़नेस हेल्थ जाँच सकता हूँ, फाइनेंस का सारांश दे सकता हूँ, CRM कस्टमर गिन सकता हूँ, सावधानी से अनुमान बता सकता हूँ, SATHOS समझा सकता हूँ, आपके स्पष्ट अनुरोध पर कस्टमर बना सकता हूँ या संवेदनशील मामले SATHOS टीम तक पहुँचा सकता हूँ।" :
           "I can check business health, summarize finances, count CRM customers, forecast cautiously, explain SATHOS, create a customer from an explicit request, or escalate sensitive issues to the SATHOS team.",
-        suggestions: [
+        suggestions: language === "hi" ? ["मेरे बिज़नेस की स्थिति जाँचें", "आय, खर्च और लाभ का सारांश दें", "CRM कस्टमर की संख्या बताएँ", "CRM में कस्टमर कैसे जोड़ें?"] : [
           "Check my business health",
           "Summarize revenue, expenses and profit",
           "Count all CRM customers",
@@ -1113,6 +1147,7 @@ export class WorkspaceAgentService {
     const payload = event.payload as {
       conversationId?: string;
       message?: string;
+      language?: "en" | "hi";
       diagnostics?: { fallbackUsed?: boolean; providerFailure?: boolean };
     };
     if (!payload.conversationId || !payload.message || !routeWorkspaceRequest(payload.message).aiRequired)
@@ -1142,6 +1177,7 @@ export class WorkspaceAgentService {
         conversationId: payload.conversationId,
         externalMessageId,
         message: payload.message,
+        language: payload.language,
       },
       { id: event.id },
     );

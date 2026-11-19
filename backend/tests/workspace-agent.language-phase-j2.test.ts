@@ -41,6 +41,12 @@ describe("workspace Agent bounded natural language", () => {
     expect(task.resolvedDate?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it("routes Agent creation questions to product guidance and honors the selected language", () => {
+    expect(routeWorkspaceRequest("How do I add a custom Agent?", "hi")).toMatchObject({ intent: "PRODUCT_HELP", path: "PRODUCT_HELP" });
+    expect(routeWorkspaceRequest("How do I add a custom Agent?", "en")).toMatchObject({ intent: "PRODUCT_HELP", path: "PRODUCT_HELP" });
+    expect(routeWorkspaceRequest("create invoice | customer: Neha | item: Service | qty: 1 | price: 2500 | due: 2026-12-15", "hi").writeInput).toMatchObject({ replyLanguage: "hi" });
+  });
+
   it("binds expiring clarification choices to one user, organization and conversation", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-15T00:00:00Z"));

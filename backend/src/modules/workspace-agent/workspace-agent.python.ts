@@ -11,7 +11,7 @@ export class PythonWorkspaceReasoningProvider implements WorkspaceReasoningProvi
     if (this.options.maxIterations < 1) throw new Error("Reasoning is disabled.");
     const requestId = randomUUID();
     const data = pythonRequestSchema.parse({
-      contractVersion: "1", requestId, message: input.request, languageHint: null,
+      contractVersion: "1", requestId, message: input.request, languageHint: input.language ?? "en",
       // Historical free text may contain data from permissions the caller no longer holds.
       // Do not forward it; contextual references must be rehydrated under current permissions.
       shortConversationSummary: "",

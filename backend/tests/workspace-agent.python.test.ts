@@ -37,6 +37,13 @@ describe("Python reasoning boundary", () => {
     expect(String(init.body)).not.toContain(secret);
     expect(result.source).toBe("REAL_AI");
   });
+  it("passes the selected Hindi response language to the reasoning service", async () => {
+    const fetchImpl = transport();
+    await new PythonWorkspaceReasoningProvider({ ...options, fetchImpl }).analyze({ ...input, language: "hi" });
+    const init = fetchImpl.mock.calls[0]![1]!;
+    if (typeof init.body !== "string") throw new Error("Expected JSON body");
+    expect(JSON.parse(init.body)).toMatchObject({ languageHint: "hi" });
+  });
   it.each(["Count customers", "Show overdue tasks", "Show goals", "Calculate business health", "financial score", "forecast next month", "Add Rahul with phone 9876543210 to CRM"])("leaves deterministic request local: %s", (message) => {
     expect(routeWorkspaceRequest(message).aiRequired).toBe(false);
   });

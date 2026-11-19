@@ -3,14 +3,14 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import { AppError } from "../../shared/errors/app-error.js";
 
-const customerArguments = z.object({ displayName: z.string().min(2).max(80), phone: z.string().regex(/^\d{7,17}$/) }).strict();
-const escalationArguments = z.object({ category: z.enum(["FINANCE", "TECHNICAL_SUPPORT"]), description: z.string().min(1).max(4096), priority: z.enum(["HIGH", "URGENT"]) }).strict();
+const customerArguments = z.object({ displayName: z.string().min(2).max(80), phone: z.string().regex(/^\d{7,17}$/), replyLanguage: z.enum(["en", "hi"]).optional() }).strict();
+const escalationArguments = z.object({ category: z.enum(["FINANCE", "TECHNICAL_SUPPORT"]), description: z.string().min(1).max(4096), priority: z.enum(["HIGH", "URGENT"]), replyLanguage: z.enum(["en", "hi"]).optional() }).strict();
 const toolArguments = z.record(z.string().max(80), z.union([z.string().max(4096), z.number().finite(), z.boolean(), z.null()]));
 const common = { version: z.literal(1), id: z.string().uuid(), organizationId: z.string().uuid(), userId: z.string().uuid(), expiresAt: z.number().int() };
 const payloadSchema = z.discriminatedUnion("action", [
   z.object({ ...common, action: z.literal("CUSTOMER_CREATE"), arguments: customerArguments }).strict(),
   z.object({ ...common, action: z.literal("HUMAN_ESCALATION"), arguments: escalationArguments }).strict(),
-  z.object({ ...common, action: z.literal("TOOL_ACTION"), conversationId: z.string().uuid(), toolName: z.enum(["crm.customer_create", "crm.follow_up_create", "projects.task_create", "leads.assign", "finance.invoice_create", "finance.expense_create"]), arguments: toolArguments }).strict(),
+  z.object({ ...common, action: z.literal("TOOL_ACTION"), conversationId: z.string().uuid(), toolName: z.enum(["crm.customer_create", "crm.follow_up_create", "projects.task_create", "leads.assign", "finance.invoice_create", "finance.invoice_issue", "finance.payment_record", "finance.expense_create"]), arguments: toolArguments }).strict(),
 ]);
 
 export type WorkspaceAgentConfirmation = z.infer<typeof payloadSchema>;
