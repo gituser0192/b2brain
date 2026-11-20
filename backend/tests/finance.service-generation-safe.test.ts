@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 
 const db = vi.hoisted(() => ({
   transaction: vi.fn(),
@@ -65,5 +66,25 @@ describe("finance invoice confirmation concurrency", () => {
     db.invoiceFindFirst.mockResolvedValue({ id: invoiceId, status: "PAID", updatedAt: expectedUpdatedAt, dueDate: new Date("2026-12-01T00:00:00.000Z") });
     await expect(new FinanceService().issueInvoice(organizationId, actorUserId, invoiceId, expectedUpdatedAt)).rejects.toMatchObject({ code: "INVOICE_NOT_DRAFT" });
     expect(db.invoiceUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not misreport a different unique-constraint conflict as a duplicate payment reference", async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "6.19.3",
+      meta: { target: ["organizationId", "recipientId", "sourceType", "sourceId"] },
+    });
+    db.transaction.mockRejectedValue(conflict);
+    await expect(new FinanceService().pay(organizationId, actorUserId, invoiceId, { amount: 500, method: "CASH", reference: null, paidAt: expectedUpdatedAt })).rejects.toBe(conflict);
+  });
+
+  it("still reports a payment-reference unique conflict accurately", async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "6.19.3",
+      meta: { target: ["organizationId", "reference"] },
+    });
+    db.transaction.mockRejectedValue(conflict);
+    await expect(new FinanceService().pay(organizationId, actorUserId, invoiceId, { amount: 500, method: "CASH", reference: "UTR-001", paidAt: expectedUpdatedAt })).rejects.toMatchObject({ code: "PAYMENT_REFERENCE_EXISTS" });
   });
 });

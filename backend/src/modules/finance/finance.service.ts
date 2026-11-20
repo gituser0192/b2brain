@@ -259,10 +259,11 @@ export class FinanceService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      )
+      const target = error instanceof Prisma.PrismaClientKnownRequestError ? error.meta?.target : undefined;
+      const referenceConflict = Array.isArray(target)
+        ? target.some((field) => String(field).toLowerCase().includes("reference"))
+        : typeof target === "string" && target.toLowerCase().includes("reference");
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && referenceConflict)
         throw new AppError(
           409,
           "This payment reference has already been recorded.",
